@@ -18,8 +18,8 @@ export function ensurePhone(allApps) {
   if (!s.installed) {
     // older saves: keep every app the player could already open
     s.installed = s.t > 8 * 60 + 5 && allApps ? allApps.filter((a) => (a.lvl || 1) <= s.level && !APP_META[a.id]?.secret).map((a) => a.id) : [...PREINSTALLED];
-    for (const id of PREINSTALLED) if (!s.installed.includes(id)) s.installed.push(id);
   }
+  for (const id of PREINSTALLED) if (!s.installed.includes(id)) s.installed.push(id);
   s.dl ||= {};
   s.vpn ||= { on: false, until: 0 };
   s.home ||= { widgets: [{ id: 'w1', k: 'clock', size: 's', page: 0 }, { id: 'w2', k: 'needs', size: 's', page: 0 }, { id: 'w3', k: 'log', size: 'm', page: 0 }] };

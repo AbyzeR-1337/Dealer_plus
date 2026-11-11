@@ -16,6 +16,8 @@ export function notify(app, title, text, o = {}) {
   const s = G.s; if (!s) return;
   if (!o.noBadge) s.unread[app] = (s.unread[app] || 0) + 1;
   log(app, `${title}: ${text}`);
+  (s.inbox ||= []).push({ id: 'm' + s.t.toString(36) + Math.random().toString(36).slice(2, 6), app, title: String(title), text: String(text), t: s.t, read: false, go: o.go || null });
+  if (s.inbox.length > 150) s.inbox.splice(0, s.inbox.length - 150);
   if (!o.silent) emit('banner', { app, title, text, go: o.go });
   emit('badges');
 }

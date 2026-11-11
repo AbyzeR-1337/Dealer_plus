@@ -13,6 +13,8 @@ import { travelTick } from './travel.js';
 import { needsTick, dailyLife } from './life.js';
 import { bankTick, dailyBank, stocksTick, numbersTick, initStocks } from './finance.js';
 import { pcTick } from './pc.js';
+import { tgTick } from './tg.js';
+import { ymTick, supTick } from './shops2.js';
 import { bizHourly, bizDaily } from './business.js';
 import { storyTick, ensureDaily } from './quests.js';
 import { dailyEconomy, initEconomy } from './economy.js';
@@ -74,6 +76,9 @@ export function tick(fast = false) {
   sellTick();
   feedbackTick();
   pcTick();
+  tgTick();
+  ymTick();
+  supTick();
   supportTick();
   phoneTick();
   deliveriesTick();

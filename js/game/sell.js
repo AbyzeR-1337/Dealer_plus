@@ -15,6 +15,7 @@ import { openDispute, isBanned, reportScam } from './support.js';
 import { getItem, removeItem, addItem, earn, charge, spend, stat, addXP, upLevel, notify, log, repFactor, addReview, addProfit } from './player.js';
 import { demand } from './economy.js';
 import { leaksData, storageKind } from './files.js';
+import { ymOnSale } from './shops2.js';
 import { deliveryTime } from './market.js';
 import { collectionBonus } from './quests.js';
 
@@ -223,6 +224,7 @@ export function completeSale(c, mode = 'ship', packed = 0.5) {
   const disclose = l ? l.disclose : true;
   unlist(it.id);
   removeItem(it.id);
+  if (it.split && G.s.t - (it.at || 0) < 2880) ymOnSale(it);
   c.st = 'deal';
   const city = s.player.city;
   // which hidden issues the buyer might discover

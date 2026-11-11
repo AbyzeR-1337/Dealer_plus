@@ -30,11 +30,11 @@ registerGames({ ...ITEM_GAMES, ...WORK_GAMES, ...MORE_GAMES, ...LAB_GAMES, ...LI
 window.GR = { G }; // debug handle
 registerApps(APPS, DOCK);
 
-const RERENDER_ON = ['pc', 'chats', 'inv', 'market', 'listings', 'deliveries', 'jobs', 'biz', 'bank', 'travel', 'needs', 'quests', 'house', 'tax', 'stocks', 'numbers', 'online', 'news', 'support', 'parts', 'apps'];
+const RERENDER_ON = ['pc', 'tg', 'ym', 'sup', 'chats', 'inv', 'market', 'listings', 'deliveries', 'jobs', 'biz', 'bank', 'travel', 'needs', 'quests', 'house', 'tax', 'stocks', 'numbers', 'online', 'news', 'support', 'parts', 'apps'];
 // which background events each app actually shows; anything else is ignored while it is open
 const WATCH = {
   market: ['market', 'chats', 'listings', 'support', 'inv', 'online'], inventory: ['inv', 'listings', 'deliveries', 'chats'], delivery: ['deliveries'],
-  hw: ['deliveries'], build: ['pc', 'inv'], computer: ['inv', 'pc'], bank: ['bank', 'online'], stocks: ['stocks'], jobs: ['jobs', 'needs'], free: ['market', 'needs'], business: ['biz', 'inv'], realty: ['house'], travel: ['travel'],
+  auto: ['market', 'inv'], ymarket: ['ym', 'deliveries'], supplier: ['sup', 'inv', 'travel'], msgs: ['badges', 'log'], tg: ['tg', 'inv'], hw: ['deliveries'], build: ['pc', 'inv'], computer: ['inv', 'pc'], bank: ['bank', 'online'], stocks: ['stocks'], jobs: ['jobs', 'needs'], free: ['market', 'needs'], business: ['biz', 'inv'], realty: ['house'], travel: ['travel'],
   gov: ['tax'], quests: ['quests'], numbers: ['numbers'], rating: ['online'], news: ['news'], profile: ['needs', 'house', 'quests'], repair: ['inv', 'parts'],
   appstore: ['apps'], vpn: ['apps'], dark: ['apps', 'inv'],
   shop: ['needs', 'inv'], auction: ['market', 'inv'], legit: ['inv'], lab: ['inv'], pawn: ['inv'], map: ['travel'], stats: [], settings: ['online'], upgrades: [], casino: [],

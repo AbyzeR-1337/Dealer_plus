@@ -76,7 +76,7 @@ export function assemble(sel, res) {
   it.paid = parts.reduce((a, [, x]) => a + (x.it.paid || 0), 0);
   it.os = 'win11';
   for (const [, x] of parts) removeItem(x.it.id);
-  addItem(it);
+  addItem(it, it.paid, 'build');
   stat('pcBuilt'); addXP(20 + Math.round(chk.score / 4));
   emit('inv');
   return { ok: true, it };
