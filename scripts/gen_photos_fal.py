@@ -19,6 +19,7 @@ ap.add_argument('--limit', type=int, default=0)
 ap.add_argument('--jobs', type=int, default=6)
 ap.add_argument('--size', type=int, default=512)
 ap.add_argument('--gen', type=int, default=768, help='generated image size before downscaling')
+ap.add_argument('--force', action='store_true', help='regenerate even if the file exists')
 args = ap.parse_args()
 KEY = os.environ.get('FAL_KEY', 'proxy-injected')
 
@@ -42,15 +43,18 @@ def call(prompt, seed):
 def work(x):
     d = os.path.join(args.out, x['variant'])
     os.makedirs(d, exist_ok=True)
-    raw = call(x['prompt'], int(x['seed']) % 2147483647)
-    im = Image.open(io.BytesIO(raw)).convert('RGB').resize((args.size, args.size), Image.LANCZOS)
+    from PIL import ImageStat
+    for k in range(4):  # a blank (black) frame means the model refused or failed: try another seed
+        raw = call(x['prompt'], (int(x['seed']) + k * 7919) % 2147483647)
+        im = Image.open(io.BytesIO(raw)).convert('RGB').resize((args.size, args.size), Image.LANCZOS)
+        if sum(ImageStat.Stat(im).mean) / 3 > 10: break
     tmp = os.path.join(d, x['file'] + '.tmp.webp')
     im.save(tmp, 'WEBP', quality=80, method=5)
     os.replace(tmp, os.path.join(d, x['file'] + '.webp'))
     return x['file']
 
 items = json.load(open(args.prompts))
-todo = [x for x in items if not os.path.exists(os.path.join(args.out, x['variant'], x['file'] + '.webp'))]
+todo = [x for x in items if args.force or not os.path.exists(os.path.join(args.out, x['variant'], x['file'] + '.webp'))]
 if args.limit: todo = todo[:args.limit]
 print(f'{len(todo)} to generate ({len(items) - len(todo)} done)', flush=True)
 t0 = time.time(); n = 0; fails = 0

@@ -110,7 +110,8 @@ export function promptFor(m, variant = 'clean') {
   const cond = variant === 'worn' ? (WORN[m.cat] || WORN.default) : variant === 'broken' ? (BROKEN[m.cat] || BROKEN.default) : 'used but in good condition';
   const hand = /hand|fingers|wrist/.test(scene);
   const veh = m.cat === 'cars' || m.cat === 'bikes';
-  const prompt = `Amateur smartphone photo for a second-hand listing on a classifieds website. ${subj}, ${cond}, ${scene}. ${veh ? 'Whole vehicle in frame, shot from a slight angle.' : 'The whole item is in frame, shot from above at a slight angle.'} Natural light, realistic colours, ordinary home photo, slightly imperfect framing${hand ? '' : ', no people'}, no text overlay, no watermark.`;
+  const phone = m.cat === 'phones';
+  const prompt = `Casual snapshot taken at home by the owner: ${subj}, ${cond}, ${scene}. ${veh ? 'The whole vehicle is in frame, shot from a slight angle.' : 'The whole item is in frame, shot from above at a slight angle.'} Natural light, realistic colours, an ordinary unedited photo. No text, no captions, no labels, no app interface, no screenshot, no watermark${phone ? '' : ', no smartphone in the frame'}${hand ? '' : ', no people'}.`;
   return { id: m.id, file: photoFile(m.id), cat: m.cat, variant, seed: r.int(1, 2 ** 30), prompt };
 }
 if (process.argv[1] && process.argv[1].endsWith('photo_prompts.mjs')) {
