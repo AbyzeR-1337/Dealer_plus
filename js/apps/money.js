@@ -13,6 +13,7 @@ import { earn, spend, stat, today, getStat } from '../game/player.js';
 import { playMini } from '../mini/engine.js';
 import { regName, regColors, region } from './common.js';
 import { sfx } from '../ui/sfx.js';
+import { orderCard, setPrimary, closeCard } from '../game/cards.js';
 import { bankHome, bankRates, bankSkin, bankCredit, bankSave, bankMore, bankCards, bankSkins, bankQR, bankStatusBar, setBankSkin } from './bank_skins.js';
 import { CG, slotsView, playSlots, rouletteView, playRoulette, blackjackView, bjDeal, bjHit, bjDouble, bjFinish, diceView, playDice } from './casino_games.js';
 
@@ -25,6 +26,14 @@ export const bankApp = {
   statusBar: (v) => bankStatusBar(v),
   views: { main: bankHome, credit: bankCredit, save: bankSave, more: bankMore, cards: bankCards, rates: bankRates, skins: bankSkins, qr: bankQR },
   actions: {
+    corder: async (v) => {
+      const [bank, id] = v.split(':');
+      const r = orderCard(bank, id);
+      if (!r.ok) { toast(r.msg || T('Нельзя оформить', 'Не можна оформити', 'Can’t order'), 'r'); return; }
+      sfx('ok'); toast(r.now ? T('Виртуальная карта уже в приложении', 'Віртуальна картка вже в застосунку', 'Your virtual card is ready') : T('Карта выпущена — курьер уже едет', 'Картку випущено — курʼєр уже їде', 'Card issued — a courier is on the way'), 'g'); rerender();
+    },
+    cmain: (key) => { setPrimary(key); sfx('ok'); rerender(); },
+    cclose: async (key) => { if (await confirmBox(T('Закрыть карту?', 'Закрити картку?', 'Close the card?'), T('Бонусы этой карты перестанут действовать.', 'Бонуси цієї картки перестануть діяти.', 'Its perks will stop working.'), T('Закрыть', 'Закрити', 'Close'), undefined, true)) { closeCard(key); rerender(); } },
     bskin: (id) => { setBankSkin(id); sfx('ok'); toast(T('Оформление изменено', 'Оформлення змінено', 'Skin changed'), 'g'); rerender(); },
     bhide: () => { G.s.bank.hideBal = !G.s.bank.hideBal; rerender(); },
     bqr: () => { const w = document.querySelector('#appwin'); void w; go('qr'); },

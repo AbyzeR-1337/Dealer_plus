@@ -977,3 +977,18 @@ img.bm.ready { opacity: 1; }
 .hedit { gap: 6px; } .hedit button { white-space: nowrap; }
 
 .opt-grid.cities { max-height: 300px; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-right: 2px; }
+/* bank cards wallet */
+.bk-sec2 { font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; opacity: .7; margin: 16px 4px 8px; }
+.bk-plast { position: relative; aspect-ratio: 1.586; height: auto; border-radius: 16px; margin: 12px 0 6px; padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 10px 24px rgba(0,0,0,.25); overflow: hidden; }
+.bk-plast::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, rgba(255,255,255,.18), transparent 40%); pointer-events: none; }
+.bk-plast.sm { aspect-ratio: auto; height: 86px; }
+.bk-plast b { font-size: 17px; } .bk-plast small { opacity: .8; font-size: 11px; letter-spacing: .08em; }
+.bk-plast .bk-pan { font-family: var(--mono); font-size: 18px; letter-spacing: 3px; }
+.bk-plast .bk-viza { font-style: italic; font-weight: 900; }
+.bk-chip { width: 38px; height: 28px; border-radius: 6px; background: linear-gradient(135deg, #f3d27a, #b98a2e); display: inline-block; }
+.bk-perks { display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: #1f8f5c; padding: 4px 2px; }
+.bk-perks .m { color: #888; }
+.bk-req { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; padding: 6px 2px; border-top: 1px solid rgba(127,127,127,.15); }
+.bk-req .g { color: #1f8f5c; } .bk-req .r { color: #d92d3a; }
+.bk-box .btn.xs[disabled] { opacity: .5; }
+.mn-card { cursor: pointer; }

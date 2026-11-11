@@ -1,4 +1,5 @@
 // Travel between cities with luggage, customs checks and arrival handling.
+import { cardEffects } from './cards.js';
 import { G, emit } from '../core/state.js';
 import { T, L } from '../core/i18n.js';
 import { clamp, chance } from '../core/util.js';
@@ -11,7 +12,7 @@ import { regionMult } from './economy.js';
 export function tripOptions(to) {
   const s = G.s;
   const hasCar = !!s.car && !!getItem(s.car);
-  const disc = s.bank.card === 'black' ? 0.8 : 1;
+  const disc = 1 - cardEffects().travel;
   return routes(s.player.city, to, hasCar).map((r) => ({ ...r, price: r.price * disc }));
 }
 export function cityPriceIndex(cityId, cat = 'phones') { return regionMult(cityId, cat); }

@@ -8,6 +8,7 @@ import { earn, spend, charge, stat, addXP, notify, log, upLevel } from './player
 import { fmt, nicePrice } from '../core/money.js';
 import { day, brandMult } from './economy.js';
 import { makePlate } from './items.js';
+import { cardEffects, ensureCards, currentBank, cardsTick, payCashback } from './cards.js';
 
 // ---------------------------------------------------------------- credit
 export function creditInfo() {
@@ -17,7 +18,7 @@ export function creditInfo() {
   const names = [['Отличный', 'Відмінний', 'Excellent'], ['Хороший', 'Добрий', 'Good'], ['Средний', 'Середній', 'Fair'], ['Плохой', 'Поганий', 'Poor'], ['Очень плохой', 'Дуже поганий', 'Very poor']];
   const mult = [0.7, 0.85, 1, 1.3, 1.8][tier];
   const company = G.s.tax.regime === 'company' ? 3 : G.s.tax.regime === 'ip' ? 1.6 : 1;
-  const card = G.s.bank.card === 'premium' ? 1.25 : G.s.bank.card === 'black' ? 1.6 : 1;
+  const card = cardEffects().limit;
   const limit = Math.max(0, Math.round(Math.pow(Math.max(0, r - 450), 2) * 0.05 * (1 + lvl * 0.35) * company * card));
   return { r, tier, name: L(names[tier]), mult, limit };
 }
@@ -57,6 +58,8 @@ export function repayLoan(id, amount) {
 }
 export function bankTick() {
   const s = G.s;
+  ensureCards(currentBank());
+  cardsTick();
   for (const l of s.bank.loans) {
     if (l.due > s.t || l.overdueHandled === day()) continue;
     // auto-debit at due date, penalty if not enough
@@ -76,6 +79,7 @@ export function bankTick() {
 }
 export function dailyBank() {
   const s = G.s;
+  payCashback();
   for (const d of s.bank.deposits) { const i = d.amt * 0.0025; d.amt += i; d.earned = (d.earned || 0) + i; }
   if (s.money > 0 && !s.bank.loans.some((l) => l.due < s.t)) s.bank.credit = clamp(s.bank.credit + 1, 300, 850);
 }
@@ -91,7 +95,7 @@ export function buyCard(id) {
   if (!spend(c.price, 'bank', L(c.n))) return false;
   G.s.bank.card = id; emit('bank'); return true;
 }
-export const cashback = () => (G.s.bank.card === 'premium' ? 0.01 : G.s.bank.card === 'black' ? 0.02 : 0);
+export const cashback = (kind = 'buy') => cardEffects().cb(kind);
 
 // ---------------------------------------------------------------- stocks
 export const TICKERS = [

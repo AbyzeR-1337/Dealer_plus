@@ -11,7 +11,8 @@ import { esc, clamp } from '../core/util.js';
 import { fmt, fmtNum, rate } from '../core/money.js';
 import { CURRENCIES, countryOf } from '../data/world.js';
 import { gameDate } from '../ui/shell.js';
-import { creditInfo, loanTotal, CARDS } from '../game/finance.js';
+import { creditInfo, loanTotal } from '../game/finance.js';
+import { cardEffects, BANK_CARDS, BANK_BY_COUNTRY, ensureCards, ownedCards, primaryCard, cardCheck, perkText, isOwned, isOrdered, pendingCashback } from '../game/cards.js';
 import { netWorth } from '../game/player.js';
 
 // ---------------------------------------------------------------- skins
@@ -33,7 +34,7 @@ const SKINS = {
   kbang: { name: 'K‑Bang', tpl: 'kplus', c: '#138f2d', c2: '#0a5a1b', status: '#138f2d' },
   belarus: { name: 'Беларусик', tpl: 'kplus', c: '#00a650', c2: '#006b33', status: '#00a650' },
 };
-const BY_COUNTRY = { UA: 'mono', RU: 'tbank', KZ: 'kaspi', CN: 'alipey', DE: 'n27', GB: 'monzi', US: 'chaze', PL: 'mbanko', FR: 'boursa', IT: 'finecco', JP: 'mufj', AE: 'emirat', TR: 'ziraatt', GE: 'tbs', TH: 'kbang', BY: 'belarus' };
+const BY_COUNTRY = BANK_BY_COUNTRY;
 export const SKIN_IDS = Object.keys(SKINS);
 export function bankSkin() {
   if (!G.s?.player) return { id: 'chaze', ...SKINS.chaze, layout: 'retail' };
@@ -65,8 +66,11 @@ const hhmm = (t) => `${String(Math.floor((t % 1440) / 60)).padStart(2, '0')}:${S
 const initials = () => (G.s.player.name || '?').trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 const savings = () => G.s.bank.deposits.reduce((a, d) => a + d.amt + (d.earned || 0), 0);
 const avail = () => Math.max(0, creditInfo().limit - loanTotal());
-const card = () => CARDS.find((c) => c.id === G.s.bank.card) || CARDS[0];
-const cashback = () => { const pct = card().id === 'black' ? 0.02 : card().id === 'premium' ? 0.01 : 0.005; return G.s.bank.hist.filter((x) => x.t >= G.s.t - 30 * 1440 && x.amt < 0 && ['buy', 'food', 'travel', 'service'].includes(x.kind)).reduce((a, x) => a - x.amt * pct, 0); };
+// the main card (the one on the home screen) and the rest of the wallet
+const prim = () => { ensureCards(bankSkin().id); return primaryCard(); };
+const card = () => { const p = prim(); return { id: p.def.kind, n: p.def.n, pan: p.pan, look: p.def.look, key: p.key }; };
+const cashback = () => pendingCashback();
+const plastic = (c, cls = '') => `<div class="bk-plast ${cls}" style="background:linear-gradient(135deg,${c.def.look[0]},${c.def.look[1]});color:${c.def.look[2]}"><div class="row between"><b>${esc(L(c.def.n))}</b><span class="bk-chip"></span></div><span class="bk-pan">•••• ${esc(c.pan || '0000')}</span><div class="row between"><small>${esc((G.s.player.name || '').toUpperCase())}</small><b class="bk-viza">VIZA</b></div></div>`;
 function dayLabel(t) {
   const d = Math.floor(G.s.t / 1440) - Math.floor(t / 1440);
   if (d === 0) return T('Сегодня', 'Сьогодні', 'Today');
@@ -148,13 +152,13 @@ const skinBtn = () => `<button class="bk-skinbtn" data-a="tab" data-v="skins" ti
 // ---------------------------------------------------------------- MAIN per template
 function monoMain(k) {
   const s = G.s;
-  const cn = L(k.cards?.[card().id] || card().n);
+  const cn = L(card().n);
   return `<div class="mn-head">
       <div class="mn-top"><span class="mn-ava">${esc(initials())}</span><span class="mn-ico">💬</span><i class="grow"></i><span class="mn-cb">🎁 ${fmt(cashback())}</span><span class="mn-ico">🐱</span>${skinBtn()}</div>
       <div class="mn-pill">🐱 ${esc(cn)}</div>
       <div class="mn-bal" data-live="money">${fmt(s.money)}</div>
-      <div class="mn-cardwrap"><i class="mn-side l"></i><div class="mn-card ${card().id}"><span class="mn-word">${esc(k.name.toLowerCase())}</span><span class="mn-pan">${first4()} **** **** ${last4()}</span><span class="mn-viza">VIZA</span></div><i class="mn-side r"></i></div>
-      <div class="mn-all" data-a="tab" data-v="more">💳 ${T('Все карты', 'Усі картки', 'All cards')}</div>
+      <div class="mn-cardwrap">${(() => { const others = ownedCards().filter((c) => c.key !== card().key); const side = (c, s2) => (c ? `<i class="mn-side ${s2}" style="background:linear-gradient(160deg,${c.def.look[0]},${c.def.look[1]})"></i>` : ''); return side(others[0], 'l') + `<div class="mn-card" style="background:linear-gradient(160deg,${card().look[0]} 0%,${card().look[1]} 70%);color:${card().look[2]}" data-a="tab" data-v="cards"><span class="mn-word">${esc(k.name.toLowerCase())}</span><span class="mn-pan">${first4()} **** **** ${esc(card().pan)}</span><span class="mn-viza">VIZA</span></div>` + side(others[1], 'r'); })()}</div>
+      <div class="mn-all" data-a="tab" data-v="cards">💳 ${T('Все карты', 'Усі картки', 'All cards')} · ${ownedCards().length}</div>
       <div class="mn-act"><button data-a="dep"><i>${svg('cards')}</i><span>${T('Перевести в банку', 'Переказати на банку', 'Move to a jar')}</span></button><button data-a="open" data-v="gov"><i>${svg('pay')}</i><span>${T('Платёж по IBAN', 'Платіж за IBAN', 'Pay by IBAN')}</span></button><button data-a="bother"><i>${svg('grid')}</i><span>${T('Другие платежи', 'Інші платежі', 'Other payments')}</span></button></div>
     </div>
     <div class="mn-sheet"><div class="row between"><b class="mn-h">${T('Операции', 'Операції', 'Transactions')}</b><span class="mn-allbtn">${T('Все', 'Усі', 'All')} ›</span></div>${feed(40, { solid: false })}</div>`;
@@ -166,9 +170,9 @@ function tbankMain(k) {
   return `<div class="tb-head"><span class="tb-ava">${esc(initials())}</span><b>${esc(s.player.name)} ›</b><i class="grow"></i>${skinBtn()}<span class="tb-bell">🔔</span></div>
     <div class="tb-search">🔍 ${T('Поиск', 'Пошук', 'Search')}</div>
     <div class="tb-stories">${stories.map(([e, t, g]) => `<div style="background:linear-gradient(160deg,${g})"><span>${e}</span><small>${esc(t)}</small></div>`).join('')}</div>
-    <div class="tb-card tb-cb"><div class="row between"><b>${T('Кэшбэк и бонусы', 'Кешбек і бонуси', 'Cashback & bonuses')}</b><b>${fmt(cashback())}</b></div><div class="tb-cats">${['🛒', '🍔', '🚕', '💊'].map((e, i) => `<span><i>${e}</i><small>${[5, 3, 5, 10][i]}%</small></span>`).join('')}</div></div>
+    <div class="tb-card tb-cb"><div class="row between"><b>${T('Кэшбэк и бонусы', 'Кешбек і бонуси', 'Cashback & bonuses')}</b><b>${fmt(cashback())}</b></div><div class="tb-cats">${(() => { const ef = cardEffects(); const E = { buy: '🛒', food: '🍔', travel: '🚕', service: '🧾', apps: '📱', repair: '🛠', biz: '🏪', rent: '🏠' }; return Object.keys(E).map((kk) => [kk, ef.cb(kk)]).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([kk, v]) => `<span><i>${E[kk]}</i><small>${+(v * 100).toFixed(1)}%</small></span>`).join(''); })()}</div></div>
     <div class="tb-card"><div class="row between"><small>${T('Все счета', 'Усі рахунки', 'All accounts')}</small><small>›</small></div><div class="tb-bal" data-live="money">${fmt(s.money + savings())}</div>
-      <div class="tb-acc"><span class="tb-mini black">${last4()}</span><div class="grow"><b data-live="money">${fmt(s.money)}</b><small>${esc(k.name)} ${esc(L(card().n))}</small></div></div>
+      ${ownedCards().map((c) => `<div class="tb-acc" data-a="tab" data-v="cards"><span class="tb-mini" style="background:linear-gradient(135deg,${c.def.look[0]},${c.def.look[1]});color:${c.def.look[2]}">${esc(c.pan)}</span><div class="grow"><b>${esc(L(c.def.n))}${c.key === card().key ? ' ★' : ''}</b><small>${esc(perkText(c.def)[0] || T('без бонусов', 'без бонусів', 'no perks'))}</small></div></div>`).join('')}
       <div class="tb-acc"><span class="tb-mini yel">%</span><div class="grow"><b>${fmt(avail())}</b><small>${T('Кредитная карта', 'Кредитна картка', 'Credit card')}</small></div></div>
       <div class="tb-acc" data-a="tab" data-v="save"><span class="tb-mini grn">🐷</span><div class="grow"><b>${fmt(savings())}</b><small>${T('Накопительный счёт', 'Накопичувальний рахунок', 'Savings account')} · 0,25% ${T('в день', 'на день', 'a day')}</small></div></div></div>
     <div class="tb-quick"><button data-a="dep"><i>🐷</i>${T('Отложить', 'Відкласти', 'Save')}</button><button data-a="loan"><i>💳</i>${T('Кредит', 'Кредит', 'Loan')}</button><button data-a="open" data-v="gov"><i>🧾</i>${T('Налоги', 'Податки', 'Taxes')}</button><button data-a="tab" data-v="rates"><i>💱</i>${T('Валюта', 'Валюта', 'FX')}</button></div>
@@ -185,7 +189,7 @@ function superMain(k) {
   return `<div class="sp-head"><div class="row"><b class="sp-logo">${esc(k.name)}${k.alt ? '' : '<small>.kz</small>'}</b><i class="grow"></i>${skinBtn()}<span>🔔</span></div><div class="sp-search">🔍 ${T('Поиск по сервисам', 'Пошук сервісів', 'Search services')}</div>
       ${grid ? `<div class="sp-big">${grid.map(([e, t]) => `<button data-a="${e === '👛' ? 'tab' : 'bqr'}" ${e === '👛' ? 'data-v="save"' : ''}><i>${e}</i><span>${esc(t)}</span></button>`).join('')}</div>` : ''}</div>
     <div class="sp-grid">${svc.map(([e, t, a]) => `<button ${act(a)}><i>${e}</i><span>${esc(t)}</span></button>`).join('')}</div>
-    <div class="sp-card"><div class="row between"><b>${esc(k.name)} ${esc(k.card || L(card().n))}</b><small>•• ${last4()}</small></div><div class="sp-bal" data-live="money">${fmt(s.money)}</div><div class="row between small"><span>${T('Депозит', 'Депозит', 'Deposit')} ${fmt(savings())}</span><span>${T('Кредит доступен', 'Кредит доступний', 'Credit available')} ${fmt(avail())}</span></div></div>
+    <div class="sp-card" data-a="tab" data-v="cards"><div class="row between"><b>${esc(k.name)} ${esc(L(card().n))}</b><small>•• ${esc(card().pan)} · ${ownedCards().length} 💳</small></div><div class="sp-bal" data-live="money">${fmt(s.money)}</div><div class="row between small"><span>${T('Депозит', 'Депозит', 'Deposit')} ${fmt(savings())}</span><span>${T('Кредит доступен', 'Кредит доступний', 'Credit available')} ${fmt(avail())}</span></div></div>
     <div class="sp-sheet"><b>${T('История', 'Історія', 'History')}</b>${feed(30, { solid: true })}</div>`;
 }
 function neoMain(k) {
@@ -250,7 +254,16 @@ export function bankMore() {
 }
 export function bankCards() {
   const k = bankSkin(), s = G.s;
-  return page(k, 'more', T('Карты', 'Картки', 'Cards'), `<p class="bk-p">${T('Премиальные карты дают кэшбэк на покупки и повышают кредитный лимит.', 'Преміальні картки дають кешбек на покупки й підвищують кредитний ліміт.', 'Premium cards give cashback and raise your credit limit.')}</p>` + CARDS.map((c) => `<div class="bk-box"><div class="bk-plast" style="background:linear-gradient(135deg,${c.grad[0]},${c.grad[1]})"><b>${esc(L(k.cards?.[c.id] || c.n))}</b><span>•••• •••• •••• ${last4()}</span></div><div class="bk-row"><span class="small">${esc(L(c.d))}</span>${s.bank.card === c.id ? `<span class="tag g">✓</span>` : `<button class="btn xs" data-a="card" data-v="${c.id}">${fmt(c.price)}</button>`}</div></div>`).join(''));
+  ensureCards(k.id);
+  const mine = ownedCards(), orders = s.bank.cardOrders || [];
+  const cat = BANK_CARDS[k.id] || [];
+  const ownHTML = mine.map((c) => `<div class="bk-box">${plastic(c)}<div class="bk-perks">${perkText(c.def).map((p) => `<span>✓ ${esc(p)}</span>`).join('') || `<span class="m">${T('Обычная карта без бонусов', 'Звичайна картка без бонусів', 'A plain card, no perks')}</span>`}</div><div class="bk-row">${c.key === card().key ? `<span class="tag g">★ ${T('Основная', 'Основна', 'Main card')}</span>` : `<button class="btn xs" data-a="cmain" data-v="${c.key}">${T('Сделать основной', 'Зробити основною', 'Make main')}</button>`}${mine.length > 1 ? `<button class="bk-mini" data-a="cclose" data-v="${c.key}">${T('Закрыть', 'Закрити', 'Close')}</button>` : ''}</div></div>`).join('');
+  const ordHTML = orders.map((o) => { const d = (BANK_CARDS[o.bank] || []).find((x) => x.id === o.id); return d ? `<div class="bk-box"><div class="bk-row"><span>🛵 ${esc(L(d.n))}</span><b>${T('курьер через', 'курʼєр через', 'courier in')} <span data-cd="${o.eta}"></span></b></div></div>` : ''; }).join('');
+  const shop = cat.filter((d) => !isOwned(k.id, d.id) && !isOrdered(k.id, d.id)).map((d) => {
+    const chk = cardCheck(d);
+    return `<div class="bk-box"><div class="bk-plast sm" style="background:linear-gradient(135deg,${d.look[0]},${d.look[1]});color:${d.look[2]}"><b>${esc(L(d.n))}</b><span class="bk-pan">•••• ••••</span></div><div class="bk-perks">${perkText(d).map((p) => `<span>✓ ${esc(p)}</span>`).join('')}</div><div class="bk-req">${chk.rows.map((r) => `<span class="${r.ok ? 'g' : 'r'}">${r.ok ? '✔' : '✖'} ${esc(r.t)}</span>`).join('') || `<span class="g">✔ ${T('Без условий', 'Без умов', 'No requirements')}</span>`}</div><div class="bk-row"><small>${d.price ? fmt(d.price) : T('Бесплатно', 'Безкоштовно', 'Free')} · ${d.eta ? T(`доставка ${d.eta} мин`, `доставка ${d.eta} хв`, `delivery ${d.eta} min`) : T('сразу, виртуальная', 'одразу, віртуальна', 'instant, virtual')}</small><button class="btn xs ${chk.ok ? '' : 'dark'}" data-a="corder" data-v="${k.id}:${d.id}" ${chk.ok ? '' : 'disabled'}>${chk.ok ? T('Оформить', 'Оформити', 'Order') : T('Пока нельзя', 'Поки не можна', 'Not yet')}</button></div></div>`;
+  }).join('');
+  return page(k, 'more', T('Карты', 'Картки', 'Cards'), `<div class="bk-sec2">${T('Мои карты', 'Мої картки', 'My cards')} · ${mine.length}</div>${ownHTML}${ordHTML ? `<div class="bk-sec2">${T('В пути', 'В дорозі', 'On the way')}</div>${ordHTML}` : ''}<div class="bk-sec2">${T('Оформить карту', 'Оформити картку', 'Get a card')} · ${esc(k.name)}</div>${shop || `<p class="bk-p">${T('У вас уже есть все карты этого банка', 'У вас уже є всі картки цього банку', 'You already have every card of this bank')}</p>`}<p class="bk-p">${T('Кэшбэк по всем картам приходит раз в день. Работает лучший бонус из ваших карт.', 'Кешбек за всіма картками приходить раз на день. Працює найкращий бонус із ваших карток.', 'Cashback from all cards is paid daily. The best perk among your cards applies.')}</p>`);
 }
 export function bankRates() {
   const k = bankSkin();
