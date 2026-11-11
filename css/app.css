@@ -526,3 +526,71 @@ body.in-app #dockbar, body.in-mini #dockbar { display: none; }
 .vpnbox .vpnbtn svg { width: 56px; height: 56px; }
 .vpnbox.on .vpnbtn { background: radial-gradient(circle, #1fd38d, #0b7a52); color: #fff; box-shadow: 0 0 0 6px rgba(22,199,132,.18), 0 0 40px rgba(22,199,132,.45); }
 .vpnbox b { display: block; font-size: 22px; } .vpnbox small { color: var(--mute); }
+
+/* --------------------------------------------------------------- bank skins */
+.bk { margin: -14px -14px 0; padding: 14px 14px 30px; min-height: 100%; }
+.bk small { display: block; }
+.bk .bk-bal { font-size: 40px; font-weight: 800; letter-spacing: -1px; line-height: 1.1; }
+.bk-sec { font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; opacity: .6; margin: 18px 4px 8px; }
+.bk-day { font-size: 13px; font-weight: 700; opacity: .55; margin: 14px 2px 6px; }
+.bk-tx { display: flex; align-items: center; gap: 12px; padding: 8px 2px; }
+.bk-tx .grow { min-width: 0; } .bk-tx .grow b { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .bk-tx small { opacity: .55; font-size: 12px; }
+.bk-tx > b { font-size: 15px; white-space: nowrap; } .bk-in { color: #2ec27e; }
+.bk-av { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 19px; flex: none; }
+.bk-empty { opacity: .5; padding: 14px 4px; }
+.bk-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 2px; }
+.bk-row small { opacity: .55; font-size: 12px; }
+.bk-mini { padding: 6px 12px; border-radius: 99px; font-weight: 700; font-size: 13px; background: rgba(127,127,127,.18); }
+.bk-score { padding: 14px; border-radius: 18px; margin-top: 10px; }
+.bk-score b { font-size: 22px; } .bk-score small { opacity: .6; margin-top: 6px; }
+.bk-sbar { position: relative; height: 10px; border-radius: 5px; margin: 10px 0 2px; background: linear-gradient(90deg,#ff5468,#ff8a3d,#ffc94d,#7fbf4a,#2ec27e); }
+.bk-sbar i { position: absolute; top: -4px; width: 6px; height: 18px; border-radius: 3px; background: #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.35); transform: translateX(-3px); }
+.bk-jar { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 16px; background: rgba(255,255,255,.06); margin-bottom: 8px; }
+.bk-jar.l { background: rgba(0,0,0,.04); }
+.bk-jarico { width: 44px; height: 52px; border-radius: 12px 12px 16px 16px; background: rgba(255,138,198,.18); position: relative; overflow: hidden; display: grid; place-items: center; font-size: 20px; flex: none; }
+.bk-jarico i { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(255,138,198,.55); }
+.bk-acc { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(127,127,127,.15); }
+.bk-acc:last-child { border-bottom: 0; } .bk-acc small { opacity: .6; font-size: 12px; }
+/* neo (mono-like): black, centred, round buttons */
+.bk-neo { background: #000; color: #fff; }
+.bk-neo-top { text-align: center; padding: 6px 0 14px; }
+.bk-neo-top .bk-bal { font-size: 44px; margin: 4px 0; }
+.bk-neo-top small { opacity: .6; }
+.bk-cat { width: 52px; height: 52px; border-radius: 50%; margin: 0 auto 8px; display: grid; place-items: center; font-size: 28px; background: linear-gradient(135deg, var(--k1), var(--k2)); box-shadow: 0 0 0 2px rgba(255,255,255,.15); }
+.bk-neo-card { border-radius: 20px; padding: 18px; height: 170px; display: flex; flex-direction: column; justify-content: space-between; color: #fff; box-shadow: 0 18px 40px rgba(0,0,0,.6); margin: 0 4px; }
+.bk-chip { width: 40px; height: 30px; border-radius: 7px; background: linear-gradient(135deg,#f3d27a,#b98a2e); }
+.bk-pan { font-family: var(--mono); font-size: 22px; letter-spacing: 3px; }
+.bk-neo-act, .bk-light-act, .bk-corp-act { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 18px 0 4px; }
+.bk-neo-act button, .bk-light-act button, .bk-corp-act button { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 22px; }
+.bk-neo-act button { color: #fff; } .bk-neo-act button::before { content: ''; }
+.bk-neo-act button { background: none; }
+.bk-neo-act button > span, .bk-light-act button > span, .bk-corp-act button > span { font-size: 12px; font-weight: 600; opacity: .85; }
+.bk-neo-act button { width: 100%; }
+.bk-neo-act button { padding: 12px 0; border-radius: 18px; background: #1c1c1e; }
+.bk-neo .bk-score { background: #1c1c1e; }
+.bk-neo .bk-row { border-bottom: 1px solid #1c1c1e; }
+/* light (Т-Копилка-like): bright, yellow accents, white cards */
+.bk-light { background: #f2f3f5; color: #111; }
+.bk-light .bk-lcard { background: #fff; border-radius: 22px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.bk-light .bk-lcard small { color: #6b7280; }
+.bk-light .bk-bal { margin: 4px 0 8px; }
+.bk-stories { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; margin-bottom: 12px; }
+.bk-stories::-webkit-scrollbar { display: none; }
+.bk-stories div { flex: none; width: 74px; text-align: center; }
+.bk-stories span { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 4px; border-radius: 20px; font-size: 26px; background: #fff; box-shadow: 0 0 0 2.5px var(--k1); }
+.bk-stories small { font-size: 11px; color: #333; }
+.bk-mcard { width: 44px; height: 30px; border-radius: 6px; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff; flex: none; font-family: var(--mono); }
+.bk-light-act button { padding: 12px 0; border-radius: 18px; background: #fff; color: #111; }
+.bk-light .bk-mini { background: var(--k1); color: #111; }
+.bk-stack { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin: 10px 0 6px; gap: 2px; }
+.bk-stack i { display: block; height: 100%; }
+.bk-light .bk-score { padding: 0; }
+/* corp (classic bank): blue header, list of accounts */
+.bk-corp { background: #f4f6fa; color: #0f172a; }
+.bk-corp-top { margin: -14px -14px 0; padding: 18px 18px 26px; background: linear-gradient(180deg, var(--k1), var(--k2)); color: #fff; }
+.bk-corp-top small { opacity: .85; }
+.bk-corp-act { margin-top: -18px; background: #fff; border-radius: 18px; padding: 12px 6px; box-shadow: 0 6px 18px rgba(15,23,42,.08); }
+.bk-corp-act button { color: var(--k2); }
+.bk-ccard { background: #fff; border-radius: 16px; padding: 4px 14px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(15,23,42,.06); }
+.bk-corp .bk-sec { color: #334155; opacity: 1; }
+.bk-corp .bk-mini { background: #e8eefc; color: var(--k2); }

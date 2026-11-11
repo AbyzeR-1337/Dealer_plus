@@ -13,29 +13,20 @@ import { earn, spend, stat, today, getStat } from '../game/player.js';
 import { playMini } from '../mini/engine.js';
 import { regName, regColors, region } from './common.js';
 import { sfx } from '../ui/sfx.js';
+import { bankHome, bankRates, bankSkin } from './bank_skins.js';
 
 // ---------------------------------------------------------------- BANK
-function bankMain() {
+function bankCards() {
   const s = G.s;
-  const ci = creditInfo();
-  const card = CARDS.find((c) => c.id === s.bank.card) || CARDS[0];
-  const last4 = String(Math.abs(s.id.split('').reduce((a, c) => a * 31 + c.charCodeAt(0), 7)) % 10000).padStart(4, '0');
-  const pos = ((ci.r - 300) / 550) * 100;
-  return `<div class="hero" style="padding-bottom:26px"><div class="lbl">${T('Баланс', 'Баланс', 'Balance')}</div><div class="big" data-live="money">${fmt(s.money)}</div>
-      <div style="position:relative;z-index:1;border-radius:22px;padding:18px;height:170px;background:linear-gradient(135deg,${card.grad[0]},${card.grad[1]});box-shadow:0 14px 30px rgba(0,0,0,.4);display:flex;flex-direction:column;justify-content:space-between;overflow:hidden"><div class="row between"><b>${esc(L(card.n))} ${T('карта', 'картка', 'card')}</b><div style="width:46px;height:34px;border-radius:7px;background:linear-gradient(135deg,#f2d27a,#b8902a)"></div></div><div class="mono" style="font-size:22px;letter-spacing:3px">•••• •••• •••• ${last4}</div><div class="row between small"><span class="mono">${esc(s.player.name.toUpperCase())}</span><span>${esc(regName('bank').toUpperCase())}</span></div></div></div>
-    <div class="card"><h3>${T('Кредит', 'Кредит', 'Loan')}</h3><div class="d">${T(`До ${fmt(ci.limit)}. Чем выше рейтинг, тем ниже ставка.`, `До ${fmt(ci.limit)}. Що вищий рейтинг, то нижча ставка.`, `Up to ${fmt(ci.limit)}. Better rating, lower rate.`)}</div>${s.bank.loans.map((l) => `<div class="kv"><span>${T('Долг', 'Борг', 'Owed')} ${fmt(l.left)} · ${T('срок', 'термін', 'due')} <span data-cd="${l.due}" data-fmt="long"></span></span><button class="btn xs" data-a="repay" data-v="${l.id}">${T('Погасить', 'Погасити', 'Repay')}</button></div>`).join('')}<button class="btn block mt" data-a="loan" ${ci.limit - loanTotal() < 1 ? 'disabled' : ''}>${T('Взять кредит', 'Взяти кредит', 'Take a loan')}</button></div>
-    <div class="card"><div class="row between"><h3>${T('Кредитный рейтинг', 'Кредитний рейтинг', 'Credit rating')}</h3><b style="font-size:24px">${ci.r}</b></div><div style="position:relative;height:12px;border-radius:6px;margin:12px 0;background:linear-gradient(90deg,#ff5468,#ff8a3d,#ffc94d,#7fbf4a,#2ec27e)"><i style="position:absolute;left:${pos}%;top:-4px;width:6px;height:20px;margin-left:-3px;border-radius:3px;background:#fff;box-shadow:0 0 6px #000"></i></div><div class="small m">${ci.name} · ${T('ставка', 'ставка', 'rate')} ×${ci.mult} · ${T('лимит', 'ліміт', 'limit')} ${fmt(ci.limit)}</div><div class="small m mt">${T('Возвращайте кредиты вовремя, и ставка станет ниже. Автосписание, минус на счёте и штрафы — снижают рейтинг.', 'Повертайте кредити вчасно, і ставка знизиться.', 'Repay on time to lower your rate. Overdues and fines hurt the rating.')}</div></div>
-    <div class="card"><h3>${T('Вклады', 'Вклади', 'Deposits')}</h3><div class="d">+0.25% ${T('в день', 'на день', 'per day')}</div>${s.bank.deposits.map((d) => `<div class="kv"><span>${fmt(d.amt)} <span class="g small">+${fmt(d.earned || 0)}</span></span><button class="btn xs dark" data-a="wd" data-v="${d.id}">${T('Снять', 'Зняти', 'Withdraw')}</button></div>`).join('')}<button class="btn dark block mt" data-a="dep">${T('Открыть вклад', 'Відкрити вклад', 'Open deposit')}</button></div>
-    <div class="card"><h3>${T('Карты', 'Картки', 'Cards')}</h3>${CARDS.map((c) => `<div class="kv"><span><b>${esc(L(c.n))}</b><br><span class="small">${esc(L(c.d))}</span></span>${s.bank.card === c.id ? `<span class="tag g">✓</span>` : `<button class="btn xs" data-a="card" data-v="${c.id}">${fmt(c.price)}</button>`}</div>`).join('')}</div>
-    <div class="card"><h3>${T('Курсы валют', 'Курси валют', 'Exchange rates')}</h3>${Object.entries(CURRENCIES).filter(([k]) => k !== 'USD').map(([k, c]) => `<div class="kv"><span>${k} · ${esc(L(c.name))}</span><b>1 $ = ${fmtNum(rate(k), rate(k) < 10 ? 3 : 1)} ${c.sym}</b></div>`).join('')}</div>
-    <h3 class="sub">${T('История операций', 'Історія операцій', 'Transactions')}</h3>
-    ${s.bank.hist.slice(0, 40).map((h) => `<div class="kv"><span>${esc(h.note || h.kind)}<br><span class="tiny">${ago(h.t)}</span></span><b class="${h.amt >= 0 ? 'g' : ''}">${h.amt >= 0 ? '+' : ''}${fmt(h.amt)}</b></div>`).join('') || `<p class="p">—</p>`}`;
+  return `<p class="p">${T('Премиальные карты дают кэшбэк на покупки и повышают кредитный лимит.', 'Преміальні картки дають кешбек на покупки й підвищують кредитний ліміт.', 'Premium cards give cashback and raise your credit limit.')}</p>` + CARDS.map((c) => `<div class="card"><div style="height:120px;border-radius:16px;margin-bottom:10px;background:linear-gradient(135deg,${c.grad[0]},${c.grad[1]});padding:14px;display:flex;flex-direction:column;justify-content:space-between;color:#fff"><b>${esc(L(c.n))}</b><span style="font-family:var(--mono);letter-spacing:2px">•••• •••• ••••</span></div><div class="kv"><span class="small">${esc(L(c.d))}</span>${s.bank.card === c.id ? `<span class="tag g">✓</span>` : `<button class="btn xs" data-a="card" data-v="${c.id}">${fmt(c.price)}</button>`}</div></div>`).join('');
 }
 export const bankApp = {
   id: 'bank', glyph: 'card', lvl: 1,
   name: () => regName('bank'), colors: () => regColors('bank'), glyphColor: '#fff',
-  title: () => T('Банк', 'Банк', 'Bank'), right: () => `<b>${esc(G.s.player.name)}</b>`,
-  views: { main: bankMain },
+  title: (v) => (v === 'cards' ? T('Карты', 'Картки', 'Cards') : v === 'rates' ? T('Курсы валют', 'Курси валют', 'Exchange rates') : bankSkin().name),
+  right: () => `<b>${esc(G.s.player.name)}</b>`,
+  dark: (v) => v === 'main' && bankSkin().layout === 'neo',
+  views: { main: bankHome, cards: bankCards, rates: bankRates },
   actions: {
     loan: async () => {
       const ci = creditInfo();
@@ -50,6 +41,7 @@ export const bankApp = {
     repay: (id) => { if (repayLoan(id)) { sfx('ok'); toast(T('Платёж прошёл', 'Платіж пройшов', 'Payment done'), 'g'); } else toast(T('Недостаточно средств', 'Недостатньо коштів', 'Insufficient funds'), 'r'); rerender(); },
     dep: async () => { const v = await askPrice({ title: T('Сумма вклада', 'Сума вкладу', 'Deposit amount'), value: Math.max(1, G.s.money / 2), min: 1, max: Math.max(1, G.s.money) }); if (v && deposit(v)) { sfx('ok'); rerender(); } },
     wd: (id) => { withdraw(id); sfx('cash'); rerender(); },
+    bview: (v) => go(v),
     card: async (id) => { const c = CARDS.find((x) => x.id === id); if (await confirmBox(L(c.n), `${esc(L(c.d))}<br>${fmt(c.price)}`, T('Оформить', 'Оформити', 'Get it'))) { if (buyCard(id)) { sfx('win'); toast(T('Карта оформлена', 'Картку оформлено', 'Card issued'), 'g'); } else toast(T('Не хватает денег', 'Не вистачає грошей', 'Not enough money'), 'r'); rerender(); } },
   },
 };
