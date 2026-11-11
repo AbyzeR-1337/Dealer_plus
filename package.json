@@ -1,0 +1,12 @@
+{
+  "name": "global-reseller",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Global Reseller — PWA trading/reselling life simulator",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "build": "node scripts/build.mjs",
+    "serve": "python3 -m http.server 8080"
+  }
+}
