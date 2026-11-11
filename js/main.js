@@ -22,9 +22,18 @@ registerGames({ ...ITEM_GAMES, ...WORK_GAMES });
 window.GR = { G }; // debug handle
 registerApps(APPS, DOCK);
 
-const RERENDER_ON = ['chats', 'inv', 'market', 'listings', 'deliveries', 'jobs', 'biz', 'bank', 'travel', 'needs', 'quests', 'house', 'tax', 'stocks', 'numbers', 'online', 'news'];
-function safeRerender() {
+const RERENDER_ON = ['chats', 'inv', 'market', 'listings', 'deliveries', 'jobs', 'biz', 'bank', 'travel', 'needs', 'quests', 'house', 'tax', 'stocks', 'numbers', 'online', 'news', 'support', 'parts'];
+// which background events each app actually shows; anything else is ignored while it is open
+const WATCH = {
+  market: ['market', 'chats', 'listings', 'support', 'inv', 'online'], inventory: ['inv', 'listings', 'deliveries', 'chats'], delivery: ['deliveries'],
+  bank: ['bank'], stocks: ['stocks'], jobs: ['jobs', 'needs'], free: ['market', 'needs'], business: ['biz', 'inv'], realty: ['house'], travel: ['travel'],
+  gov: ['tax'], quests: ['quests'], numbers: ['numbers'], rating: ['online'], news: ['news'], profile: ['needs', 'house', 'quests'], repair: ['inv', 'parts'],
+  shop: ['needs', 'inv'], auction: ['market', 'inv'], legit: ['inv'], lab: ['inv'], pawn: ['inv'], map: ['travel'], stats: [], settings: ['online'], upgrades: [], casino: [],
+};
+function safeRerender(ev) {
   if (!UI.app) return;
+  const w = UI.app.watch || WATCH[UI.app.id];
+  if (ev && w && !w.includes(ev)) return;
   if ($('#mini-layer').children.length) return;
   const ae = document.activeElement;
   if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA') && ae.closest('#appwin')) return;
@@ -32,7 +41,7 @@ function safeRerender() {
 }
 let homeTick = 0;
 function wire() {
-  for (const ev of RERENDER_ON) on(ev, safeRerender);
+  for (const ev of RERENDER_ON) on(ev, () => safeRerender(ev));
   on('tick', () => {
     renderStatus();
     liveUpdate();

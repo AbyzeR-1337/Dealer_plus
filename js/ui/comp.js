@@ -32,10 +32,10 @@ export function tags(it, o = {}) {
 }
 export function tile(it, o = {}) {
   return `<div class="tile" data-a="${o.a || 'go'}" data-v="${o.v || 'item'}" data-id="${esc(o.id || it.id)}">
-    <div class="img">${img(it, { tilt: true })}${o.fav != null ? `<button class="fav${o.fav ? ' on' : ''}" data-a="fav" data-v="${esc(o.id)}">${icon('heart', o.fav ? 'fill="currentColor"' : '')}</button>` : ''}${it.lock ? `<span class="lockmark">🔒</span>` : ''}${o.sold ? `<div class="sold">${esc(o.sold)}</div>` : ''}</div>
+    <div class="img">${img(it, { tilt: true, lite: true })}${o.fav != null ? `<button class="fav${o.fav ? ' on' : ''}" data-a="fav" data-v="${esc(o.id)}">${icon('heart', o.fav ? 'fill="currentColor"' : '')}</button>` : ''}${it.lock ? `<span class="lockmark">🔒</span>` : ''}${o.sold ? `<div class="sold">${esc(o.sold)}</div>` : ''}</div>
     <div class="pr">${o.price != null ? fmt(o.price) : ''}</div>
     <div class="nm">${esc(itemTitle(it))}</div>
-    <div class="ct">${esc(o.sub || '')}</div>
+    <div class="ct">${o.subHTML ?? esc(o.sub || '')}</div>
     ${tags(it, { below: o.below, defects: false })}
   </div>`;
 }

@@ -7,6 +7,7 @@ import { CITY, countryOf } from '../data/world.js';
 import { icon } from './icons.js';
 import { clearUnread, netWorth } from '../game/player.js';
 import { sfx } from './sfx.js';
+import { morphHTML } from './morph.js';
 
 export const UI = { app: null, view: 'main', params: {}, stack: [], apps: {}, list: [], dock: [], scroll: {} };
 export function registerApps(list, dock) { UI.list = list; UI.dock = dock; for (const a of list) UI.apps[a.id] = a; }
@@ -15,7 +16,9 @@ export function registerApps(list, dock) { UI.list = list; UI.dock = dock; for (
 export const gameDate = (t = G.s.t) => { const d = new Date(G.s.startDate + 'T00:00:00'); d.setDate(d.getDate() + Math.floor(t / 1440)); return d; };
 export const gameClock = (t = G.s.t) => `${pad2(Math.floor((t % 1440) / 60))}:${pad2(t % 60)}`;
 export const dayNum = () => Math.floor(G.s.t / 1440) + 1;
-export const ago = (t) => {
+// relative time as a live span: liveUpdate() refreshes the text, so views don't have to re-render each minute
+export const ago = (t) => `<span data-ago="${t}">${agoText(t)}</span>`;
+export const agoText = (t) => {
   const m = G.s.t - t;
   if (m < 2) return T('только что', 'щойно', 'just now');
   if (m < 60) return T(`${m} мин назад`, `${m} хв тому`, `${m} min ago`);
@@ -110,16 +113,24 @@ export function home() {
   $('#status').classList.remove('on-app', 'dark-head');
   renderHome(); renderStatus();
 }
-let renderQueued = false;
+// while the finger is on the screen or the list is still gliding, background updates wait
+let renderQueued = false, busyUntil = 0, retryT = 0;
+export function markBusy(ms = 650) { busyUntil = Math.max(busyUntil, performance.now() + ms); }
 export function rerender() {
   if (renderQueued || !UI.app) return;
   renderQueued = true;
-  requestAnimationFrame(() => { renderQueued = false; if (UI.app) render(false); });
+  const run = () => {
+    const wait = busyUntil - performance.now();
+    if (wait > 0) { clearTimeout(retryT); retryT = setTimeout(run, wait + 30); return; }
+    requestAnimationFrame(() => { renderQueued = false; if (UI.app) render(false); });
+  };
+  run();
 }
 function render(fresh = false, scrollTo) {
   const a = UI.app; if (!a) return;
   const w = $('#appwin');
   const prev = w.querySelector('.abody');
+  if (!fresh && prev && w.dataset.app === a.id && w.dataset.view === UI.view) return patchRender(a, w, prev);
   const keep = fresh ? (scrollTo || 0) : prev ? prev.scrollTop : 0;
   const v = a.views[UI.view] ? UI.view : 'main';
   let body = '';
@@ -134,13 +145,47 @@ function render(fresh = false, scrollTo) {
   const tabOf = a.tabOf ? a.tabOf(v) : v;
   const tabsHTML = tabs ? `<div class="atabs">${tabs.map((t) => { const n = t.badge ? t.badge() : 0; return `<button class="${t.v === tabOf ? 'on' : ''}" data-a="tab" data-v="${t.v}">${n ? `<span class="badge">${n}</span>` : ''}${icon(t.icon)}${esc(L(t.label))}</button>`; }).join('')}</div>` : '';
   w.style.setProperty('--c1', c1); w.style.setProperty('--c2', c2); w.style.setProperty('--ac', a.accent || c1);
-  w.innerHTML = `<div class="ahead${dark ? ' dark' : ''}">${showBack ? `<button class="back" data-a="back">${icon('back')}</button>` : ''}<h1>${esc(title)}${sub ? `<small>${sub}</small>` : ''}</h1>${right}</div><div class="abody${tabs ? ' has-tabs' : ''}">${body}</div>${tabsHTML}`;
+  w.innerHTML = `<div class="ahead${dark ? ' dark' : ''}">${headHTML(showBack, title, sub, right)}</div><div class="abody${tabs ? ' has-tabs' : ''}">${body}</div>${tabsHTML}`;
+  w.dataset.app = a.id; w.dataset.view = UI.view; w._body = body;
   const st = $('#status');
   st.classList.add('on-app'); st.classList.toggle('dark-head', !!dark);
   st.style.setProperty('--c1', c1);
   const nb = w.querySelector('.abody');
   nb.scrollTop = keep;
   if (a.after) try { a.after(v, nb, UI.params); } catch (e) { console.error(e); }
+  liveUpdate();
+}
+function headHTML(showBack, title, sub, right) {
+  return `${showBack ? `<button class="back" data-a="back">${icon('back')}</button>` : ''}<h1>${esc(title)}${sub ? `<small>${sub}</small>` : ''}</h1>${right}`;
+}
+function tabsBar(a, v) {
+  const tabs = a.tabs ? a.tabs.filter((t) => !t.hide || !t.hide()) : null;
+  if (!tabs) return '';
+  const tabOf = a.tabOf ? a.tabOf(v) : v;
+  return tabs.map((t) => { const n = t.badge ? t.badge() : 0; return `<button class="${t.v === tabOf ? 'on' : ''}" data-a="tab" data-v="${t.v}">${n ? `<span class="badge">${n}</span>` : ''}${icon(t.icon)}${esc(L(t.label))}</button>`; }).join('');
+}
+// background refresh of the open screen: patch only what changed, keep scroll and untouched photos
+function patchRender(a, w, body) {
+  const v = a.views[UI.view] ? UI.view : 'main';
+  let html = '';
+  try { html = a.views[v](UI.params || {}); } catch (e) { console.error(e); return; }
+  const dark = typeof a.dark === 'function' ? a.dark(v) : a.dark;
+  const head = w.querySelector('.ahead');
+  const hh = headHTML(UI.stack.length > 1, a.title ? a.title(v, UI.params) : appName(a), a.sub ? a.sub(v, UI.params) : '', a.right ? a.right(v, UI.params) : `<span class="pill" data-live="money">${fmt(G.s.money)}</span>`);
+  if (head && head._h !== hh) { morphHTML(head, hh); head._h = hh; }
+  if (head) head.classList.toggle('dark', !!dark);
+  if (w._body !== html) {
+    // keep whatever the player is looking at in place even if something was added above it
+    const top = body.scrollTop;
+    const box = body.getBoundingClientRect();
+    let anchor = null, at = 0;
+    if (top > 0) for (const el of body.querySelectorAll('[data-id],[data-key],.card,.list-item')) { const r = el.getBoundingClientRect(); if (r.bottom > box.top + 4) { anchor = el; at = r.top; break; } }
+    morphHTML(body, html); w._body = html;
+    if (anchor && anchor.isConnected) body.scrollTop = top + (anchor.getBoundingClientRect().top - at);
+    else if (body.scrollTop !== top) body.scrollTop = top;
+  }
+  const tb = w.querySelector('.atabs');
+  if (tb) { const th = tabsBar(a, v); if (tb._h !== th) { morphHTML(tb, th); tb._h = th; } }
   liveUpdate();
 }
 export const currentView = () => (UI.app ? UI.view : null);
@@ -162,6 +207,7 @@ export function liveUpdate() {
     el.textContent = el.dataset.fmt === 'long' ? dur(left) : clockDur(left);
     if (left <= 0 && el.dataset.done) el.textContent = el.dataset.done;
   }
+  for (const el of $$('[data-ago]')) { const tx = agoText(+el.dataset.ago); if (el.textContent !== tx) el.textContent = tx; }
   for (const el of $$('[data-bar-from]')) {
     const a = +el.dataset.barFrom, b = +el.dataset.barTo;
     el.style.width = clamp(((s.t - a) / Math.max(1, b - a)) * 100, 0, 100) + '%';
@@ -281,6 +327,11 @@ export function initShell() {
     const fn = UI.app.inputs[el.dataset.in];
     if (fn) fn(el.value, el, ev);
   });
+  // finger down / momentum scroll: hold background re-renders until the screen settles
+  document.addEventListener('scroll', () => markBusy(450), { capture: true, passive: true });
+  document.addEventListener('touchstart', () => markBusy(900), { passive: true });
+  document.addEventListener('touchmove', () => markBusy(900), { passive: true });
+  document.addEventListener('pointerdown', () => markBusy(350), { passive: true });
   $('#homebar').addEventListener('click', () => { if ($('#mini-layer').children.length) return; if (UI.app) home(); });
   // swipe up from the bottom edge to go home
   let sy = null;

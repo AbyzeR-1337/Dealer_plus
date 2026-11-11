@@ -43,7 +43,7 @@ function feedView() {
   return `<div class="search"><label class="box">${icon('search')}<input placeholder="${T('Поиск по объявлениям', 'Пошук оголошень', 'Search listings')}" value="${esc(F.q)}" data-in="q"></label><div class="tmr">${icon('clock')}<span data-cd="${f.refreshAt}">${clockDur(feedTimeLeft())}</span></div></div>
     <div class="chips">${chips}</div>
     <div class="row between mb"><span class="small m">${T('Найдено', 'Знайдено', 'Found')}: ${items.length} · ${esc(cityName())}</span><button class="b bold" data-a="sort" style="font-size:16px">${esc(L(SORTS[F.sort]))} ⇅</button></div>
-    ${items.length ? `<div class="tiles">${items.map((l) => tile(l.item, { id: l.id, price: l.price, sub: `${esc(L(DISTRICTS[l.dist]))} · ${ago(l.posted)}`, below: !l.sold && isBelowMarket(l), fav: s.favs.includes(l.id), sold: l.sold ? T('ПРОДАНО', 'ПРОДАНО', 'SOLD') : '' })).join('')}</div>` : empty('search', T('Ничего не найдено', 'Нічого не знайдено', 'Nothing found'), T('Лента обновится по таймеру.', 'Стрічка оновиться за таймером.', 'The feed refreshes on a timer.'))}`;
+    ${items.length ? `<div class="tiles">${items.map((l) => tile(l.item, { id: l.id, price: l.price, subHTML: `${esc(L(DISTRICTS[l.dist]))} · ${ago(l.posted)}`, below: !l.sold && isBelowMarket(l), fav: s.favs.includes(l.id), sold: l.sold ? T('ПРОДАНО', 'ПРОДАНО', 'SOLD') : '' })).join('')}</div>` : empty('search', T('Ничего не найдено', 'Нічого не знайдено', 'Nothing found'), T('Лента обновится по таймеру.', 'Стрічка оновиться за таймером.', 'The feed refreshes on a timer.'))}`;
 }
 
 function itemView(p) {

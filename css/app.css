@@ -451,3 +451,7 @@ body.in-app #dockbar, body.in-mini #dockbar { display: none; }
 @keyframes pulse { 50% { opacity: .55; } }
 .sep { height: 1px; background: var(--line); margin: 12px 0; }
 .noscroll { overflow: hidden !important; }
+
+/* offscreen tiles/rows skip layout & paint until scrolled near (big win with photo thumbnails) */
+.tiles .tile { content-visibility: auto; contain-intrinsic-size: auto 270px; }
+.abody .list-item { content-visibility: auto; contain-intrinsic-size: auto 76px; }
