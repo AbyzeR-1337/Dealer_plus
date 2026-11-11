@@ -62,8 +62,8 @@ export function renderHome() {
       <div class="need" data-a="open" data-v="profile">★ ${T('Уровень', 'Рівень', 'Level')} <b>${s.level}</b><div class="bar"><i style="width:${Math.round((s.xp / (60 * Math.pow(s.level, 1.75))) * 100)}%;background:var(--acc2)"></i></div></div>
     </div>
     <div class="grid">${grid}</div>
-    <div style="height:30px"></div>
-    <div class="dock">${dock}</div>`;
+    <div style="height:30px"></div>`;
+  $('#dockbar').innerHTML = `<div class="dock">${dock}</div>`;
 }
 
 // ---------------------------------------------------------------- app window
@@ -173,7 +173,7 @@ let sheetResolve = null;
 export function sheet(html, o = {}) {
   closeSheet(true);
   const layer = $('#sheet-layer');
-  layer.innerHTML = `<div class="dim" data-a="${o.modal ? '' : 'closeSheet'}"></div><div class="sheet${o.cls ? ' ' + o.cls : ''}">${html}</div>`;
+  layer.innerHTML = `<div class="dimbg" data-a="${o.modal ? '' : 'closeSheet'}"></div><div class="sheet${o.cls ? ' ' + o.cls : ''}">${html}</div>`;
   if (o.after) o.after(layer.querySelector('.sheet'));
   return new Promise((r) => { sheetResolve = r; });
 }
@@ -186,7 +186,7 @@ export function closeSheet(silent, value) {
 export function resolveSheet(v) { closeSheet(true, v); }
 export function dialog(html) {
   const layer = $('#sheet-layer');
-  layer.innerHTML = `<div class="dim"></div><div class="dialog">${html}</div>`;
+  layer.innerHTML = `<div class="dimbg"></div><div class="dialog">${html}</div>`;
   return new Promise((r) => { sheetResolve = r; });
 }
 export function confirmBox(title, text = '', ok = T('Да', 'Так', 'Yes'), cancel = T('Отмена', 'Скасувати', 'Cancel'), danger = false) {

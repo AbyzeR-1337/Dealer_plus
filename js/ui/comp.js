@@ -73,7 +73,7 @@ export function sparkline(values, w = 300, h = 120, color = 'var(--acc)') {
   const pts = values.map((v, i) => `${(i / (values.length - 1)) * w},${h - 6 - ((v - min) / span) * (h - 12)}`).join(' ');
   const up = values[values.length - 1] >= values[0];
   const c = color === 'auto' ? (up ? '#2ef2a0' : '#ff5468') : color;
-  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="0,${h} ${pts} ${w},${h}" fill="${c}" fill-opacity=".12" stroke="none"/><polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2.2" vector-effect="non-scaling-stroke"/></svg>`;
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:${h}px"><polyline points="0,${h} ${pts} ${w},${h}" fill="${c}" fill-opacity=".12" stroke="none"/><polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2.2" vector-effect="non-scaling-stroke"/></svg>`;
 }
 export const avatar = (name, hue = 210) => `<div class="avatar" style="background:hsl(${hue} 30% 16%);color:hsl(${hue} 80% 65%)">${esc((name || '?')[0])}</div>`;
 export const stars = (n) => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));

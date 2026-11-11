@@ -120,7 +120,7 @@ svg { display: block; }
 .ic.locked .lockb { position: absolute; top: 20px; z-index: 2; font-size: 11px; font-family: var(--mono); color: #fff; background: rgba(0,0,0,.65); padding: 2px 6px; border-radius: 8px; }
 .home-sec { font-family: var(--mono); font-size: 11px; color: rgba(255,255,255,.45); margin: 14px 8px 0; letter-spacing: .08em; text-transform: uppercase; }
 .dock {
-  position: absolute; left: 10px; right: 10px; bottom: calc(var(--sab) + 18px); z-index: 5;
+  position: absolute; left: 10px; right: 10px; bottom: calc(var(--sab) + 18px); z-index: 6;
   display: grid; grid-template-columns: repeat(4, 1fr); padding: 12px 8px; border-radius: 30px;
   background: rgba(30,36,52,.55); backdrop-filter: blur(22px) saturate(1.4); -webkit-backdrop-filter: blur(22px) saturate(1.4);
   border: 1px solid rgba(255,255,255,.08);
@@ -312,7 +312,7 @@ input[type=range] { width: 100%; accent-color: var(--ac); height: 30px; }
 
 /* --------------------------------------------------------------- sheets / dialogs */
 #sheet-layer { position: absolute; inset: 0; z-index: 40; pointer-events: none; }
-.dim { position: absolute; inset: 0; background: rgba(0,0,0,.55); pointer-events: auto; animation: fade .2s; }
+.dimbg { position: absolute; inset: 0; background: rgba(0,0,0,.55); pointer-events: auto; animation: fade .2s; }
 @keyframes fade { from { opacity: 0; } }
 .sheet {
   position: absolute; left: 0; right: 0; bottom: 0; max-height: 88%; overflow-y: auto; pointer-events: auto;
@@ -351,6 +351,7 @@ input[type=range] { width: 100%; accent-color: var(--ac); height: 30px; }
 #homebar i { display: block; width: 134px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.55); }
 body.in-app #homebar i { background: rgba(255,255,255,.4); }
 body.in-mini #homebar { display: none; }
+body.in-app #dockbar, body.in-mini #dockbar { display: none; }
 
 /* --------------------------------------------------------------- minigames */
 #mini-layer { position: absolute; inset: 0; z-index: 50; pointer-events: none; }

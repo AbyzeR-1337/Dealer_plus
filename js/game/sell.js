@@ -58,7 +58,7 @@ export function sellTick() {
     const val = buyerView(it, l, city) * (pf.bonus || 1) * (1 + upLevel('photo') * 0.03);
     const ratio = val / Math.max(0.01, l.price);
     const attract = clamp(Math.pow(ratio, 3.2), 0.02, 4);
-    const rate = (1 / 95) * demand(it.cat, city) * repFactor() * (1 + upLevel('clients') * 0.22) * attract * pf.rate * (l.city === city ? 1 : 0.8);
+    const rate = (1 / 95) * demand(it.cat, city) * repFactor() * (1 + upLevel('clients') * 0.22) * attract * pf.rate * (l.city === city ? 1 : 0.8) * ((G.s.boostUntil || 0) > G.s.t ? 2 : 1);
     if (chance(rate * 0.5)) l.views += 1 + Math.floor(Math.random() * 4);
     const open = s.chats.filter((c) => c.kind === 'sell' && c.itemId === it.id && c.st === 'open').length;
     if (open < 2 && chance(rate)) newBuyerChat(it, l, val);
