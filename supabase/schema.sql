@@ -1,5 +1,5 @@
 -- Global Reseller — online backend for Supabase (Postgres).
--- Run this once in Supabase → SQL Editor. Then put the project URL and the anon (public) key into
+-- Run this in Supabase → SQL Editor (safe to run again). Then put the project URL and the anon (public) key into
 -- GitHub → Settings → Secrets and variables → Actions as SUPABASE_URL and SUPABASE_ANON_KEY.
 --
 -- Anti-abuse design:
@@ -11,7 +11,9 @@
 --    absurd submissions are flagged and hidden from the leaderboards.
 --  * Account creation is rate-limited per IP.
 
-create extension if not exists pgcrypto;
+-- pgcrypto (digest, gen_random_bytes): on Supabase it lives in the "extensions" schema
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists public.gr_players (
   id uuid primary key default gen_random_uuid(),
@@ -53,12 +55,12 @@ alter table public.gr_nudges enable row level security;
 revoke all on public.gr_players, public.gr_friends, public.gr_nudges from anon, authenticated;
 
 create or replace function public.gr_auth(p_id uuid, p_secret text) returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select exists(select 1 from gr_players where id = p_id and secret_hash = encode(digest(coalesce(p_secret, ''), 'sha256'), 'hex'));
 $$;
 
 create or replace function public.gr_register(p_nick text, p_region text, p_device text)
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare v_id uuid; v_secret text; v_code text; v_ip text; v_cnt int;
 begin
   p_nick := regexp_replace(trim(coalesce(p_nick, '')), '\s+', ' ', 'g');
@@ -75,7 +77,7 @@ begin
 end $$;
 
 create or replace function public.gr_submit(p_id uuid, p_secret text, p_worth numeric, p_level int, p_playtime int, p_region text, p_stats jsonb)
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare r gr_players; v_elapsed numeric; v_dt int; v_hours numeric; v_cap numeric; v_accept numeric; v_flag boolean := false;
 begin
   if not gr_auth(p_id, p_secret) then raise exception 'auth'; end if;
@@ -100,7 +102,7 @@ end $$;
 
 create or replace function public.gr_leaderboard(p_scope text, p_id uuid default null, p_region text default null)
 returns table(nick text, worth numeric, level int, region text, is_me boolean)
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select p.nick, round(p.worth), p.level, p.region, (p.id = p_id)
   from gr_players p
   where not p.flagged and (
@@ -115,7 +117,7 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 create or replace function public.gr_friend_request(p_id uuid, p_secret text, p_code text)
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare v_to uuid; v_cnt int;
 begin
   if not gr_auth(p_id, p_secret) then raise exception 'auth'; end if;
@@ -133,7 +135,7 @@ begin
 end $$;
 
 create or replace function public.gr_friend_respond(p_id uuid, p_secret text, p_from uuid, p_accept boolean)
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 begin
   if not gr_auth(p_id, p_secret) then raise exception 'auth'; end if;
   if p_accept then update gr_friends set status = 'accepted' where a = p_from and b = p_id;
@@ -142,7 +144,7 @@ begin
 end $$;
 
 create or replace function public.gr_friend_remove(p_id uuid, p_secret text, p_other uuid)
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 begin
   if not gr_auth(p_id, p_secret) then raise exception 'auth'; end if;
   delete from gr_friends where (a = p_id and b = p_other) or (a = p_other and b = p_id);
@@ -150,7 +152,7 @@ begin
 end $$;
 
 create or replace function public.gr_friends(p_id uuid, p_secret text)
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 begin
   if not gr_auth(p_id, p_secret) then raise exception 'auth'; end if;
   return json_build_object(
@@ -164,7 +166,7 @@ begin
 end $$;
 
 create or replace function public.gr_nudge(p_id uuid, p_secret text, p_to uuid, p_emoji text)
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 begin
   if not gr_auth(p_id, p_secret) then raise exception 'auth'; end if;
   if p_emoji not in ('👋', '🔥', '💸', '👑', '😎', '🤝') then raise exception 'bad_emoji'; end if;
@@ -175,7 +177,7 @@ begin
 end $$;
 
 create or replace function public.gr_inbox(p_id uuid, p_secret text)
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 begin
   if not gr_auth(p_id, p_secret) then raise exception 'auth'; end if;
   return coalesce((select json_agg(json_build_object('nick', p.nick, 'emoji', n.emoji, 'at', n.created_at) order by n.created_at desc)
