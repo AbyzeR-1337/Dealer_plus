@@ -263,6 +263,8 @@ export const DEFECTS = {
   bk_wheel: D('Восьмёрка колеса', 'Вісімка колеса', 'Bent wheel', 0.08, 'hidden', null, 'any', 'ride', ['align', 0.02, 30]),
   bk_battery: D('Батарея на исходе', 'Батарея на виході', 'Dying battery', 0.25, 'hidden', null, 'any', 'battery', ['solder', 0.1, 60]),
   bk_dent: D('Вмятина на баке/раме', 'Вмʼятина на баку/рамі', 'Dented tank/frame', 0.1, 'visible', 'dent', 'front', null, ['dent', 0.03, 60]),
+  // added by repairs with copy/used parts
+  aftermarket: D('Неоригинальная запчасть', 'Неоригінальна запчастина', 'Aftermarket part', 0.06, 'hidden', null, 'any', 'loupe', null),
 };
 for (const k of Object.keys(DEFECTS)) DEFECTS[k].id = k;
 
