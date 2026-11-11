@@ -81,7 +81,8 @@ begin
   if not gr_auth(p_id, p_secret) then raise exception 'auth'; end if;
   select * into r from gr_players where id = p_id for update;
   v_elapsed := extract(epoch from now() - r.last_submit);
-  if v_elapsed < 15 then return json_build_object('ok', false, 'reason', 'rate', 'accepted', r.worth); end if;
+  -- the very first submit right after registration is allowed; after that at most one per 15 s
+  if v_elapsed < 15 and r.playtime > 0 then return json_build_object('ok', false, 'reason', 'rate', 'accepted', r.worth); end if;
   -- playtime cannot grow faster than real time
   v_dt := greatest(0, least(coalesce(p_playtime, 0) - r.playtime, v_elapsed::int + 30));
   v_hours := (r.playtime + v_dt) / 3600.0;

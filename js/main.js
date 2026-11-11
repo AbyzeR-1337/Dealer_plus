@@ -10,6 +10,7 @@ import { WORK_GAMES } from './mini/games_work.js';
 import { APPS, DOCK } from './apps/index.js';
 import { UI, registerApps, initShell, renderHome, renderStatus, liveUpdate, rerender, sheet, resolveSheet, toast, banner, dayNum, refreshAll, appName } from './ui/shell.js';
 import { ensurePhone, PHONE } from './game/phone.js';
+import { readInvite } from './game/online.js';
 import { initHome } from './ui/home.js';
 import { initWorld, startSim, isPaused } from './game/sim.js';
 import { resolveCustoms } from './game/travel.js';
@@ -73,6 +74,8 @@ function startGame() {
   setLang(G.s.player.lang);
   initWorld();
   ensurePhone(APPS);
+  const inv = readInvite();
+  if (inv?.friend) (G.s.online ||= {}).pendingFriend = inv.friend;
   PHONE.nameOf = (id) => (UI.apps[id] ? appName(UI.apps[id]) : id);
   initShell();
   initHome();

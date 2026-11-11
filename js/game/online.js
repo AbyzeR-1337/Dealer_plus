@@ -5,8 +5,44 @@ import { T } from '../core/i18n.js';
 import { netWorth } from './player.js';
 import { countryOf } from '../data/world.js';
 
-const cfg = () => (typeof window !== 'undefined' && window.GR_CONFIG) || {};
+// server config: from the GitHub build (secrets) or entered in Settings / opened via an invite link
+const SRV_KEY = 'gr_server';
+function stored() { try { return JSON.parse(localStorage.getItem(SRV_KEY) || 'null') || {}; } catch { return {}; } }
+const cfg = () => {
+  const b = (typeof window !== 'undefined' && window.GR_CONFIG) || {};
+  if (b.supabaseUrl && b.supabaseKey) return b;
+  const st = stored();
+  return { supabaseUrl: st.url, supabaseKey: st.key };
+};
 export const onlineEnabled = () => !!(cfg().supabaseUrl && cfg().supabaseKey);
+export const serverSource = () => { const b = (typeof window !== 'undefined' && window.GR_CONFIG) || {}; return b.supabaseUrl && b.supabaseKey ? 'build' : stored().url ? 'manual' : 'none'; };
+export const serverUrl = () => cfg().supabaseUrl || '';
+export function setServer(url, key) {
+  url = String(url || '').trim().replace(/\/+$/, '');
+  key = String(key || '').trim();
+  if (!/^https:\/\/[a-z0-9.-]+$/i.test(url) || key.length < 20) return false;
+  try { localStorage.setItem(SRV_KEY, JSON.stringify({ url, key })); } catch { return false; }
+  return true;
+}
+export function clearServer() { try { localStorage.removeItem(SRV_KEY); } catch {} }
+// invite links carry the server so friends land on the same leaderboard: #srv=<url>&k=<anon key>&f=<friend code>
+export function readInvite() {
+  if (typeof location === 'undefined' || !location.hash.includes('srv=')) return null;
+  const q = new URLSearchParams(location.hash.slice(1));
+  const ok = q.get('srv') && q.get('k') && serverSource() !== 'build' ? setServer(q.get('srv'), q.get('k')) : false;
+  history.replaceState(null, '', location.pathname + location.search);
+  return { ok, friend: q.get('f') || '' };
+}
+export function inviteLink() {
+  const base = location.origin + location.pathname;
+  const c = cfg();
+  const code = G.s?.online?.code ? `&f=${encodeURIComponent(G.s.online.code)}` : '';
+  return serverSource() === 'build' ? `${base}#f=${encodeURIComponent(G.s?.online?.code || '')}` : `${base}#srv=${encodeURIComponent(c.supabaseUrl)}&k=${encodeURIComponent(c.supabaseKey)}${code}`;
+}
+export async function ping() {
+  if (!onlineEnabled()) return false;
+  try { await rpc('gr_leaderboard', { p_scope: 'global' }); return true; } catch { return false; }
+}
 export const isRegistered = () => !!G.s?.online?.id;
 
 function deviceId() {
@@ -48,6 +84,8 @@ export async function register(nick) {
   G.s.online = { ...G.s.online, id: r.id, secret: r.secret, code: r.code, nick, last: 0 };
   save();
   await submit(true).catch(() => {});
+  // opened the game through a friend's invite link: send them a friend request right away
+  if (G.s.online.pendingFriend) { await friendRequest(G.s.online.pendingFriend).catch(() => {}); delete G.s.online.pendingFriend; save(); }
   emit('online');
   return r;
 }
