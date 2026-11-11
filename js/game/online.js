@@ -56,7 +56,8 @@ async function rpc(fn, body) {
   const { supabaseUrl: url, supabaseKey: key } = cfg();
   const r = await fetch(`${url}/rest/v1/rpc/${fn}`, {
     method: 'POST',
-    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    // legacy anon keys are JWTs and go in Authorization too; new sb_publishable_ keys only in apikey
+    headers: { apikey: key, ...(key.startsWith('eyJ') ? { Authorization: `Bearer ${key}` } : {}), 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   const text = await r.text();
