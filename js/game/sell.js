@@ -14,6 +14,7 @@ import { DISTRICTS } from './market.js';
 import { openDispute, isBanned, reportScam } from './support.js';
 import { getItem, removeItem, addItem, earn, charge, spend, stat, addXP, upLevel, notify, log, repFactor, addReview, addProfit } from './player.js';
 import { demand } from './economy.js';
+import { leaksData, storageKind } from './files.js';
 import { deliveryTime } from './market.js';
 import { collectionBonus } from './quests.js';
 
@@ -276,6 +277,14 @@ export function feedbackTick() {
   s.pendingFeedback = s.pendingFeedback.filter((f) => f.at > s.t);
   for (const f of due) {
     const sale = f.sale;
+    if (!f.claim && leaksData(sale.itemSnap) && chance(0.45)) {
+      const kind = storageKind(sale.itemSnap);
+      const where = ['phone', 'tablet'].includes(kind) ? T('в телефоне', 'в телефоні', 'on the phone') : kind === 'laptop' ? T('на ноутбуке', 'на ноутбуці', 'on the laptop') : kind === 'console' ? T('на приставке', 'на приставці', 'on the console') : T('на носителе', 'на носії', 'on the drive');
+      addReview(2, T(`Нашёл ${where} чужие фото и документы — продавец даже не стёр. Неприятно.`, `Знайшов ${where} чужі фото й документи — продавець навіть не стер. Неприємно.`, `Found someone’s photos and documents ${where} — the seller didn’t even wipe it.`), { buyer: sale.buyer.name, fair: true });
+      notify('market', T('Отзыв: чужие данные', 'Відгук: чужі дані', 'Review: leftover data'), `★★ ${sale.buyer.name}`);
+      if (chance(0.12)) { const fine = Math.round(25 + Math.random() * 60); charge(fine, 'fine', T('Штраф за утечку персональных данных', 'Штраф за витік персональних даних', 'Fine for leaking personal data')); notify('gov', T('Штраф', 'Штраф', 'Fine'), T(`Утечка персональных данных: ${fmt(fine)}`, `Витік персональних даних: ${fmt(fine)}`, `Personal data leak: ${fmt(fine)}`)); }
+      continue;
+    }
     if (!f.claim) {
       const stars = sale.packed > 0.7 || (sale.trust || 0) > 0 ? 5 : chance(0.7) ? 5 : 4;
       addReview(stars, L(pickR(stars === 5 ? [...THANKS, ...REVIEW_GOOD] : REVIEW_OK)), { buyer: sale.buyer.name, fair: true });

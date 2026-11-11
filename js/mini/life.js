@@ -451,13 +451,13 @@ function haggle(api, { item }) {
 }
 
 // ---------------------------------------------------------------- CODE LOCK: Mastermind-style clues
-function codelock(api, { digits = 3, tries = 6 }) {
+function codelock(api, { digits = 3, tries = 6, head = '' }) {
   const code = shuf(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']).slice(0, digits).join('');
   const hist = [];
   let cur = '';
   const hint = Math.random() < 0.5 ? T(`На крышке нацарапано: «${code[0]}…»`, `На кришці надряпано: «${code[0]}…»`, `Scratched on the lid: “${code[0]}…”`) : '';
   const draw = () => {
-    api.body.innerHTML = `<div class="proc"><div class="phd"><h3>${T('Кодовый замок', 'Кодовий замок', 'Combination lock')}</h3><p class="pdesc">${T(`Код из ${digits} разных цифр. После попытки: 🟢 — цифра на своём месте, 🟡 — есть в коде, но не там. Попыток: ${tries - hist.length}.`, `Код із ${digits} різних цифр. Після спроби: 🟢 — цифра на своєму місці, 🟡 — є в коді, але не там. Спроб: ${tries - hist.length}.`, `${digits} different digits. After a try: 🟢 — right digit, right place; 🟡 — in the code, wrong place. Tries left: ${tries - hist.length}.`)}${hint ? `<br><i>${esc(hint)}</i>` : ''}</p></div>
+    api.body.innerHTML = `<div class="proc"><div class="phd"><h3>${head ? esc(head) : T('Кодовый замок', 'Кодовий замок', 'Combination lock')}</h3><p class="pdesc">${T(`Код из ${digits} разных цифр. После попытки: 🟢 — цифра на своём месте, 🟡 — есть в коде, но не там. Попыток: ${tries - hist.length}.`, `Код із ${digits} різних цифр. Після спроби: 🟢 — цифра на своєму місці, 🟡 — є в коді, але не там. Спроб: ${tries - hist.length}.`, `${digits} different digits. After a try: 🟢 — right digit, right place; 🟡 — in the code, wrong place. Tries left: ${tries - hist.length}.`)}${hint ? `<br><i>${esc(hint)}</i>` : ''}</p></div>
       <div class="pstage"><div class="cl">${hist.map((h) => `<div class="clr"><span class="mono">${h.g.split('').join(' ')}</span><span>${'🟢'.repeat(h.a)}${'🟡'.repeat(h.b)}${h.a + h.b === 0 ? '⚫' : ''}</span></div>`).join('')}<div class="clr cur"><span class="mono">${(cur + '_'.repeat(digits - cur.length)).split('').join(' ')}</span></div></div></div>
       <div class="pctl">${keypad()}</div></div>`;
     api.body.querySelectorAll('[data-k]').forEach((b) => b.addEventListener('click', () => {

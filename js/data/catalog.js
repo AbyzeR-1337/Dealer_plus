@@ -5,6 +5,7 @@ import { buildFashion } from './models_fashion.js';
 import { buildCollect } from './models_collect.js';
 import { buildVehicles } from './models_vehicles.js';
 import { buildExtra } from './models_extra.js';
+import { buildStorage } from './models_storage.js';
 
 export const YEAR = 2026;
 
@@ -30,6 +31,7 @@ export const CATS = {
   cars:        { name: ['Авто', 'Авто', 'Cars'], icon: '🚗', color: '#60a5fa', size: 0, valMode: 'dep', dep: 0.11, floor: 0.06, fake: 0 },
   bikes:       { name: ['Мото и вело', 'Мото і вело', 'Bikes & moto'], icon: '🏍️', color: '#34d399', size: 0, valMode: 'dep', dep: 0.1, floor: 0.12, fake: 0.02 },
   gear:        { name: ['Снаряжение и сумки', 'Спорядження і сумки', 'Gear & luggage'], icon: '🎒', color: '#9a8a62', size: 2, valMode: 'dep', dep: 0.08, floor: 0.3, fake: 0.08 },
+  storage:     { name: ['Носители данных', 'Носії даних', 'Data storage'], icon: '💾', color: '#5eead4', size: 1, valMode: 'dep', dep: 0.1, floor: 0.2, fake: 0.06 },
   misc:        { name: ['Мелочи и находки', 'Дрібниці та знахідки', 'Odds & ends'], icon: '🔑', color: '#a3a3a3', size: 1, valMode: 'dep', dep: 0.04, floor: 0.4, fake: 0.03 },
 };
 export const CAT_LIST = Object.keys(CATS);
@@ -94,7 +96,7 @@ export const TESTS = {
   battery: ['Батарея', 'Батарея', 'Battery', '🔋'], bio: ['Face/Touch ID', 'Face/Touch ID', 'Face/Touch ID', '👤'],
   water: ['Индикатор влаги', 'Індикатор вологи', 'Water indicator', '💧'], sound: ['Звук', 'Звук', 'Sound', '🔊'],
   charge: ['Зарядка', 'Зарядка', 'Charging', '🔌'], display: ['Тест дисплея', 'Тест дисплея', 'Display test', '🌈'],
-  keys: ['Клавиши', 'Клавіші', 'Keys', '⌨️'], power: ['Включение', 'Увімкнення', 'Power on', '⏻'], disc: ['Диск/картридж', 'Диск/картридж', 'Disc/cart', '💿'],
+  keys: ['Клавиши', 'Клавіші', 'Keys', '⌨️'], pc: ['Подключить к ПК', 'Підключити до ПК', 'Plug into a PC', '🖥'], power: ['Включение', 'Увімкнення', 'Power on', '⏻'], disc: ['Диск/картридж', 'Диск/картридж', 'Disc/cart', '💿'],
   video: ['Видеовыход', 'Відеовихід', 'Video out', '📺'], pad: ['Геймпад', 'Геймпад', 'Controller', '🎮'], net: ['Онлайн‑проверка', 'Онлайн‑перевірка', 'Online check', '🌐'],
   inside: ['Фонарик внутрь', 'Ліхтарик всередину', 'Look inside', '🔦'], zip: ['Молния', 'Блискавка', 'Zipper', '🤐'], tag: ['Бирки', 'Бирки', 'Tags', '🏷'],
   size: ['Замер', 'Замір', 'Measure', '📏'], tick: ['Ход часов', 'Хід годинника', 'Movement', '⏱'], loupe: ['Лупа ×10', 'Лупа ×10', 'Loupe ×10', '🔍'],
@@ -141,6 +143,13 @@ export const DEFECTS = {
   c_fan: D('Гудит вентилятор', 'Гуде вентилятор', 'Loud fan', 0.06, 'hidden', null, 'any', 'sound', ['scrub', 0.02, 40]),
   c_scratch: D('Потёртый корпус', 'Потертий корпус', 'Scuffed shell', 0.05, 'subtle', 'scratch', 'front', null, ['scrub', 0.01, 30]),
   c_yellow: D('Пожелтел пластик', 'Пожовтів пластик', 'Yellowed plastic', 0.1, 'visible', 'yellow', 'front', null, ['scrub', 0.02, 60]),
+  // data storage
+  s_dead: D('Не определяется', 'Не визначається', 'Not detected', 0.7, 'hidden', null, 'any', 'pc', ['solder', 0.2, 90]),
+  s_click: D('Щёлкает, не читается', 'Клацає, не читається', 'Clicking, won’t read', 0.65, 'hidden', null, 'any', 'pc', null),
+  s_bad: D('Битые сектора', 'Биті сектори', 'Bad sectors', 0.3, 'hidden', null, 'any', 'pc', null),
+  s_slow: D('Очень медленная запись', 'Дуже повільний запис', 'Very slow writes', 0.12, 'hidden', null, 'any', 'pc', null),
+  s_crack: D('Трещина корпуса', 'Тріщина корпусу', 'Cracked casing', 0.12, 'visible', 'crack', 'front', null, ['align', 0.05, 30]),
+  s_scratch: D('Царапины на поверхности', 'Подряпини на поверхні', 'Surface scratches', 0.08, 'subtle', 'scratch', 'front', null, ['scrub', 0.01, 20]),
   c_dead: D('Не включается', 'Не вмикається', 'Won’t turn on', 0.6, 'hidden', null, 'any', 'power', ['wires', 0.2, 150]),
   c_drift: D('Дрифт стиков', 'Дрифт стіків', 'Stick drift', 0.07, 'hidden', null, 'any', 'pad', ['screws', 0.03, 40]),
   c_ban: D('Бан консоли в сети', 'Бан консолі в мережі', 'Console banned online', 0.22, 'hidden', null, 'any', 'net', null),
@@ -290,6 +299,7 @@ export const CAT_DEFECTS = {
   bikes: ['bk_rust', 'bk_scratch', 'bk_brake', 'bk_wheel', 'bk_battery', 'bk_dent'],
   gear: ['a_scratch', 'a_wear', 'a_broken', 'b_stain', 'b_smell', 'w_zip'],
   misc: ['l_scratch', 'a_wear', 'a_broken', 'l_stain'],
+  storage: ['s_dead', 's_click', 's_bad', 's_slow', 's_crack', 's_scratch'],
 };
 
 export const LOCKS = {
@@ -337,6 +347,7 @@ buildFashion(addModel);
 buildCollect(addModel);
 buildVehicles(addModel);
 buildExtra(addModel);
+buildStorage(addModel);
 
 // Typical market value for an original item in excellent used condition (USD, before regional effects)
 export function modelValue(m) {

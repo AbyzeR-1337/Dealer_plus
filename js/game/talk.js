@@ -24,10 +24,10 @@ export const TOPIC_DEFECTS = {
   batch: ['p_old', 'p_label'], cap: ['p_cap'], chip: ['p_chip', 'q_chip'], centering: ['k_center'], corners: ['k_corner', 'k_crease'], surface: ['k_scratch', 'k_trim'], spine: ['m_spine'], pages: ['m_missing'], restored: ['m_restored', 'q_repair'],
   pieces: ['y_missing'], boxdmg: ['y_boxdmg'], paint: ['y_paint', 's_paint'], broken: ['y_broken', 'a_broken', 'l_tear'], crack: ['q_crack', 'r_crack', 't_crack', 'i_crack'], patina: ['q_patina', 'l_clean'], mech: ['q_mech'], frame: ['r_frame'],
   neck: ['i_neck'], electro: ['i_electro'], frets: ['i_frets'], ikeys: ['i_keys'], accident: ['v_accident', 'bk_dent'], vpaint: ['v_paint'], rust: ['v_rust', 'bk_rust'], engine: ['v_engine', 'v_gearbox'], tires: ['v_tire', 'bk_wheel'],
-  glass: ['v_glass'], docs: ['v_docs'], electric: ['v_electric'], lights: ['v_light'], brakes: ['bk_brake'], works: ['e_dead', 'c_dead', 'a_broken', 'q_mech', 't_dead'],
+  glass: ['v_glass'], docs: ['v_docs'], electric: ['v_electric'], lights: ['v_light'], brakes: ['bk_brake'], works: ['e_dead', 'c_dead', 'a_broken', 'q_mech', 't_dead', 's_dead', 's_click'], sectors: ['s_bad', 's_click', 's_slow'],
 };
 const ALIAS = { receipt: 'box', serial: 'orig', simlock: 'lock' };
-export const SOCIAL = ['why', 'how_long', 'photos', 'discount', 'video', 'meet', 'ship', 'provenance'];
+export const SOCIAL = ['why', 'how_long', 'photos', 'discount', 'video', 'meet', 'ship', 'provenance', 'data'];
 export const TOPIC_NAME = {
   battery: ['батарея', 'батарея', 'battery'], screen: ['экран', 'екран', 'screen'], repair: ['ремонта не было', 'ремонту не було', 'no repairs'], water: ['воды не было', 'води не було', 'no water damage'],
   face: ['Face ID', 'Face ID', 'Face ID'], body: ['корпус', 'корпус', 'body'], sound: ['звук', 'звук', 'sound'], charge: ['зарядка', 'зарядка', 'charging'], lock: ['блокировок нет', 'блокувань немає', 'no locks'],

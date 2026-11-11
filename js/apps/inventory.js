@@ -17,6 +17,8 @@ import { shelf, stockItem } from '../game/business.js';
 import { busy } from '../game/workshop.js';
 import { sellFlow, inspectFlow, legitFlow, cityName } from './common.js';
 import { sfx } from '../ui/sfx.js';
+import { hasStorage } from '../game/files.js';
+import { filesView, filesActions } from './files_view.js';
 
 const F = { cat: 'all', sort: 'new' };
 const gal = { id: null, i: 0, n: 1 };
@@ -61,6 +63,7 @@ function itemView(p) {
     ${l ? `<div class="card hl mt"><b>${T('В продаже', 'У продажу', 'Listed')}: ${fmt(l.price)}</b><div class="small m">👁 ${l.views} · 💬 ${l.offers} · ${l.disclose ? T('дефекты указаны', 'дефекти вказано', 'issues disclosed') : T('дефекты скрыты', 'дефекти приховано', 'issues hidden')}</div><div class="btns">${btn('reprice', T('Изменить цену', 'Змінити ціну', 'Change price'))}${btn('unlist', T('Снять', 'Зняти', 'Unlist'))}</div></div>` : ''}
     <div class="btns">${!l && !it.auction ? btn('sell', `${icon('tag')} ${T('Продать', 'Продати', 'Sell')}`, '') : ''}${btn('repair', `${icon('wrench')} ${T('Мастерская', 'Майстерня', 'Workshop')}`)}</div>
     <div class="btns">${btn('inspect', `🔍 ${T('Осмотреть', 'Оглянути', 'Inspect')}`)}${btn('legit', `🔎 ${T('Легит‑чек', 'Легіт‑чек', 'Legit check')}`, 'dark', s.level < 2)}</div>
+    ${hasStorage(it) ? `<div class="btns">${btn('files', `📂 ${T('Содержимое', 'Вміст', 'Contents')}${it.data?.wiped ? ' · ' + T('чисто', 'чисто', 'clean') : ''}`)}</div>` : ''}
     ${it.cat === 'phones' ? `<div class="btns">${btn('lab', `${icon('lockphone')} Phone Lab${it.lock ? ' 🔒' : ''}`, 'dark', s.level < 2)}</div>` : ''}
     ${isVehicle(it) ? `<div class="btns">${btn('drive', s.car === it.id ? `🔑 ${T('Основной транспорт', 'Основний транспорт', 'Main vehicle')}` : `🔑 ${T('Ездить на нём', 'Їздити на ньому', 'Use as my ride')}`, s.car === it.id ? 'green' : 'dark')}</div>` : ''}
     ${slots.length ? `<div class="btns">${btn('coll', `🏆 ${T('В коллекцию', 'До колекції', 'Add to collection')}: ${esc(L(slots[0].set.n))}`, 'yel')}</div>` : ''}
@@ -95,9 +98,10 @@ export default {
     { v: 'sale', label: ['В продаже', 'У продажу', 'For sale'], icon: 'tag' },
     { v: 'coll', label: ['Коллекции', 'Колекції', 'Collections'], icon: 'trophy' },
   ],
-  tabOf: (v) => (v === 'item' ? 'main' : v),
-  views: { main: mainView, item: itemView, sale: saleView, coll: collView },
+  tabOf: (v) => (v === 'item' || v === 'files' ? 'main' : v),
+  views: { main: mainView, item: itemView, sale: saleView, coll: collView, files: filesView },
   actions: {
+    ...filesActions,
     cat: (v) => { F.cat = v; rerender(); },
     sort: (v) => { F.sort = v; rerender(); },
     gal: (v) => { gal.i = (gal.i + +v + gal.n) % gal.n; rerender(); },

@@ -270,6 +270,7 @@ export function itemValue(it, cityId, mode = 'true', opts = {}) {
   if (it.cat === 'perfume' && it.fill != null) v *= 0.15 + 0.85 * it.fill / 100;
   if (it.cleaned) v *= 1.03;
   if (it.tune) v *= it.tune === 'wheels' || it.tune === 'exhaust' ? 1.03 : 0.98;
+  if (it.data?.wiped && ['phones', 'electronics', 'consoles'].includes(it.cat)) v *= 1.03; // factory reset, ready for the next owner
   if (!opts.raw) v *= priceFactor(it.cat, city, m.id, m.brand);
   return Math.max(0.5, v);
 }
