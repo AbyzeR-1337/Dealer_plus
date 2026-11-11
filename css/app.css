@@ -834,10 +834,10 @@ img.bm.ready { opacity: 1; }
 .frow.ok { border-color: var(--acc); background: rgba(46,242,160,.14); } .frow.bad { border-color: var(--red); background: rgba(255,84,104,.12); opacity: .75; }
 .proc.lab .frow { background: #0b1411; border-color: #1d3a2e; }
 .pinfo { text-align: center; padding: 18px 6px; } .pbig { font-size: 26px; font-weight: 800; color: var(--acc); text-shadow: 0 0 14px rgba(46,242,160,.35); word-break: break-all; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.chips button { padding: 12px 14px; border-radius: 14px; background: #0f1a16; border: 1px solid #2a4a3c; color: #e9fff5; font-size: 14px; }
+.proc .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; overflow: visible; margin: 0; padding: 0; }
+.proc .chips button { padding: 12px 14px; border-radius: 14px; background: #0f1a16; border: 1px solid #2a4a3c; color: #e9fff5; font-size: 14px; }
 .proc:not(.lab) .chips button { background: var(--panel2); border-color: var(--line2); color: var(--text); }
-.chips button:disabled { opacity: .4; }
+.proc .chips button:disabled { opacity: .4; }
 .btn.big { min-height: 60px; font-size: 19px; }
 .proc.lab .btn.go { background: var(--acc); color: #04120b; } .proc.lab .btn.go:disabled { opacity: .35; }
 /* breach matrix */

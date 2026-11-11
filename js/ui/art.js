@@ -939,14 +939,16 @@ function photoItem(it, o, rp) {
     let op = D.vis === 'visible' ? 0.7 : o.inspect ? 0.42 : 0.25;
     if (d.known) op = Math.max(op, 0.7);
     if (rp.v !== 'clean' && D.vis === 'visible') op *= 0.5;
+    if (['crack', 'lightcrack', 'glass', 'scratch'].includes(D.viz)) op *= 0.6;
     ov += overlay(ctx, d, box, op);
   }
   const tr = `translate(200 200) rotate(${tilt.toFixed(2)}) scale(${fr.z.toFixed(3)}) translate(${(-fr.cx).toFixed(1)} ${(-fr.cy).toFixed(1)})`;
+  ctx.defs.push(`<filter id="${ctx.P}ovb"><feGaussianBlur stdDeviation="0.45"/></filter>`);
   const gr = `${ctx.P}gr`;
   ctx.defs.push(`<pattern id="${gr}" width="128" height="128" patternUnits="userSpaceOnUse"><image ${hrefAttr(ctx, 'assets/photo/grain.webp', o.embed?.grain)} width="128" height="128"/></pattern>`);
   const vg = ctx.rad([[0, '#000', 0], [0.7, '#000', 0.05], [1, '#000', 0.34]], 0.5, 0.5, 0.74);
   const post = `<g style="pointer-events:none"><rect width="400" height="400" fill="${vg}"/><rect width="400" height="400" fill="url(#${gr})" opacity="0.35"/></g>`;
-  const svg = `<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid slice"><defs>${ctx.defs.join('')}</defs><g transform="${tr}">${img}${grime}${ov ? `<g style="mix-blend-mode:${rp.v === 'clean' ? 'normal' : 'multiply'}">${ov}</g>` : ''}</g>${post}</svg>`;
+  const svg = `<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid slice"><defs>${ctx.defs.join('')}</defs><g transform="${tr}">${img}${grime}${ov ? `<g filter="url(#${ctx.P}ovb)" style="mix-blend-mode:${rp.v === 'clean' ? 'normal' : 'multiply'}">${ov}</g>` : ''}</g>${post}</svg>`;
   // box in screen coordinates (inspection taps): the shot is zoomed around (cx, cy)
   const tb = { x: 200 + (box.x - fr.cx) * fr.z, y: 200 + (box.y - fr.cy) * fr.z, w: box.w * fr.z, h: box.h * fr.z };
   return { svg, box: tb, ctx, buttons: [], hot: [], screen: null, scale: fr.z, tilt, sprite: false, photo: rp };
