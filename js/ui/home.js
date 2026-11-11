@@ -133,6 +133,14 @@ export const WALLS = {
   mono: { n: ['Чёрный', 'Чорний', 'Black'], css: '#000' },
   space: { n: ['Космос', 'Космос', 'Space'], css: 'radial-gradient(1px 1px at 20% 30%, #fff, transparent), radial-gradient(1px 1px at 70% 20%, #fff, transparent), radial-gradient(1.5px 1.5px at 40% 70%, #fff, transparent), radial-gradient(1px 1px at 85% 60%, #fff, transparent), radial-gradient(1px 1px at 10% 85%, #fff, transparent), radial-gradient(600px 400px at 70% 80%, rgba(120,60,255,.45), transparent 60%), linear-gradient(180deg, #02030a, #0a0820)' },
   mint: { n: ['Мята', 'Мʼята', 'Mint'], css: 'linear-gradient(160deg, #b8f5e0, #5fd3b3 50%, #1f8f7a)' },
+  p_city: { n: ['Ночной город', 'Нічне місто', 'City at night'], css: 'linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.28)), url(assets/walls/city.jpg) center / cover no-repeat' },
+  p_mountains: { n: ['Горное озеро', 'Гірське озеро', 'Mountain lake'], css: 'linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.28)), url(assets/walls/mountains.jpg) center / cover no-repeat' },
+  p_tokyo: { n: ['Неоновая улица', 'Неонова вулиця', 'Neon street'], css: 'linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.28)), url(assets/walls/tokyo.jpg) center / cover no-repeat' },
+  p_waves: { n: ['Океан сверху', 'Океан згори', 'Ocean from above'], css: 'linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.28)), url(assets/walls/waves.jpg) center / cover no-repeat' },
+  p_fog: { n: ['Туманный лес', 'Туманний ліс', 'Foggy forest'], css: 'linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.28)), url(assets/walls/fog.jpg) center / cover no-repeat' },
+  p_dunes: { n: ['Пустыня', 'Пустеля', 'Desert'], css: 'linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.28)), url(assets/walls/dunes.jpg) center / cover no-repeat' },
+  p_aurora2: { n: ['Сияние в горах', 'Сяйво в горах', 'Aurora peaks'], css: 'linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.28)), url(assets/walls/aurora2.jpg) center / cover no-repeat' },
+  p_liquid: { n: ['Жидкое стекло', 'Рідке скло', 'Liquid glass'], css: 'linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.28)), url(assets/walls/liquid.jpg) center / cover no-repeat' },
 };
 function applyWall() {
   const w = WALLS[G.s.home.wall] || WALLS.hacker;
