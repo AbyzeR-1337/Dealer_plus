@@ -190,7 +190,7 @@ export const labApp = {
     flash: async (id) => {
       const it = getItem(id);
       if (!LOCKS[it.lock]?.fixable) { toast(T('Безнадёжно: такую блокировку не снять. Продайте на запчасти.', 'Безнадійно: таке блокування не зняти.', 'Hopeless: sell it for parts.'), 'r'); sfx('err'); return; }
-      const r = Math.random() < 0.4 ? await playMini('simon', { title: T('Перепрошивка: код загрузчика', 'Перепрошивка: код завантажувача', 'Reflash: bootloader code'), rounds: 5, pass: 1 }) : await playMini('hack', { title: T('Перепрошивка', 'Перепрошивка', 'Reflash'), tries: 4 });
+      const r = await playMini('flash', { title: `${T('Перепрошивка', 'Перепрошивка', 'Reflash')} · ${itemTitle(it)}`, item: it, pass: 1 });
       if (r.quit) return;
       const res = reflash(it, r.score >= 1);
       toast(res === 'fail' ? T('Не удалось. Попробуйте ещё раз.', 'Не вдалося. Спробуйте ще.', 'Failed. Try again.') : T(`Снято: ${lockName(res)}`, `Знято: ${lockName(res)}`, `Removed: ${lockName(res)}`), res === 'fail' ? 'r' : 'g');
@@ -199,7 +199,7 @@ export const labApp = {
     jb: async (id) => {
       const it = getItem(id);
       if (!(await confirmBox(T('Рискнуть?', 'Ризикнути?', 'Take the risk?'), T('Успех: +6% к цене. Ошибка: бутлуп (потом можно перепрошить).', 'Успіх: +6% до ціни. Помилка: бутлуп.', 'Success: +6% value. Failure: bootloop (reflash later).')))) return;
-      const r = await playMini('hack', { title: 'Jailbreak', tries: 3 });
+      const r = await playMini('jb', { title: `${MODEL[it.m]?.os === 'pear' ? T('Джейлбрейк', 'Джейлбрейк', 'Jailbreak') : T('Рут', 'Рут', 'Root')} · ${itemTitle(it)}`, item: it, pass: 1 });
       if (r.quit) return;
       const res = jailbreak(it, r.score >= 1);
       toast(res === 'ok' ? T('Готово! +6% к цене', 'Готово! +6% до ціни', 'Done! +6% value') : T('Бутлуп! Нужна перепрошивка', 'Бутлуп! Потрібна перепрошивка', 'Bootloop! Needs a reflash'), res === 'ok' ? 'g' : 'r');

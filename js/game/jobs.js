@@ -35,7 +35,7 @@ export const RANKS = [
 ];
 export const SHIFT_COOLDOWN = 150; // game minutes
 // every shift picks one of the job's tasks, so the same job doesn't always play the same minigame
-const JOB_GAMES = { flyers: ['flyers', 'whack'], courier: ['courier', 'run', 'swipe'], loader: ['rhythm', 'catch'], cashier: ['cashier', 'change'], barista: ['recipe', 'pancake'], sorter: ['sort', 'swipe'], guard: ['guard', 'whack'], tech: ['code', 'simon'], appraiser: ['appraise', 'scale', 'spot'], taxi: ['taxi'], dev: ['code', 'compose', 'simon'], legit: ['spot', 'appraise'], auctioneer: ['memory', 'change'], manager: ['memory', 'change', 'swipe'] };
+const JOB_GAMES = { flyers: ['flyers', 'whack'], courier: ['courier', 'route', 'swipe'], loader: ['rhythm', 'catch'], cashier: ['cashier', 'change'], barista: ['recipe', 'pancake'], sorter: ['sort', 'swipe'], guard: ['guard', 'whack'], tech: ['code', 'simon'], appraiser: ['appraise', 'scale', 'spot'], taxi: ['taxi'], dev: ['code', 'compose', 'simon'], legit: ['spot', 'appraise'], auctioneer: ['memory', 'change'], manager: ['memory', 'change', 'swipe'] };
 export const shiftGame = (job) => { const l = JOB_GAMES[job.id] || [job.game]; return l[Math.floor(Math.random() * l.length)] || job.game; };
 export const jobById = (id) => JOBS.find((j) => j.id === id);
 export const wageIdx = () => countryOf(G.s.player.city).wage;

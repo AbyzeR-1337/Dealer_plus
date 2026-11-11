@@ -27,6 +27,7 @@ export function playMini(name, opts = {}) {
       root, body, opts,
       setTitle(t) { root.querySelector('h2').textContent = t; },
       setTime(sec, cb) { timeLeft = sec; onTimeout = cb || null; tmEl.classList.remove('hidden'); },
+      clearTime() { timeLeft = null; onTimeout = null; tmEl.classList.add('hidden'); tmEl.classList.remove('low'); },
       addTime(sec) { if (timeLeft != null) timeLeft = Math.max(0, timeLeft + sec); },
       get time() { return timeLeft; },
       onTick(fn) { tickFns.push(fn); },
@@ -43,7 +44,7 @@ export function playMini(name, opts = {}) {
         timeLeft -= dt;
         tmEl.textContent = `${Math.max(0, Math.ceil(timeLeft))} ${T('с', 'с', 's')}`;
         tmEl.classList.toggle('low', timeLeft < 5);
-        if (timeLeft <= 0) { timeLeft = 0; if (onTimeout) onTimeout(); else api.end({ score: 0, timeout: true }); }
+        if (timeLeft <= 0) { timeLeft = 0; const cb = onTimeout; if (cb) { timeLeft = null; onTimeout = null; tmEl.classList.add('hidden'); cb(); } else api.end({ score: 0, timeout: true }); }
       }
       for (const f of tickFns) f(dt, now);
       raf = requestAnimationFrame(loop);

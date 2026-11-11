@@ -7,7 +7,7 @@ import { icon } from '../ui/icons.js';
 import { go, rerender, toast, confirmBox, ago, openApp, choose } from '../ui/shell.js';
 import { img, empty, bar, tags } from '../ui/comp.js';
 import { JOBS, RANKS, jobById, reqOk, shiftPay, apply, interviewResult, acceptOffer, quitJob, canShift, finishShift, GIGS, finishGig, gigReady, SHIFT_COOLDOWN, wageIdx, shiftGame, DOCS, jobDocs, docState, docReady, docReadyAt, orderDoc, vacancyWindow } from '../game/jobs.js';
-import { freeFeed, claimFree, dumpsterLoot, giveTier, freeAlreadyGone, raceParams, payBait } from '../game/sources.js';
+import { freeFeed, claimFree, dumpsterLoot, giveTier, freeAlreadyGone, payBait } from '../game/sources.js';
 import { gallery } from '../ui/comp.js';
 import { viewsOf } from '../data/views.js';
 import { itemTitle, itemSub } from '../game/items.js';
@@ -160,15 +160,10 @@ export const freeApp = {
       s.energy = clamp(s.energy - 3, 0, 100);
       // while you were on the way someone else may already have taken it
       if (freeAlreadyGone(g)) { g.taken = true; sfx('lose'); toast(T('Пока вы ехали — уже забрали', 'Поки ви їхали — вже забрали', 'Gone before you got there'), 'r'); rerender(); return; }
-      let won = true;
-      if (g.claimers > 0) {
-        const rp = raceParams(g);
-        const game = pickR(['tapRace', 'run']);
-        const r = await playMini(game, { title: T('Кто первый — того и вещь', 'Хто перший — того й річ', 'First come, first served'), rival: T('Другой желающий', 'Інший охочий', 'Another taker'), speed: rp.speed, goal: rp.goal, hard: rp.speed / 10, pass: 1 });
-        if (r.quit) return;
-        won = !!r.won;
-      }
-      const res = claimFree(g, won);
+      // the trip itself: message the giver, route, entrance, intercom, the right bag — while another taker races you
+      const r = await playMini('pickup', { title: `${T('Даром', 'Даром', 'Free')} · ${itemTitle(g.item)}`, tier: g.tier, claimers: g.claimers, pass: 1 });
+      if (r.quit) { rerender(); return; }
+      const res = claimFree(g, !!r.won);
       if (res.ok) { sfx('win'); toast(T('Забрали!', 'Забрали!', 'Got it!'), 'g'); }
       else if (res.msg) toast(res.msg, 'r');
       else toast(T('Опередили…', 'Випередили…', 'Someone was faster…'), 'r');
@@ -184,7 +179,9 @@ export const freeApp = {
       let bonus = 0;
       if (Math.random() < 0.18) {
         // a locked toolbox / suitcase in the trash: pick the lock for a better find
-        const lp = await playMini('lockpick', { title: T('Запертый ящик в мусорке', 'Замкнена скриня у смітнику', 'A locked box in the trash'), pins: 3, pass: 1 });
+        const lp = Math.random() < 0.5
+          ? await playMini('codelock', { title: T('Кодовый ящик в мусорке', 'Кодова скриня у смітнику', 'A combination box in the trash'), digits: 3, tries: 6, pass: 1 })
+          : await playMini('lockpick', { title: T('Запертый ящик в мусорке', 'Замкнена скриня у смітнику', 'A locked box in the trash'), pins: 3, pass: 1 });
         if (!lp.quit && lp.score >= 1) bonus = 0.35;
       }
       const loot = dumpsterLoot(Math.min(1, r.score + bonus));

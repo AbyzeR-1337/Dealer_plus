@@ -54,7 +54,6 @@ function makeGiveaway(rng) {
 }
 // before the race: did someone already grab it while you were on the way?
 export function freeAlreadyGone(g) { return chance(giveTier(g).gone); }
-export function raceParams(g) { const t = giveTier(g); return { speed: t.speed[0] + g.claimers * t.speed[1], goal: t.goal }; }
 // the bait: paying "delivery" for a free gadget just loses the money
 export function payBait(g) {
   const loss = Math.max(5, Math.min(G.s.money, 8 + itemValue(g.item, G.s.player.city, 'true') * 0.04));

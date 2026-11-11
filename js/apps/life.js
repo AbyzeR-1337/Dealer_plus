@@ -212,10 +212,10 @@ export const mapApp = {
     haggle: async (id) => {
       const x = fleaFeed().items.find((y) => y.id === id);
       const { playMini } = await import('../mini/engine.js');
-      const r = await playMini('timing', { title: T('Торг на барахолке', 'Торг на барахолці', 'Flea market haggle'), rounds: 3, label: T('Каждое попадание — скидка', 'Кожне влучання — знижка', 'Each hit = a discount') });
+      const r = await playMini('haggle', { title: T('Торг на барахолке', 'Торг на барахолці', 'Flea market haggle'), item: x.item, pass: 0.4 });
       if (r.quit) return;
       x.haggled = true;
-      const disc = Math.round(r.score * 30);
+      const disc = Math.round(r.disc ?? r.score * 30);
       x.price = nicePrice(x.price * (1 - disc / 100));
       toast(disc ? T(`Скинули ${disc}%!`, `Скинули ${disc}%!`, `${disc}% off!`) : T('Продавец не уступил', 'Продавець не поступився', 'No discount'), disc ? 'g' : '');
       rerender();

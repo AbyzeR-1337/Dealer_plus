@@ -19,11 +19,13 @@ import { log, earn, charge, addXP, addReview, addItem, canStore, spend, stat } f
 import { eventsTick } from './game/events.js';
 import { playMini } from './mini/engine.js';
 import { MORE_GAMES } from './mini/games_more.js';
+import { LAB_GAMES } from './mini/lab.js';
+import { LIFE_GAMES } from './mini/life.js';
 import { itemSVG } from './ui/art.js';
 import { itemTitle, itemSub } from './game/items.js';
 import { unlockAudio, sfx } from './ui/sfx.js';
 
-registerGames({ ...ITEM_GAMES, ...WORK_GAMES, ...MORE_GAMES });
+registerGames({ ...ITEM_GAMES, ...WORK_GAMES, ...MORE_GAMES, ...LAB_GAMES, ...LIFE_GAMES });
 window.GR = { G }; // debug handle
 registerApps(APPS, DOCK);
 
@@ -102,9 +104,18 @@ async function lifeEvent(e) {
   if (e.id === 'pickpocket') {
     const v = await timedChoice('🚨 ' + T('Карманник!', 'Кишеньковий злодій!', 'Pickpocket!'), `<p class="p">${T('Кто‑то тянет руку к вашему кошельку! Быстрее!', 'Хтось тягнеться до вашого гаманця! Швидше!', 'Someone’s reaching for your wallet! Quick!')}</p>`, [{ v: 'catch', label: T('Схватить вора!', 'Схопити злодія!', 'Grab the thief!'), cls: 'red' }, { v: 'let', label: T('Ничего не делать', 'Нічого не робити', 'Do nothing'), cls: 'dark' }], 5);
     let won = false;
-    if (v === 'catch') { const r = await playMini('tapRace', { title: T('Догоните вора!', 'Наздоженіть злодія!', 'Catch the thief!'), rival: T('Вор', 'Злодій', 'Thief'), speed: 6.2, goal: 22, pass: 1 }); won = !!r.won; }
+    if (v === 'catch') { const r = await playMini('thief', { title: T('Держи вора!', 'Тримай злодія!', 'Stop, thief!'), pass: 1 }); won = !!r.won; }
     if (won) { earn(e.loss * 0.4, 'other', T('Награда за поимку', 'Винагорода', 'Reward')); addXP(12); toast(T(`Поймали! Награда ${fmt(e.loss * 0.4)}`, `Спіймали! Винагорода ${fmt(e.loss * 0.4)}`, `Caught! Reward ${fmt(e.loss * 0.4)}`), 'g'); }
-    else { charge(e.loss, 'theft', T('Карманник', 'Кишеньковий злодій', 'Pickpocket')); sfx('lose'); toast(T(`Украли ${fmt(e.loss)}`, `Вкрали ${fmt(e.loss)}`, `Stolen: ${fmt(e.loss)}`), 'r'); }
+    else {
+      // cash in the wallet is gone; the card can still be blocked before the thief spends it all
+      const cash = e.loss * 0.4, card = e.loss - cash;
+      charge(cash, 'theft', T('Карманник: наличные', 'Кишеньковий злодій: готівка', 'Pickpocket: cash'));
+      sfx('lose');
+      const r = await playMini('cardblock', { title: T('Срочно заблокируй карту', 'Терміново заблокуй картку', 'Block the card now'), amount: card, pass: 0.6 });
+      const spent = r.quit ? card : Math.min(card, r.spent ?? card);
+      if (spent > 0.01) charge(spent, 'theft', T('Покупки вора по вашей карте', 'Покупки злодія вашою карткою', 'Thief’s purchases on your card'));
+      toast(T(`Украли ${fmt(cash + spent)}`, `Вкрали ${fmt(cash + spent)}`, `Stolen: ${fmt(cash + spent)}`), 'r');
+    }
   } else if (e.id === 'hotdeal') {
     const v = await timedChoice('⚡ ' + T('Горячая сделка', 'Гаряча угода', 'Hot deal'), `<div class="card row"><div style="width:84px;height:84px;border-radius:12px;overflow:hidden;flex:none">${itemSVG(e.item, { tilt: true })}</div><div class="grow"><b>${esc(itemTitle(e.item))}</b><div class="small m">${esc(itemSub(e.item))}</div><div class="g bold">${fmt(e.price)}</div><div class="small m">${T('рынок', 'ринок', 'market')} ≈ ${fmt(e.value)}</div></div></div><p class="p">${T('Знакомый срочно сливает вещь. 10 секунд на решение!', 'Знайомий терміново зливає річ. 10 секунд на рішення!', 'A contact is dumping it fast. 10 seconds to decide!')}</p>`, [{ v: 'buy', label: T(`Беру за ${fmt(e.price)}`, `Беру за ${fmt(e.price)}`, `Buy for ${fmt(e.price)}`), cls: 'green' }, { v: 'no', label: T('Пропустить', 'Пропустити', 'Skip'), cls: 'dark' }], 10);
     if (v === 'buy') {
@@ -114,7 +125,11 @@ async function lifeEvent(e) {
     } else if (v === 'timeout') toast(T('Сделка ушла другому', 'Угода пішла іншому', 'The deal went to someone else'));
   } else if (e.id === 'wallet') {
     const v = await timedChoice('👛 ' + T('Найден кошелёк', 'Знайдено гаманець', 'Found a wallet'), `<p class="p">${T(`Внутри ${fmt(e.cash)} и визитка владельца.`, `Усередині ${fmt(e.cash)} і візитка власника.`, `${fmt(e.cash)} inside and the owner’s card.`)}</p>`, [{ v: 'return', label: T('Вернуть владельцу', 'Повернути власнику', 'Return it'), cls: 'green' }, { v: 'keep', label: T('Оставить себе', 'Залишити собі', 'Keep it'), cls: 'dark' }], 12);
-    if (v === 'return') { addXP(30); addReview(5, T('Вернул мне кошелёк! Честный человек.', 'Повернув мені гаманець! Чесна людина.', 'Returned my wallet! Honest person.')); earn(e.cash * 0.2, 'other', T('Благодарность', 'Подяка', 'Thank‑you gift')); toast(T('Владелец благодарит! +репутация', 'Власник дякує! +репутація', 'The owner thanks you! +reputation'), 'g'); }
+    if (v === 'return') {
+      const r = await playMini('owner', { title: T('Вернуть кошелёк', 'Повернути гаманець', 'Return the wallet'), cash: e.cash, pass: 1 });
+      if (r.won) { addXP(30); addReview(5, T('Вернул мне кошелёк! Честный человек.', 'Повернув мені гаманець! Чесна людина.', 'Returned my wallet! Honest person.')); earn(e.cash * 0.2, 'other', T('Благодарность', 'Подяка', 'Thank‑you gift')); toast(T('Владелец благодарит! +репутация', 'Власник дякує! +репутація', 'The owner thanks you! +reputation'), 'g'); }
+      else { addXP(5); toast(T('Кошелёк ушёл не тому человеку…', 'Гаманець пішов не тій людині…', 'The wallet went to the wrong person…'), 'r'); }
+    }
     else if (v === 'keep') { earn(e.cash, 'other', T('Находка', 'Знахідка', 'Found')); toast(`+${fmt(e.cash)}`); }
   } else if (e.id === 'parcel') {
     const v = await timedChoice('📦 ' + T('Курьер роняет коробку!', 'Курʼєр впускає коробку!', 'A courier drops a box!'), `<p class="p">${T('Успейте поймать — получите чаевые.', 'Встигніть піймати — отримаєте чайові.', 'Catch it for a tip.')}</p>`, [{ v: 'go', label: T('Ловить!', 'Ловити!', 'Catch!'), cls: 'yel' }], 4);

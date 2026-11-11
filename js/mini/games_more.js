@@ -1,4 +1,4 @@
-// More minigames for everyday actions: running to a freebie, photographing a listing, giving change,
+// More minigames for everyday actions: photographing a listing, giving change,
 // sorting parcels, catching boxes, catching shoplifters, memory pairs, code sequences, lock picking,
 // weighing gold, counting sheep, flipping pancakes, spotting a difference, composing a text.
 import { T } from '../core/i18n.js';
@@ -9,40 +9,6 @@ import { renderItem } from '../ui/art.js';
 
 const stage = (api, html, cls = '') => { api.body.innerHTML = html; return api.body.querySelector('.mstage') || api.body; };
 const hint = (t, sub = '') => `<div class="mhint">${t}${sub ? `<small>${sub}</small>` : ''}</div>`;
-
-// ---------------------------------------------------------------- RUN: race a rival to a freebie, jump obstacles
-function run(api, { speed = 5, goal = 30, hard = 0.5, rival }) {
-  const dist = 100;
-  const rivalV = 9 + speed * 1.15;           // rival speed in m/s
-  let me = 0, them = 0, vy = 0, y = 0, slowT = 0, started = false;
-  const obs = [];
-  api.body.innerHTML = hint(T('Жмите, чтобы прыгать через препятствия. Задели — теряете скорость.', 'Тисніть, щоб стрибати через перешкоди. Зачепили — втрачаєте швидкість.', 'Tap to jump obstacles. Hit one and you slow down.')) + `<div class="card"><div class="small">${T('Вы', 'Ви', 'You')}</div><div class="bar" style="height:10px"><i class="b1" style="width:0%"></i></div><div class="small mt">${esc(rival || T('Соперник', 'Суперник', 'Rival'))}</div><div class="bar" style="height:10px"><i class="b2" style="width:0%;background:var(--red)"></i></div></div><div class="mstage runfield"><div class="runner">🏃</div><div class="ground"></div><div class="cd">3</div></div>`;
-  const field = api.body.querySelector('.runfield'), runner = field.querySelector('.runner'), cdEl = field.querySelector('.cd');
-  let cd = 3;
-  const t = setInterval(() => { cd--; cdEl.textContent = cd > 0 ? cd : T('Бегом!', 'Біжи!', 'Go!'); if (cd <= 0) { clearInterval(t); started = true; setTimeout(() => cdEl.remove(), 500); } }, 550);
-  let next = 1.2;
-  field.addEventListener('pointerdown', () => { if (started && y <= 0.01) { vy = 2.25; api.sfx('tick'); } });
-  api.onTick((dt) => {
-    if (!started || api.ended) return;
-    const v = (slowT > 0 ? 7 : 15);
-    slowT -= dt;
-    me += dt * v; them += dt * rivalV * rnd(0.85, 1.15);
-    vy -= dt * 7.5; y = Math.max(0, y + vy * dt); if (y === 0) vy = Math.max(0, vy);
-    runner.style.transform = `translateY(${-y * 70}px)`;
-    next -= dt;
-    if (next <= 0) { const e = h('div', 'obst', pickR(['📦', '🚧', '🛒', '🗑️', '🐕'])); e.x = 1.05; field.appendChild(e); obs.push(e); next = rnd(0.7, 1.5) / (0.8 + hard * 0.5); }
-    for (const o of obs) {
-      o.x -= dt * 0.55 * (v / 15);
-      o.style.left = o.x * 100 + '%';
-      if (!o.hit && o.x < 0.2 && o.x > 0.08 && y < 0.35) { o.hit = true; slowT = 0.9; api.sfx('err'); api.shake(field); }
-      if (o.x < -0.1) o.remove();
-    }
-    api.body.querySelector('.b1').style.width = Math.min(100, (me / dist) * 100) + '%';
-    api.body.querySelector('.b2').style.width = Math.min(100, (them / dist) * 100) + '%';
-    if (me >= dist) api.end({ score: 1, won: true, emoji: '🏃', title: T('Вы первые!', 'Ви перші!', 'You made it first!') });
-    else if (them >= dist) api.end({ score: clamp(me / dist * 0.6, 0, 0.59), won: false, emoji: '🐢', title: T('Соперник успел первым', 'Суперник встиг першим', 'The rival got there first') });
-  });
-}
 
 // ---------------------------------------------------------------- PHOTO: shoot a listing photo in focus
 function photo(api, { item, shots = 3 }) {
@@ -324,4 +290,4 @@ function compose(api, { rounds = 2 }) {
   show();
 }
 
-export const MORE_GAMES = { run, photo, change, swipe, catch: catchGame, whack, memory, simon, lockpick, scale, sheep, pancake, spot, compose };
+export const MORE_GAMES = { photo, change, swipe, catch: catchGame, whack, memory, simon, lockpick, scale, sheep, pancake, spot, compose };
