@@ -5,6 +5,7 @@ import { chance } from '../core/util.js';
 import { marketTick, feedFor } from './market.js';
 import { sellTick, feedbackTick, finishSale } from './sell.js';
 import { supportTick } from './support.js';
+import { phoneTick } from './phone.js';
 import { auctionTick, ownAuctionTick } from './sources.js';
 import { workshopTick } from './workshop.js';
 import { jobsTick } from './jobs.js';
@@ -72,6 +73,7 @@ export function tick(fast = false) {
   sellTick();
   feedbackTick();
   supportTick();
+  phoneTick();
   deliveriesTick();
   workshopTick();
   auctionTick();

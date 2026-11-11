@@ -8,6 +8,9 @@ import { icon } from './icons.js';
 import { clearUnread, netWorth } from '../game/player.js';
 import { sfx } from './sfx.js';
 import { morphHTML } from './morph.js';
+import { renderHomeScreen, homeActions, initHome, HOME } from './home.js';
+import { isInstalled, vpnActive } from '../game/phone.js';
+import { APP_META } from '../data/appmeta.js';
 
 export const UI = { app: null, view: 'main', params: {}, stack: [], apps: {}, list: [], dock: [], scroll: {} };
 export function registerApps(list, dock) { UI.list = list; UI.dock = dock; for (const a of list) UI.apps[a.id] = a; }
@@ -42,38 +45,23 @@ function appColors(a) { const c = typeof a.colors === 'function' ? a.colors() : 
 export const appName = (a) => (typeof a.name === 'function' ? a.name() : L(a.name));
 export const appLocked = (a) => (a.lvl || 1) > G.s.level;
 function appBadge(a) { const n = (a.badge ? a.badge() : 0) || G.s.unread[a.id] || 0; return n; }
-function iconHTML(a, dock = false) {
+export function iconHTML(a, dock = false, removable = false) {
   const [c1, c2] = appColors(a);
   const lock = appLocked(a);
   const n = lock ? 0 : appBadge(a);
-  return `<button class="ic${lock ? ' locked' : ''}" data-a="open" data-v="${a.id}">${n ? `<span class="badge">${n > 99 ? '99+' : n}</span>` : ''}${lock ? `<span class="lockb">🔒 ${a.lvl}</span>` : ''}<div class="ico" style="--a:${c1};--b:${c2};--g:${a.glyphColor || '#fff'}">${icon(a.glyph)}<span class="glow"></span></div><span>${esc(appName(a))}</span></button>`;
+  const act = HOME.edit ? '' : `data-a="open" data-v="${a.id}"`;
+  const secret = APP_META[a.id]?.secret;
+  return `<button class="ic${lock ? ' locked' : ''}${secret ? ' secret' : ''}" data-key="i-${a.id}" ${act}>${removable ? `<span class="wx" data-a="homeUninstall" data-v="${a.id}">−</span>` : ''}${n && !HOME.edit ? `<span class="badge">${n > 99 ? '99+' : n}</span>` : ''}${lock ? `<span class="lockb">🔒 ${a.lvl}</span>` : ''}<div class="ico" style="--a:${c1};--b:${c2};--g:${a.glyphColor || '#fff'}">${icon(a.glyph)}<span class="glow"></span></div><span>${esc(appName(a))}</span></button>`;
 }
-export function renderHome() {
-  const s = G.s; if (!s) return;
-  const date = gameDate();
-  const lines = s.log.slice(-4).map((l) => `<div class="tl"><span class="tg">[${esc(l.tag)}]</span> ${esc(l.text)}</div>`).join('') || `<div class="tl">&gt; ${T('система готова', 'система готова', 'system ready')}</div>`;
-  const grid = UI.list.filter((a) => !UI.dock.includes(a.id) && !a.hidden).map((a) => iconHTML(a)).join('');
-  const dock = UI.dock.map((id) => iconHTML(UI.apps[id], true)).join('');
-  $('#home').innerHTML = `
-    <div class="hw-top"><div><div class="hw-clock">${gameClock()}</div></div>
-      <div class="hw-money"><small>${T('баланс', 'баланс', 'balance')}</small><b data-live="money">${fmt(s.money)}</b><small style="margin-top:4px">${T('капитал', 'капітал', 'net worth')} <span data-live="worth">${fmt(netWorth(), { short: true })}</span></small></div></div>
-    <div class="hw-date">${esc(fmtDate(date))}</div>
-    <div class="term" data-a="open" data-v="news">${lines}<div class="tl">&gt; <span class="cur"></span></div></div>
-    <div class="hw-needs">
-      <div class="need" data-a="open" data-v="profile">⚡ ${T('Энергия', 'Енергія', 'Energy')} <b data-live="energy">${Math.round(s.energy)}</b><div class="bar"><i data-live="energybar" style="width:${s.energy}%;background:${s.energy < 25 ? 'var(--red)' : 'var(--acc)'}"></i></div></div>
-      <div class="need" data-a="open" data-v="profile">🍔 ${T('Сытость', 'Ситість', 'Food')} <b data-live="food">${Math.round(s.food)}</b><div class="bar"><i data-live="foodbar" style="width:${s.food}%;background:${s.food < 25 ? 'var(--red)' : 'var(--yel)'}"></i></div></div>
-      <div class="need" data-a="open" data-v="profile">★ ${T('Уровень', 'Рівень', 'Level')} <b>${s.level}</b><div class="bar"><i style="width:${Math.round((s.xp / (60 * Math.pow(s.level, 1.75))) * 100)}%;background:var(--acc2)"></i></div></div>
-    </div>
-    <div class="grid">${grid}</div>
-    <div style="height:30px"></div>`;
-  $('#dockbar').innerHTML = `<div class="dock">${dock}</div>`;
-}
+export function renderHome() { renderHomeScreen(); }
 
 // ---------------------------------------------------------------- app window
 export function openApp(id, view = 'main', params = {}) {
   const a = UI.apps[id];
   if (!a) return;
+  if (!isInstalled(id)) { toast(T('Сначала скачайте приложение в App Store', 'Спочатку завантажте застосунок в App Store', 'Download it from the App Store first')); sfx('err'); if (id !== 'appstore' && UI.apps.appstore) openApp('appstore', 'app', { id }); return; }
   if (appLocked(a)) { toast(T(`Откроется на ${a.lvl} уровне`, `Відкриється на ${a.lvl} рівні`, `Unlocks at level ${a.lvl}`)); sfx('err'); return; }
+  if (APP_META[id]?.secret && !vpnActive()) { toast(T('Нет защищённого соединения — включите VPN', 'Немає захищеного зʼєднання — увімкніть VPN', 'No secure connection — turn on the VPN'), 'r'); sfx('err'); return; }
   closeSheet();
   UI.app = a; UI.view = view; UI.params = params; UI.stack = [{ view, params }];
   if (a.onOpen) a.onOpen(params);
@@ -300,6 +288,7 @@ export function banner({ app, title, text, go: target }) {
 
 // ---------------------------------------------------------------- global event delegation
 const GLOBAL = {
+  ...homeActions,
   open: (v, el) => openApp(v, el.dataset.w || 'main', el.dataset.p ? JSON.parse(el.dataset.p) : {}),
   go: (v, el) => go(v, el.dataset.p ? JSON.parse(el.dataset.p) : el.dataset.id ? { id: el.dataset.id } : {}),
   back: () => back(),

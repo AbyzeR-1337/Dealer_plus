@@ -8,7 +8,9 @@ import { registerGames } from './mini/engine.js';
 import { ITEM_GAMES } from './mini/games_item.js';
 import { WORK_GAMES } from './mini/games_work.js';
 import { APPS, DOCK } from './apps/index.js';
-import { UI, registerApps, initShell, renderHome, renderStatus, liveUpdate, rerender, sheet, resolveSheet, toast, banner, dayNum, refreshAll } from './ui/shell.js';
+import { UI, registerApps, initShell, renderHome, renderStatus, liveUpdate, rerender, sheet, resolveSheet, toast, banner, dayNum, refreshAll, appName } from './ui/shell.js';
+import { ensurePhone, PHONE } from './game/phone.js';
+import { initHome } from './ui/home.js';
 import { initWorld, startSim, isPaused } from './game/sim.js';
 import { resolveCustoms } from './game/travel.js';
 import { log, earn, charge, addXP, addReview, addItem, canStore, spend, stat } from './game/player.js';
@@ -22,12 +24,13 @@ registerGames({ ...ITEM_GAMES, ...WORK_GAMES });
 window.GR = { G }; // debug handle
 registerApps(APPS, DOCK);
 
-const RERENDER_ON = ['chats', 'inv', 'market', 'listings', 'deliveries', 'jobs', 'biz', 'bank', 'travel', 'needs', 'quests', 'house', 'tax', 'stocks', 'numbers', 'online', 'news', 'support', 'parts'];
+const RERENDER_ON = ['chats', 'inv', 'market', 'listings', 'deliveries', 'jobs', 'biz', 'bank', 'travel', 'needs', 'quests', 'house', 'tax', 'stocks', 'numbers', 'online', 'news', 'support', 'parts', 'apps'];
 // which background events each app actually shows; anything else is ignored while it is open
 const WATCH = {
   market: ['market', 'chats', 'listings', 'support', 'inv', 'online'], inventory: ['inv', 'listings', 'deliveries', 'chats'], delivery: ['deliveries'],
   bank: ['bank'], stocks: ['stocks'], jobs: ['jobs', 'needs'], free: ['market', 'needs'], business: ['biz', 'inv'], realty: ['house'], travel: ['travel'],
   gov: ['tax'], quests: ['quests'], numbers: ['numbers'], rating: ['online'], news: ['news'], profile: ['needs', 'house', 'quests'], repair: ['inv', 'parts'],
+  appstore: ['apps'], vpn: ['apps'], dark: ['apps', 'inv'],
   shop: ['needs', 'inv'], auction: ['market', 'inv'], legit: ['inv'], lab: ['inv'], pawn: ['inv'], map: ['travel'], stats: [], settings: ['online'], upgrades: [], casino: [],
 };
 function safeRerender(ev) {
@@ -42,11 +45,12 @@ function safeRerender(ev) {
 let homeTick = 0;
 function wire() {
   for (const ev of RERENDER_ON) on(ev, () => safeRerender(ev));
+  on('apps', () => { if (!UI.app) renderHome(); });
   on('tick', () => {
     renderStatus();
     liveUpdate();
     if (UI.app && UI.app.live) safeRerender();
-    if (!UI.app && ++homeTick % 5 === 0) renderHome();
+    if (!UI.app && ++homeTick % 2 === 0) renderHome();
     eventsTick(!!($('#mini-layer').children.length || $('#sheet-layer').children.length || $('#boot').classList.contains('on')));
   });
   on('lifeEvent', lifeEvent);
@@ -68,7 +72,10 @@ function wire() {
 function startGame() {
   setLang(G.s.player.lang);
   initWorld();
+  ensurePhone(APPS);
+  PHONE.nameOf = (id) => (UI.apps[id] ? appName(UI.apps[id]) : id);
   initShell();
+  initHome();
   wire();
   renderStatus();
   renderHome();
@@ -162,7 +169,7 @@ async function bootScreen() {
       unlockAudio(); sfx('win');
       startGame();
       log('sys', T('Добро пожаловать! Начните с «Работы» и «Даром».', 'Ласкаво просимо! Почніть із «Роботи» і «Даром».', 'Welcome! Start with Jobs and Freebies.'));
-      setTimeout(() => banner({ app: 'quests', title: T('Первое задание', 'Перше завдання', 'First quest'), text: T('Найдите работу в приложении вакансий', 'Знайдіть роботу в застосунку вакансій', 'Find a job in the jobs app'), go: ['jobs', 'vac'] }), 1200);
+      setTimeout(() => banner({ app: 'quests', title: T('Первое задание', 'Перше завдання', 'First quest'), text: T('Скачайте «Работу» в App Market и найдите вакансию', 'Завантажте «Роботу» в App Market і знайдіть вакансію', 'Get the Jobs app from App Market and find a vacancy'), go: ['appstore', 'app', { id: 'jobs' }] }), 1200);
     });
   }
   draw();
