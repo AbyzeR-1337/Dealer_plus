@@ -14,7 +14,8 @@ import { playMini } from '../mini/engine.js';
 import { regName, regColors, region } from './common.js';
 import { sfx } from '../ui/sfx.js';
 import { orderCard, setPrimary, closeCard } from '../game/cards.js';
-import { bankHome, bankRates, bankSkin, bankCredit, bankSave, bankMore, bankCards, bankSkins, bankQR, bankStatusBar, setBankSkin } from './bank_skins.js';
+import { bankHome, bankRates, bankSkin, bankCredit, bankSave, bankMore, bankCards, bankSkins, bankQR, bankStatusBar, setBankSkin, bankP2P } from './bank_skins.js';
+import { homeData, quote, sendMoney, cancelTx, relink, errText } from '../game/online.js';
 import { CG, slotsView, playSlots, rouletteView, playRoulette, blackjackView, bjDeal, bjHit, bjDouble, bjFinish, diceView, playDice } from './casino_games.js';
 
 // ---------------------------------------------------------------- BANK (looks like the real bank app of the country; see bank_skins.js)
@@ -24,7 +25,7 @@ export const bankApp = {
   title: () => bankSkin().name,
   bare: true,
   statusBar: (v) => bankStatusBar(v),
-  views: { main: bankHome, credit: bankCredit, save: bankSave, more: bankMore, cards: bankCards, rates: bankRates, skins: bankSkins, qr: bankQR },
+  views: { main: bankHome, credit: bankCredit, save: bankSave, more: bankMore, cards: bankCards, rates: bankRates, skins: bankSkins, qr: bankQR, p2p: bankP2P },
   actions: {
     corder: async (v) => {
       const [bank, id] = v.split(':');
@@ -36,6 +37,47 @@ export const bankApp = {
     cclose: async (key) => { if (await confirmBox(T('Закрыть карту?', 'Закрити картку?', 'Close the card?'), T('Бонусы этой карты перестанут действовать.', 'Бонуси цієї картки перестануть діяти.', 'Its perks will stop working.'), T('Закрыть', 'Закрити', 'Close'), undefined, true)) { closeCard(key); rerender(); } },
     bskin: (id) => { setBankSkin(id); sfx('ok'); toast(T('Оформление изменено', 'Оформлення змінено', 'Skin changed'), 'g'); rerender(); },
     bhide: () => { G.s.bank.hideBal = !G.s.bank.hideBal; rerender(); },
+    p2p: () => go('p2p'),
+    p2psend: async (id) => {
+      const d = homeData(), f = d?.social?.friends?.find((x) => x.id === id);
+      if (!f || !d.money) return;
+      const lim = d.money.limits;
+      const max = Math.floor(Math.min(lim.send_left, G.s.money) * 100) / 100;
+      if (max < 1) { toast(G.s.money < 1 ? errText('no_money') : errText('limit_send'), 'r'); return; }
+      const amt = await askPrice({ title: T(`Перевод · ${f.nick}`, `Переказ · ${f.nick}`, `Send to ${f.nick}`), sub: T(`Сегодня можно до ${fmt(max)}`, `Сьогодні можна до ${fmt(max)}`, `Up to ${fmt(max)} today`), value: Math.max(1, Math.round(max / 4)), min: 1, max });
+      if (!amt) return;
+      const q = quote(amt, f);
+      const big = amt > 0.25 * Math.max(+f.worth || 0, 1000);
+      const hold = big ? Math.max(20, q.holdMin) : q.holdMin;
+      const v = await sheet(`<h2>${T('Перевод другу', 'Переказ другу', 'Send to a friend')}</h2>
+        <div class="p2p-to"><span class="p2p-ava" style="background:hsl(${(f.nick.charCodeAt(0) * 37) % 360} 65% 55%)">${esc(f.nick[0].toUpperCase())}</span><b>${esc(f.nick)}</b></div>
+        ${kv(T('Сумма', 'Сума', 'Amount'), fmt(amt))}
+        ${kv(T(`Комиссия банка ${q.abroad ? '2.5% (за границу)' : '1%'}`, `Комісія банку ${q.abroad ? '2.5% (за кордон)' : '1%'}`, `Bank fee ${q.abroad ? '2.5% (abroad)' : '1%'}`), '−' + fmt(q.fee))}
+        ${kv(T(`Налог страны получателя ${Math.round(q.rate * 100)}%`, `Податок країни отримувача ${Math.round(q.rate * 100)}%`, `Payee’s country tax ${Math.round(q.rate * 100)}%`), '−' + fmt(q.tax))}
+        <div class="p2p-net"><span>${T('Друг получит', 'Друг отримає', 'Friend gets')}</span><b>${fmt(q.net)}</b></div>
+        <p class="small m">${T(`Зачисление ≈ ${hold} мин${big ? ' — крупная сумма, финмониторинг' : ''}. Пока перевод в пути, его можно отменить (комиссия не возвращается).`, `Зарахування ≈ ${hold} хв${big ? ' — велика сума, фінмоніторинг' : ''}. Поки переказ у дорозі, його можна скасувати (комісія не повертається).`, `Arrives in ≈ ${hold} min${big ? ' — big sum, financial monitoring' : ''}. You can cancel while it’s on the way (the fee isn’t refunded).`)}</p>
+        <input class="input mt" id="p2pnote" maxlength="60" placeholder="${T('Сообщение (необязательно)', 'Повідомлення (необовʼязково)', 'Message (optional)')}">
+        <button class="btn block mt" id="p2pok">${T('Отправить', 'Надіслати', 'Send')} ${fmt(amt)}</button>`, { after(el) { el.querySelector('#p2pok').onclick = () => resolveSheet(JSON.stringify({ note: el.querySelector('#p2pnote').value.trim() })); } });
+      if (!v) return;
+      const { note } = JSON.parse(v);
+      toast(T('Отправляем…', 'Надсилаємо…', 'Sending…'));
+      try {
+        const r = await sendMoney(id, amt, note);
+        sfx('cash');
+        toast(T(`Отправлено! ${f.nick} получит ${fmt(+r.net)} через ~${r.hold_min} мин`, `Надіслано! ${f.nick} отримає ${fmt(+r.net)} через ~${r.hold_min} хв`, `Sent! ${f.nick} gets ${fmt(+r.net)} in ~${r.hold_min} min`), 'g');
+      } catch (e) { sfx('err'); toast(errText(e), 'r'); }
+      rerender();
+    },
+    p2pcancel: async (id) => {
+      if (!(await confirmBox(T('Отменить перевод?', 'Скасувати переказ?', 'Cancel the transfer?'), T('Деньги вернутся, комиссия банка — нет.', 'Гроші повернуться, комісія банку — ні.', 'The money comes back, the bank fee doesn’t.'), T('Отменить', 'Скасувати', 'Cancel it')))) return;
+      try { const r = await cancelTx(+id); sfx('cash'); toast(T(`Возвращено ${fmt(+r.refund)}`, `Повернуто ${fmt(+r.refund)}`, `Refunded ${fmt(+r.refund)}`), 'g'); } catch (e) { toast(errText(e), 'r'); }
+      rerender();
+    },
+    p2prelink: async () => {
+      if (!(await confirmBox(T('Перенести аккаунт сюда?', 'Перенести акаунт сюди?', 'Move the account here?'), T('На другом устройстве переводы перестанут работать. Все переводы, сделанные там, применятся к этому сохранению.', 'На іншому пристрої перекази перестануть працювати. Усі перекази, зроблені там, застосуються до цього збереження.', 'Transfers stop working on the other device. Everything sent or received there is applied to this save.'), T('Перенести', 'Перенести', 'Move')))) return;
+      try { await relink(); toast(T('Готово: переводы работают на этом устройстве', 'Готово: перекази працюють на цьому пристрої', 'Done: transfers work on this device'), 'g'); } catch (e) { toast(errText(e), 'r'); }
+      rerender();
+    },
     bqr: () => { const w = document.querySelector('#appwin'); void w; go('qr'); },
     bother: async () => {
       const v = await choose(T('Другие платежи', 'Інші платежі', 'Other payments'), [{ v: 'gov', label: '🏛 ' + T('Налоги', 'Податки', 'Taxes') }, { v: 'credit', label: '💳 ' + T('Погасить кредит', 'Погасити кредит', 'Repay a loan') }, { v: 'rates', label: '💱 ' + T('Обмен валют', 'Обмін валют', 'Currency exchange') }, { v: 'cards', label: '✨ ' + T('Оформить карту', 'Оформити картку', 'Get a card') }]);

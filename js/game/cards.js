@@ -131,7 +131,7 @@ export const isOwned = (bank, id) => (B().cards || []).some((c) => c.bank === ba
 export const isOrdered = (bank, id) => (B().cardOrders || []).some((o) => o.bank === bank && o.id === id);
 export const perksOf = (def) => KIND[def.kind] || {};
 // no cashback on bank fees, loans, savings, taxes, fines, transfers to scammers...
-const NO_CB = new Set(['bank', 'loan', 'deposit', 'tax', 'fine', 'customs', 'scam', 'theft', 'refund', 'gov', 'casino', 'stock', 'realty', 'numbers']);
+const NO_CB = new Set(['p2p', 'bank', 'loan', 'deposit', 'tax', 'fine', 'customs', 'scam', 'theft', 'refund', 'gov', 'casino', 'stock', 'realty', 'numbers']);
 // what all your cards give together (the best of each perk)
 export function cardEffects() {
   const cbs = {};

@@ -6,12 +6,12 @@ import { fmt } from '../core/money.js';
 import { CURRENCIES, COUNTRIES, CITY, countryOf } from '../data/world.js';
 import { CATS } from '../data/catalog.js';
 import { icon } from '../ui/icons.js';
-import { go, rerender, toast, confirmBox, choose, sheet, resolveSheet, ago, renderHome, refreshAll, UI } from '../ui/shell.js';
+import { go, rerender, toast, confirmBox, choose, sheet, resolveSheet, ago, renderHome, refreshAll, UI, openApp } from '../ui/shell.js';
 import { empty, bar, kv, segbar, sparkline, avatar } from '../ui/comp.js';
 import { ensureDaily, questProgress, questText, claimQuest, STORY, ACH, achTier } from '../game/quests.js';
 import { UPGRADES, upLevel, upCost, UP_MAX, spend, getStat, netWorth, repScore, addXP } from '../game/player.js';
 import { newsText } from '../game/news.js';
-import { onlineEnabled, isRegistered, register, leaderboard, offlineBoard, friends, friendRequest, friendRespond, friendRemove, nudge, inbox, errText, submit, serverSource, serverUrl, setServer, clearServer, inviteLink, ping } from '../game/online.js';
+import { onlineEnabled, isRegistered, register, offlineBoard, friendRequest, friendRespond, nudge, errText, submit, serverSource, serverUrl, setServer, clearServer, inviteLink, ping, HOME, homeData, sync } from '../game/online.js';
 import { sfx } from '../ui/sfx.js';
 
 // ---------------------------------------------------------------- QUESTS
@@ -78,52 +78,65 @@ export const statsApp = {
 };
 
 // ---------------------------------------------------------------- RATING (online)
-const RT = { scope: 'global', rows: null, loading: false, err: '', fr: null, inbox: null };
-async function loadBoard() {
-  RT.loading = true; RT.err = ''; rerender();
-  try {
-    if (onlineEnabled() && isRegistered()) await submit(true).catch(() => {});
-    RT.rows = onlineEnabled() ? await leaderboard(RT.scope) : offlineBoard();
-    if (onlineEnabled() && isRegistered()) { RT.fr = await friends(); RT.inbox = await inbox().catch(() => []); }
-  } catch (e) { RT.err = errText(e); RT.rows = offlineBoard(); }
-  RT.loading = false; rerender();
+// Renders instantly from the last server answer (memory / localStorage) and refreshes it in the background
+// with ONE request (gr_home: all three boards, friends, requests, nudges). Actions update the screen
+// optimistically and then sync.
+const RT = { scope: 'global', spin: false };
+function refresh(force = false) {
+  if (!onlineEnabled()) return;
+  const age = Date.now() - HOME.at;
+  if (!force && age < 8000) return;
+  RT.spin = true;
+  sync().catch(() => {}).finally(() => { RT.spin = false; if (UI.app?.id === 'rating') rerender(); });
+}
+function boardRows() {
+  if (!onlineEnabled()) return offlineBoard();
+  const d = homeData();
+  if (!d) return null;
+  return (d.boards?.[RT.scope] || []).map((r) => ({ nick: r.nick, worth: +r.worth, level: r.level, region: r.region, me: r.me }));
 }
 function ratingMain() {
   const s = G.s;
-  if (!RT.rows && !RT.loading) setTimeout(loadBoard, 0);
   const on = onlineEnabled();
+  setTimeout(() => refresh(false), 0);
+  const d = homeData(), soc = d?.social;
   let h = '';
   if (!on) h += `<div class="card warn small" data-a="open" data-v="settings">${T('Офлайн‑режим: сервер рейтинга не подключён, вы соревнуетесь с перекупщиками‑ботами. Владелец игры может подключить онлайн (см. README).', 'Офлайн‑режим: сервер рейтингу не підключено, ви змагаєтеся з ботами.', 'Offline: no leaderboard server configured, you compete with bots. The owner can enable online (see README).')}</div>`;
-  else if (!isRegistered()) h += `<div class="card"><h3>${T('Войти в онлайн‑рейтинг', 'Увійти в онлайн‑рейтинг', 'Join the online leaderboard')}</h3><div class="d">${T('Ник виден всем игрокам. Переводы денег и вещей между игроками невозможны — накрутить через друзей или второй аккаунт нельзя, а рост капитала проверяет сервер.', 'Нік бачать усі. Перекази грошей і речей між гравцями неможливі.', 'Your nickname is public. Money/item transfers between players don’t exist, and the server validates growth.')}</div><input class="input mt" id="nick" maxlength="20" value="${esc(s.player.name)}"><button class="btn block mt" data-a="reg">${T('Участвовать', 'Брати участь', 'Join')}</button></div>`;
+  else if (!isRegistered()) h += `<div class="card"><h3>${T('Войти в онлайн‑рейтинг', 'Увійти в онлайн‑рейтинг', 'Join the online leaderboard')}</h3><div class="d">${T('Ник виден всем игрокам. Рост капитала проверяет сервер. Деньги можно переводить только друзьям через банк — с лимитами, комиссией и налогом.', 'Нік бачать усі гравці. Зростання капіталу перевіряє сервер. Гроші можна переказувати лише друзям через банк — з лімітами, комісією й податком.', 'Your nickname is public and the server validates growth. Money can only go to friends through the bank — with limits, a fee and tax.')}</div><input class="input mt" id="nick" maxlength="20" value="${esc(s.player.name)}"><button class="btn block mt" data-a="reg">${T('Участвовать', 'Брати участь', 'Join')}</button></div>`;
   h += `<div class="seg"><button class="${RT.scope === 'global' ? 'on' : ''}" data-a="scope" data-v="global">${T('Мир', 'Світ', 'World')}</button><button class="${RT.scope === 'region' ? 'on' : ''}" data-a="scope" data-v="region">${countryOf(s.player.city).flag} ${T('Страна', 'Країна', 'Country')}</button><button class="${RT.scope === 'friends' ? 'on' : ''}" data-a="scope" data-v="friends">${T('Друзья', 'Друзі', 'Friends')}</button></div>`;
-  if (RT.err) h += `<div class="small r mb">${esc(RT.err)}</div>`;
-  if (RT.loading && !RT.rows) h += `<div class="empty">⏳</div>`;
-  if (RT.rows) h += RT.rows.slice(0, 100).map((r, i) => `<div class="lb-row ${r.me ? 'me' : ''}"><div class="pos ${i < 3 ? 'p' + (i + 1) : ''}">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</div>${avatar(r.nick, (r.nick.charCodeAt(0) * 37) % 360)}<div class="grow"><b>${esc(r.nick)}</b><div class="small m">${T('ур.', 'рів.', 'lvl')} ${r.level} · ${esc(r.region || '')}</div></div><b class="g">${fmt(r.worth, { short: true })}</b></div>`).join('');
+  if (HOME.err && on) h += `<div class="small r mb">${esc(HOME.err)}${d ? ' · ' + T('показаны сохранённые данные', 'показано збережені дані', 'showing saved data') : ''}</div>`;
+  const rows = boardRows();
+  if (!rows) h += `<div class="lb-skel">${'<div class="lb-row"><div class="pos"></div><i></i><div class="grow"><b></b></div></div>'.repeat(6)}</div>`;
+  else if (!rows.length) h += `<p class="p">${RT.scope === 'friends' ? T('Добавьте друзей по коду ниже.', 'Додайте друзів за кодом нижче.', 'Add friends by code below.') : T('Пока пусто — будьте первым!', 'Поки порожньо — будьте першим!', 'Empty — be the first!')}</p>`;
+  else h += rows.slice(0, 100).map((r, i) => `<div class="lb-row ${r.me ? 'me' : ''}"><div class="pos ${i < 3 ? 'p' + (i + 1) : ''}">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</div>${avatar(r.nick, (r.nick.charCodeAt(0) * 37) % 360)}<div class="grow"><b>${esc(r.nick)}</b><div class="small m">${T('ур.', 'рів.', 'lvl')} ${r.level} · ${esc(r.region || '')}</div></div><b class="g">${fmt(r.worth, { short: true })}</b></div>`).join('');
   if (on && isRegistered()) {
-    const fr = RT.fr || { friends: [], incoming: [], outgoing: [] };
+    const fr = soc || { friends: [], incoming: [], outgoing: [], inbox: [] };
     h += `<h2 class="sec">${T('Друзья', 'Друзі', 'Friends')}</h2><div class="card"><div class="small m">${T('Ваш код друга', 'Ваш код друга', 'Your friend code')}</div><div class="row between"><b class="mono" style="font-size:24px;letter-spacing:3px">${esc(s.online.code)}</b><button class="btn xs dark" data-a="copy">${T('Копировать', 'Копіювати', 'Copy')}</button></div><div class="row mt" style="gap:8px"><input class="input" id="fcode" placeholder="${T('Код друга', 'Код друга', 'Friend code')}" style="text-transform:uppercase"><button class="btn" data-a="addf">+</button></div></div>`;
     if (fr.incoming?.length) h += `<h3 class="sub">${T('Заявки', 'Заявки', 'Requests')}</h3>` + fr.incoming.map((x) => `<div class="list-item">${avatar(x.nick)}<div class="grow"><b>${esc(x.nick)}</b></div><button class="btn xs green" data-a="facc" data-v="${x.id}">✓</button><button class="btn xs dark" data-a="fdec" data-v="${x.id}">✕</button></div>`).join('');
-    h += (fr.friends || []).map((x) => `<div class="list-item">${avatar(x.nick)}<div class="grow"><b>${esc(x.nick)}</b><div class="small m">${T('ур.', 'рів.', 'lvl')} ${x.level} · ${fmt(x.worth, { short: true })} · ${T('продаж', 'продажів', 'sales')} ${x.stats?.sold ?? 0}</div></div><button class="btn xs dark" data-a="nudge" data-v="${x.id}">👋</button></div>`).join('') || `<p class="p">${T('Добавьте друзей по коду, чтобы соревноваться.', 'Додайте друзів за кодом, щоб змагатися.', 'Add friends by code to compete.')}</p>`;
-    if (RT.inbox?.length) h += `<h3 class="sub">${T('Вам прислали', 'Вам надіслали', 'Received')}</h3>` + RT.inbox.slice(0, 8).map((n) => `<div class="kv"><span>${esc(n.nick)}</span><b>${esc(n.emoji)}</b></div>`).join('');
-    h += `<p class="tiny m">${T('Друзья могут только соревноваться и обмениваться эмодзи — никаких переводов.', 'Друзі можуть лише змагатися й обмінюватися емодзі.', 'Friends can only compete and send emoji — no transfers.')}</p>`;
+    if (fr.outgoing?.length) h += `<div class="small m mb">${T('Ждут ответа', 'Чекають відповіді', 'Waiting')}: ${fr.outgoing.map((x) => esc(x.nick)).join(', ')}</div>`;
+    h += (fr.friends || []).map((x) => `<div class="list-item">${avatar(x.nick)}<div class="grow"><b>${esc(x.nick)}</b><div class="small m">${T('ур.', 'рів.', 'lvl')} ${x.level} · ${fmt(x.worth, { short: true })} · ${T('продаж', 'продажів', 'sales')} ${x.stats?.sold ?? 0}</div></div><button class="btn xs" data-a="sendf" data-v="${x.id}">💸</button><button class="btn xs dark" data-a="nudge" data-v="${x.id}">👋</button></div>`).join('') || (soc ? `<p class="p">${T('Добавьте друзей по коду, чтобы соревноваться.', 'Додайте друзів за кодом, щоб змагатися.', 'Add friends by code to compete.')}</p>` : '');
+    if (fr.inbox?.length) h += `<h3 class="sub">${T('Вам прислали', 'Вам надіслали', 'Received')}</h3>` + fr.inbox.slice(0, 8).map((n) => `<div class="kv"><span>${esc(n.nick)}</span><b>${esc(n.emoji)}</b></div>`).join('');
+    h += `<p class="tiny m">${T('💸 Деньги друзьям — через Банк → «Другу»: лимиты, комиссия, налог страны получателя и защита от дюпа.', '💸 Гроші друзям — через Банк → «Другу»: ліміти, комісія, податок країни отримувача й захист від дюпу.', '💸 Send money to friends in Bank → “To a friend”: limits, a fee, the payee’s country tax and anti‑dupe checks.')}</p>`;
   }
-  h += `<button class="btn dark block mt" data-a="reload">${icon('refresh')} ${T('Обновить', 'Оновити', 'Refresh')}</button>`;
+  h += `<button class="btn dark block mt" data-a="reload">${icon('refresh')} ${RT.spin ? T('Обновляем…', 'Оновлюємо…', 'Refreshing…') : T('Обновить', 'Оновити', 'Refresh')}</button>`;
   return h;
 }
+const optimistic = (fn) => { const d = homeData(); if (d?.social) { fn(d.social); rerender(); } };
 export const ratingApp = {
   id: 'rating', glyph: 'crown', lvl: 1,
   name: ['Рейтинг', 'Рейтинг', 'Leaderboard'], colors: ['#ffb02e', '#d47a00'], glyphColor: '#fff',
   views: { main: ratingMain },
-  onOpen: () => { RT.rows = null; },
+  onOpen: () => { if (isRegistered()) submit(true).catch(() => {}); },
   actions: {
-    scope: (v) => { RT.scope = v; RT.rows = null; rerender(); },
-    reload: () => { RT.rows = null; loadBoard(); },
-    reg: async () => { const nick = document.getElementById('nick').value.trim(); try { await register(nick); sfx('win'); toast(T('Вы в рейтинге!', 'Ви в рейтингу!', 'You’re on the board!'), 'g'); RT.rows = null; rerender(); } catch (e) { toast(errText(e), 'r'); } },
+    scope: (v) => { RT.scope = v; rerender(); },
+    reload: () => { refresh(true); rerender(); },
+    reg: async () => { const nick = document.getElementById('nick').value.trim(); try { await register(nick); sfx('win'); toast(T('Вы в рейтинге!', 'Ви в рейтингу!', 'You’re on the board!'), 'g'); refresh(true); rerender(); } catch (e) { toast(errText(e), 'r'); } },
     copy: () => { try { navigator.clipboard.writeText(G.s.online.code); toast(T('Скопировано', 'Скопійовано', 'Copied')); } catch { toast(G.s.online.code); } },
-    addf: async () => { const c = document.getElementById('fcode').value; if (!c) return; try { const r = await friendRequest(c); toast(r?.status === 'accepted' ? T('Теперь вы друзья!', 'Тепер ви друзі!', 'Now friends!') : T('Заявка отправлена', 'Заявку надіслано', 'Request sent'), 'g'); loadBoard(); } catch (e) { toast(errText(e), 'r'); } },
-    facc: async (id) => { try { await friendRespond(id, true); loadBoard(); } catch (e) { toast(errText(e), 'r'); } },
-    fdec: async (id) => { try { await friendRespond(id, false); loadBoard(); } catch (e) { toast(errText(e), 'r'); } },
+    addf: async () => { const c = document.getElementById('fcode').value; if (!c) return; try { const r = await friendRequest(c); toast(r?.status === 'accepted' ? T('Теперь вы друзья!', 'Тепер ви друзі!', 'Now friends!') : T('Заявка отправлена', 'Заявку надіслано', 'Request sent'), 'g'); refresh(true); } catch (e) { toast(errText(e), 'r'); } },
+    facc: async (id) => { optimistic((so) => { const x = so.incoming.find((y) => y.id === id); so.incoming = so.incoming.filter((y) => y.id !== id); if (x) so.friends.push({ ...x, worth: 0, stats: {} }); }); try { await friendRespond(id, true); } catch (e) { toast(errText(e), 'r'); } refresh(true); },
+    fdec: async (id) => { optimistic((so) => { so.incoming = so.incoming.filter((y) => y.id !== id); }); try { await friendRespond(id, false); } catch (e) { toast(errText(e), 'r'); } refresh(true); },
     nudge: async (id) => { const e = await choose(T('Отправить', 'Надіслати', 'Send'), ['👋', '🔥', '💸', '👑', '😎', '🤝'].map((x) => ({ v: x, label: x }))); if (!e) return; try { await nudge(id, e); toast(T('Отправлено', 'Надіслано', 'Sent'), 'g'); } catch (er) { toast(errText(er), 'r'); } },
+    sendf: (id) => openApp('bank', 'p2p', { to: id }),
   },
 };
 

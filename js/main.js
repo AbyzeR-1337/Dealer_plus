@@ -10,7 +10,7 @@ import { WORK_GAMES } from './mini/games_work.js';
 import { APPS, DOCK } from './apps/index.js';
 import { UI, registerApps, initShell, renderHome, renderStatus, liveUpdate, rerender, sheet, resolveSheet, toast, banner, dayNum, refreshAll, appName } from './ui/shell.js';
 import { ensurePhone, PHONE } from './game/phone.js';
-import { readInvite, sendPendingFriend, errText } from './game/online.js';
+import { readInvite, sendPendingFriend, errText, startOnline } from './game/online.js';
 import { initHome } from './ui/home.js';
 import { initGalleries } from './ui/comp.js';
 import { initWorld, startSim, isPaused } from './game/sim.js';
@@ -33,7 +33,7 @@ const RERENDER_ON = ['chats', 'inv', 'market', 'listings', 'deliveries', 'jobs',
 // which background events each app actually shows; anything else is ignored while it is open
 const WATCH = {
   market: ['market', 'chats', 'listings', 'support', 'inv', 'online'], inventory: ['inv', 'listings', 'deliveries', 'chats'], delivery: ['deliveries'],
-  bank: ['bank'], stocks: ['stocks'], jobs: ['jobs', 'needs'], free: ['market', 'needs'], business: ['biz', 'inv'], realty: ['house'], travel: ['travel'],
+  bank: ['bank', 'online'], stocks: ['stocks'], jobs: ['jobs', 'needs'], free: ['market', 'needs'], business: ['biz', 'inv'], realty: ['house'], travel: ['travel'],
   gov: ['tax'], quests: ['quests'], numbers: ['numbers'], rating: ['online'], news: ['news'], profile: ['needs', 'house', 'quests'], repair: ['inv', 'parts'],
   appstore: ['apps'], vpn: ['apps'], dark: ['apps', 'inv'],
   shop: ['needs', 'inv'], auction: ['market', 'inv'], legit: ['inv'], lab: ['inv'], pawn: ['inv'], map: ['travel'], stats: [], settings: ['online'], upgrades: [], casino: [],
@@ -89,6 +89,7 @@ function startGame() {
   initHome();
   initGalleries();
   wire();
+  startOnline();
   renderStatus();
   renderHome();
   startSim();

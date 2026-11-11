@@ -10,10 +10,12 @@ import { T, L, fmtDate } from '../core/i18n.js';
 import { esc, clamp } from '../core/util.js';
 import { fmt, fmtNum, rate } from '../core/money.js';
 import { CURRENCIES, countryOf } from '../data/world.js';
-import { gameDate } from '../ui/shell.js';
+import { gameDate, UI } from '../ui/shell.js';
 import { creditInfo, loanTotal } from '../game/finance.js';
 import { cardEffects, BANK_CARDS, BANK_BY_COUNTRY, ensureCards, ownedCards, primaryCard, cardCheck, perkText, isOwned, isOrdered, pendingCashback } from '../game/cards.js';
 import { netWorth } from '../game/player.js';
+import { onlineEnabled, isRegistered, homeData, HOME, sync, errText, countryRate } from '../game/online.js';
+import { COUNTRIES } from '../data/world.js';
 
 // ---------------------------------------------------------------- skins
 const SKINS = {
@@ -57,7 +59,7 @@ const CAT = {
   refund: ['Возвраты', 'Повернення', 'Refunds', '↩️', '#8a94a6'], loan: ['Кредит', 'Кредит', 'Loan', '🏦', '#ffc23d'], deposit: ['Копилка', 'Скарбничка', 'Savings', '🐷', '#ff8ac6'],
   job: ['Зарплата', 'Зарплата', 'Salary', '💼', '#2ec27e'], quest: ['Бонусы', 'Бонуси', 'Bonuses', '🎁', '#ffc23d'], stock: ['Инвестиции', 'Інвестиції', 'Investments', '📈', '#00b3a4'],
   realty: ['Недвижимость', 'Нерухомість', 'Real estate', '🏢', '#9b6bff'], numbers: ['Номера', 'Номери', 'Numbers', '🔢', '#4b8dff'], auction: ['Аукционы', 'Аукціони', 'Auctions', '🔨', '#ff8a3d'],
-  box: ['Боксы', 'Бокси', 'Boxes', '🎁', '#ff4fa3'], gov: ['Госуслуги', 'Держпослуги', 'Gov', '🏛', '#8a94a6'], bonus: ['Бонусы', 'Бонуси', 'Bonuses', '🎁', '#ffc23d'], other: ['Прочее', 'Інше', 'Other', '•', '#8a94a6'],
+  p2p: ['Переводы', 'Перекази', 'Transfers', '↔️', '#4b8dff'], box: ['Боксы', 'Бокси', 'Boxes', '🎁', '#ff4fa3'], gov: ['Госуслуги', 'Держпослуги', 'Gov', '🏛', '#8a94a6'], bonus: ['Бонусы', 'Бонуси', 'Bonuses', '🎁', '#ffc23d'], other: ['Прочее', 'Інше', 'Other', '•', '#8a94a6'],
 };
 const cat = (k) => CAT[k] || CAT.other;
 const last4 = () => String(Math.abs(G.s.id.split('').reduce((a, c) => a * 31 + c.charCodeAt(0), 7)) % 10000).padStart(4, '0');
@@ -159,7 +161,7 @@ function monoMain(k) {
       <div class="mn-bal" data-live="money">${fmt(s.money)}</div>
       <div class="mn-cardwrap">${(() => { const others = ownedCards().filter((c) => c.key !== card().key); const side = (c, s2) => (c ? `<i class="mn-side ${s2}" style="background:linear-gradient(160deg,${c.def.look[0]},${c.def.look[1]})"></i>` : ''); return side(others[0], 'l') + `<div class="mn-card" style="background:linear-gradient(160deg,${card().look[0]} 0%,${card().look[1]} 70%);color:${card().look[2]}" data-a="tab" data-v="cards"><span class="mn-word">${esc(k.name.toLowerCase())}</span><span class="mn-pan">${first4()} **** **** ${esc(card().pan)}</span><span class="mn-viza">VIZA</span></div>` + side(others[1], 'r'); })()}</div>
       <div class="mn-all" data-a="tab" data-v="cards">💳 ${T('Все карты', 'Усі картки', 'All cards')} · ${ownedCards().length}</div>
-      <div class="mn-act"><button data-a="dep"><i>${svg('cards')}</i><span>${T('Перевести в банку', 'Переказати на банку', 'Move to a jar')}</span></button><button data-a="open" data-v="gov"><i>${svg('pay')}</i><span>${T('Платёж по IBAN', 'Платіж за IBAN', 'Pay by IBAN')}</span></button><button data-a="bother"><i>${svg('grid')}</i><span>${T('Другие платежи', 'Інші платежі', 'Other payments')}</span></button></div>
+      <div class="mn-act"><button data-a="p2p"><i>${svg('send')}</i><span>${T('Переказ другу', 'Переказ другу', 'To a friend')}</span></button><button data-a="dep"><i>${svg('cards')}</i><span>${T('Перевести в банку', 'Переказати на банку', 'Move to a jar')}</span></button><button data-a="open" data-v="gov"><i>${svg('pay')}</i><span>${T('Платёж по IBAN', 'Платіж за IBAN', 'Pay by IBAN')}</span></button><button data-a="bother"><i>${svg('grid')}</i><span>${T('Другие платежи', 'Інші платежі', 'Other payments')}</span></button></div>
     </div>
     <div class="mn-sheet"><div class="row between"><b class="mn-h">${T('Операции', 'Операції', 'Transactions')}</b><span class="mn-allbtn">${T('Все', 'Усі', 'All')} ›</span></div>${feed(40, { solid: false })}</div>`;
 }
@@ -175,7 +177,7 @@ function tbankMain(k) {
       ${ownedCards().map((c) => `<div class="tb-acc" data-a="tab" data-v="cards"><span class="tb-mini" style="background:linear-gradient(135deg,${c.def.look[0]},${c.def.look[1]});color:${c.def.look[2]}">${esc(c.pan)}</span><div class="grow"><b>${esc(L(c.def.n))}${c.key === card().key ? ' ★' : ''}</b><small>${esc(perkText(c.def)[0] || T('без бонусов', 'без бонусів', 'no perks'))}</small></div></div>`).join('')}
       <div class="tb-acc"><span class="tb-mini yel">%</span><div class="grow"><b>${fmt(avail())}</b><small>${T('Кредитная карта', 'Кредитна картка', 'Credit card')}</small></div></div>
       <div class="tb-acc" data-a="tab" data-v="save"><span class="tb-mini grn">🐷</span><div class="grow"><b>${fmt(savings())}</b><small>${T('Накопительный счёт', 'Накопичувальний рахунок', 'Savings account')} · 0,25% ${T('в день', 'на день', 'a day')}</small></div></div></div>
-    <div class="tb-quick"><button data-a="dep"><i>🐷</i>${T('Отложить', 'Відкласти', 'Save')}</button><button data-a="loan"><i>💳</i>${T('Кредит', 'Кредит', 'Loan')}</button><button data-a="open" data-v="gov"><i>🧾</i>${T('Налоги', 'Податки', 'Taxes')}</button><button data-a="tab" data-v="rates"><i>💱</i>${T('Валюта', 'Валюта', 'FX')}</button></div>
+    <div class="tb-quick"><button data-a="dep"><i>🐷</i>${T('Отложить', 'Відкласти', 'Save')}</button><button data-a="loan"><i>💳</i>${T('Кредит', 'Кредит', 'Loan')}</button><button data-a="open" data-v="gov"><i>🧾</i>${T('Налоги', 'Податки', 'Taxes')}</button><button data-a="p2p"><i>↔️</i>${T('Другу', 'Другу', 'Friend')}</button></div>
     <div class="tb-card"><div class="row between"><b>${T('Траты в', 'Витрати в', 'Spent in')} ${esc(month)}</b><b>${fmt(total)}</b></div><div class="bk-stack">${sp.slice(0, 6).map(([kk, v]) => `<i style="width:${(v / Math.max(1, total)) * 100}%;background:${cat(kk)[4]}"></i>`).join('') || '<i style="width:100%;background:#e3e5e8"></i>'}</div><div class="row between small"><span>💰 ${T('Доходы', 'Доходи', 'Income')}</span><b class="bk-in">+${fmt(income30())}</b></div></div>
     <div class="tb-card"><b>${T('Операции', 'Операції', 'Transactions')}</b>${feed(30, { solid: true })}</div>`;
 }
@@ -184,7 +186,7 @@ function superMain(k) {
   const grid = k.alt
     ? [['🔍', T('Сканировать', 'Сканувати', 'Scan')], ['💳', T('Оплатить', 'Оплатити', 'Pay')], ['📥', T('Получить', 'Отримати', 'Collect')], ['👛', T('Кошелёк', 'Гаманець', 'Wallet')]]
     : null;
-  const svc = [['🏦', T('Мой Банк', 'Мій Банк', 'My Bank'), 'tab:credit'], ['🧾', T('Платежи', 'Платежі', 'Payments'), 'open:gov'], ['↔️', T('Переводы', 'Перекази', 'Transfers'), 'dep'], ['🛍', T('Маркет', 'Маркет', 'Market'), 'open:market'], ['✈️', 'Travel', 'open:travel'], ['🏛', T('Госуслуги', 'Держпослуги', 'Gov'), 'open:gov'], ['📢', T('Объявления', 'Оголошення', 'Classifieds'), 'open:market'], ['💱', T('Курсы', 'Курси', 'Rates'), 'tab:rates']];
+  const svc = [['🏦', T('Мой Банк', 'Мій Банк', 'My Bank'), 'tab:credit'], ['🧾', T('Платежи', 'Платежі', 'Payments'), 'open:gov'], ['↔️', T('Переводы', 'Перекази', 'Transfers'), 'p2p'], ['🛍', T('Маркет', 'Маркет', 'Market'), 'open:market'], ['✈️', 'Travel', 'open:travel'], ['🏛', T('Госуслуги', 'Держпослуги', 'Gov'), 'open:gov'], ['📢', T('Объявления', 'Оголошення', 'Classifieds'), 'open:market'], ['💱', T('Курсы', 'Курси', 'Rates'), 'tab:rates']];
   const act = (a) => { const [x, y] = a.split(':'); return y ? `data-a="${x}" data-v="${y}"` : `data-a="${x}"`; };
   return `<div class="sp-head"><div class="row"><b class="sp-logo">${esc(k.name)}${k.alt ? '' : '<small>.kz</small>'}</b><i class="grow"></i>${skinBtn()}<span>🔔</span></div><div class="sp-search">🔍 ${T('Поиск по сервисам', 'Пошук сервісів', 'Search services')}</div>
       ${grid ? `<div class="sp-big">${grid.map(([e, t]) => `<button data-a="${e === '👛' ? 'tab' : 'bqr'}" ${e === '👛' ? 'data-v="save"' : ''}><i>${e}</i><span>${esc(t)}</span></button>`).join('')}</div>` : ''}</div>
@@ -198,13 +200,13 @@ function neoMain(k) {
     return `<div class="nz-top"><span class="nz-ava">${esc(initials())}</span><i class="grow"></i>${skinBtn()}<span>🔍</span></div>
       <div class="nz-card"><span>${esc(k.name.toLowerCase())}</span><b>${last4()}</b></div>
       <div class="nz-bal"><small>${T('Баланс', 'Баланс', 'Balance')}</small><b data-live="money">${fmt(s.money)}</b><small>${T('Потрачено сегодня', 'Витрачено сьогодні', 'Spent today')} ${fmt(G.s.bank.hist.filter((x) => x.amt < 0 && x.t >= G.s.t - (G.s.t % 1440)).reduce((a, x) => a - x.amt, 0))}</small></div>
-      <div class="nz-act"><button data-a="dep">＋ ${T('В копилку', 'У скарбничку', 'Add to pot')}</button><button data-a="loan">💷 ${T('Кредит', 'Кредит', 'Loan')}</button></div>
+      <div class="nz-act"><button data-a="p2p">↗ ${T('Другу', 'Другу', 'Pay a friend')}</button><button data-a="dep">＋ ${T('В копилку', 'У скарбничку', 'Add to pot')}</button><button data-a="loan">💷 ${T('Кредит', 'Кредит', 'Loan')}</button></div>
       <div class="nz-pots">${G.s.bank.deposits.map((d) => `<div data-a="wd" data-v="${d.id}"><span>🐷</span><b>${fmt(d.amt + (d.earned || 0))}</b><small>${T('Копилка', 'Скарбничка', 'Pot')}</small></div>`).join('')}<div data-a="dep"><span>＋</span><b>${T('Новая', 'Нова', 'New')}</b><small>${T('копилка', 'скарбничка', 'pot')}</small></div></div>
       <div class="nz-feed">${feed(30, { solid: true })}</div>`;
   }
   return `<div class="n2-top"><span class="n2-ava">${esc(initials())}</span><b>${T('Привет', 'Привіт', 'Hi')}, ${esc(s.player.name.split(' ')[0])}</b><i class="grow"></i>${skinBtn()}<span>🔔</span></div>
     <div class="n2-main"><small>${T('Основной счёт', 'Основний рахунок', 'Main account')}</small><b data-live="money">${fmt(s.money)}</b></div>
-    <div class="n2-act"><button data-a="dep"><i>↗</i>${T('Отложить', 'Відкласти', 'Move')}</button><button data-a="loan"><i>＋</i>${T('Кредит', 'Кредит', 'Credit')}</button><button data-a="tab" data-v="rates"><i>⇄</i>${T('Валюта', 'Валюта', 'FX')}</button></div>
+    <div class="n2-act"><button data-a="dep"><i>↗</i>${T('Отложить', 'Відкласти', 'Move')}</button><button data-a="loan"><i>＋</i>${T('Кредит', 'Кредит', 'Credit')}</button><button data-a="p2p"><i>⇄</i>${T('Другу', 'Другу', 'Friend')}</button></div>
     <div class="n2-spaces"><div class="n2-sp main"><small>${T('Основной', 'Основний', 'Main')}</small><b data-live="money">${fmt(s.money)}</b></div>${G.s.bank.deposits.map((d) => `<div class="n2-sp" data-a="wd" data-v="${d.id}"><small>Space</small><b>${fmt(d.amt + (d.earned || 0))}</b></div>`).join('')}<div class="n2-sp add" data-a="dep"><small>${T('Новый', 'Новий', 'New')}</small><b>＋</b></div></div>
     <div class="n2-feed"><b>${T('Операции', 'Операції', 'Transactions')}</b>${feed(30, { solid: false })}</div>`;
 }
@@ -217,13 +219,13 @@ function retailMain(k) {
     <div class="rt-tile"><div class="rt-th"><b>${T('ТЕКУЩИЙ СЧЁТ', 'ПОТОЧНИЙ РАХУНОК', 'TOTAL CHECKING')}</b> <small>(...${last4()})</small></div><div class="rt-big" data-live="money">${fmt(s.money)}</div><small>${T('Доступный остаток', 'Доступний залишок', 'Available balance')}</small></div>
     <div class="rt-tile" data-a="tab" data-v="save"><div class="rt-th"><b>${T('СБЕРЕГАТЕЛЬНЫЙ', 'ОЩАДНИЙ', 'SAVINGS')}</b> <small>(...${String((+last4() * 3) % 10000).padStart(4, '0')})</small></div><div class="rt-big">${fmt(savings())}</div><small>+0.25% ${T('в день', 'на день', 'a day')}</small></div>
     <div class="rt-tile" data-a="tab" data-v="credit"><div class="rt-th"><b>${T('КРЕДИТНАЯ ЛИНИЯ', 'КРЕДИТНА ЛІНІЯ', 'CREDIT LINE')}</b></div><div class="rt-big">${loanTotal() ? '−' + fmt(loanTotal()) : fmt(0)}</div><small>${T('Доступно', 'Доступно', 'Available credit')} ${fmt(avail())}</small></div>
-    <div class="rt-links"><button data-a="dep">${T('Перевести на вклад', 'Переказати на вклад', 'Transfer to savings')} ›</button><button data-a="open" data-v="gov">${T('Оплатить налоги', 'Сплатити податки', 'Pay taxes')} ›</button><button data-a="tab" data-v="rates">${T('Курсы валют', 'Курси валют', 'Exchange rates')} ›</button></div>
+    <div class="rt-links"><button data-a="p2p">${T('Перевод другу', 'Переказ другу', 'Send money to a friend')} ›</button><button data-a="dep">${T('Перевести на вклад', 'Переказати на вклад', 'Transfer to savings')} ›</button><button data-a="open" data-v="gov">${T('Оплатить налоги', 'Сплатити податки', 'Pay taxes')} ›</button><button data-a="tab" data-v="rates">${T('Курсы валют', 'Курси валют', 'Exchange rates')} ›</button></div>
     <div class="rt-sec">${T('Последние операции', 'Останні операції', 'Recent activity')}</div><div class="rt-tile">${feed(25, { solid: false })}</div>`;
 }
 function kplusMain(k) {
   const s = G.s;
   const hide = G.s.bank.hideBal;
-  const menu = [['↔️', T('Перевод', 'Переказ', 'Transfer'), 'dep'], ['🧾', T('Оплата', 'Оплата', 'Bill pay'), 'open:gov'], ['📷', T('Сканировать', 'Сканувати', 'Scan'), 'bqr'], ['💳', T('Карты', 'Картки', 'Cards'), 'tab:more'], ['🏦', T('Кредит', 'Кредит', 'Loan'), 'loan'], ['🐷', T('Вклады', 'Вклади', 'Savings'), 'tab:save'], ['💱', T('Курсы', 'Курси', 'Rates'), 'tab:rates'], ['📈', T('Инвестиции', 'Інвестиції', 'Invest'), 'open:stocks']];
+  const menu = [['↔️', T('Перевод', 'Переказ', 'Transfer'), 'p2p'], ['🧾', T('Оплата', 'Оплата', 'Bill pay'), 'open:gov'], ['📷', T('Сканировать', 'Сканувати', 'Scan'), 'bqr'], ['💳', T('Карты', 'Картки', 'Cards'), 'tab:more'], ['🏦', T('Кредит', 'Кредит', 'Loan'), 'loan'], ['🐷', T('Вклады', 'Вклади', 'Savings'), 'tab:save'], ['💱', T('Курсы', 'Курси', 'Rates'), 'tab:rates'], ['📈', T('Инвестиции', 'Інвестиції', 'Invest'), 'open:stocks']];
   const act = (a) => { const [x, y] = a.split(':'); return y ? `data-a="${x}" data-v="${y}"` : `data-a="${x}"`; };
   return `<div class="kp-head"><div class="row"><span class="kp-ava">${esc(initials())}</span><b>${esc(k.name)}</b><i class="grow"></i>${skinBtn()}<span>🔔</span></div>
       <div class="kp-card"><small>${T('Сберегательный счёт', 'Ощадний рахунок', 'Savings account')}</small><div class="mono kp-no">${first4()}-${last4().slice(0, 1)}-${last4()}-${last4().slice(2)}</div><div class="row between"><b class="kp-bal" ${hide ? '' : 'data-live="money"'}>${hide ? '••••••' : fmt(s.money)}</b><button class="kp-eye" data-a="bhide">${hide ? '🙈' : '👁'}</button></div><small>${T('Доступно', 'Доступно', 'Available')}</small></div></div>
@@ -250,7 +252,7 @@ export function bankSave() {
 }
 export function bankMore() {
   const k = bankSkin();
-  return page(k, 'more', T('Ещё', 'Ще', 'More'), `<div class="bk-box"><div class="bk-row" data-a="tab" data-v="cards"><span>💳 ${T('Карты и тарифы', 'Картки й тарифи', 'Cards & plans')}</span><b>›</b></div><div class="bk-row" data-a="tab" data-v="rates"><span>💱 ${T('Курсы валют', 'Курси валют', 'Exchange rates')}</span><b>›</b></div><div class="bk-row" data-a="tab" data-v="skins"><span>🎨 ${T('Оформление банка', 'Оформлення банку', 'Bank skin')}</span><b>${esc(bankSkin().name)} ›</b></div><div class="bk-row" data-a="open" data-v="gov"><span>🏛 ${T('Налоги и госплатежи', 'Податки й держплатежі', 'Taxes')}</span><b>›</b></div></div><div class="bk-box"><div class="bk-row"><span>${T('Общий капитал', 'Загальний капітал', 'Net worth')}</span><b data-live="worth">${fmt(netWorth(), { short: true })}</b></div></div>`);
+  return page(k, 'more', T('Ещё', 'Ще', 'More'), `<div class="bk-box"><div class="bk-row" data-a="p2p"><span>↔️ ${T('Перевод другу', 'Переказ другу', 'Send to a friend')}</span><b>›</b></div><div class="bk-row" data-a="tab" data-v="cards"><span>💳 ${T('Карты и тарифы', 'Картки й тарифи', 'Cards & plans')}</span><b>›</b></div><div class="bk-row" data-a="tab" data-v="rates"><span>💱 ${T('Курсы валют', 'Курси валют', 'Exchange rates')}</span><b>›</b></div><div class="bk-row" data-a="tab" data-v="skins"><span>🎨 ${T('Оформление банка', 'Оформлення банку', 'Bank skin')}</span><b>${esc(bankSkin().name)} ›</b></div><div class="bk-row" data-a="open" data-v="gov"><span>🏛 ${T('Налоги и госплатежи', 'Податки й держплатежі', 'Taxes')}</span><b>›</b></div></div><div class="bk-box"><div class="bk-row"><span>${T('Общий капитал', 'Загальний капітал', 'Net worth')}</span><b data-live="worth">${fmt(netWorth(), { short: true })}</b></div></div>`);
 }
 export function bankCards() {
   const k = bankSkin(), s = G.s;
@@ -279,4 +281,37 @@ export function bankSkins() {
 export function bankQR() {
   const k = bankSkin();
   return page(k, 'qr', 'QR', `<div class="bk-box c"><div class="bk-qr">${Array.from({ length: 121 }, (_, i) => `<i style="background:${(i * 7919 + +last4()) % 3 ? '#111' : 'transparent'}"></i>`).join('')}</div><p class="bk-p">${T('Покажите QR продавцу — оплата пройдёт с основной карты.', 'Покажіть QR продавцю — оплата пройде з основної картки.', 'Show the QR to the seller — paid from your main card.')}</p><b data-live="money">${fmt(G.s.money)}</b></div>`);
+}
+
+// ---------------------------------------------------------------- send money to a friend (online)
+const flagOf = (r) => COUNTRIES.find((c) => c.id === r)?.flag || '🌐';
+const srvNow = () => { const d = homeData(); return Date.now() + (d?.now ? Date.parse(d.now) - HOME.at : 0); };
+const minsLeft = (at) => Math.max(0, Math.ceil((Date.parse(at) - srvNow()) / 60000));
+const WHY = (w) => errText('limit_' + w);
+export function bankP2P() {
+  const k = bankSkin(), title = T('Перевод другу', 'Переказ другу', 'Send to a friend');
+  const P = (inner) => page(k, 'main', title, inner);
+  if (!onlineEnabled()) return P(`<div class="bk-box"><p class="bk-p">${T('Переводы друзьям работают через онлайн‑сервер игры, а он не подключён.', 'Перекази друзям працюють через онлайн‑сервер гри, а його не підключено.', 'Transfers to friends need the game’s online server, which isn’t connected.')}</p></div>`);
+  if (!isRegistered()) return P(`<div class="bk-box"><p class="bk-p">${T('Чтобы переводить деньги друзьям, войдите в онлайн‑рейтинг и добавьте друзей по коду.', 'Щоб переказувати гроші друзям, увійдіть в онлайн‑рейтинг і додайте друзів за кодом.', 'Join the online leaderboard and add friends by code to send them money.')}</p><button class="btn block" data-a="open" data-v="rating">${T('Открыть Рейтинг', 'Відкрити Рейтинг', 'Open Leaderboard')}</button></div>`);
+  setTimeout(() => { if (Date.now() - HOME.at > 8000) sync().catch(() => {}); }, 0);
+  const d = homeData(), m = d?.money;
+  if (!m) return P(`<div class="bk-box c"><p class="bk-p">${HOME.err ? esc(HOME.err) : T('Загружаем выписку…', 'Завантажуємо виписку…', 'Loading…')}</p></div>`);
+  if (!m.active) return P(`<div class="bk-box"><p class="bk-p">🔐 ${T('Ваш онлайн‑аккаунт сейчас открыт на другом устройстве. Переводы работают только на одном устройстве за раз — так деньги нельзя скопировать.', 'Ваш онлайн‑акаунт зараз відкрито на іншому пристрої. Перекази працюють лише на одному пристрої за раз — так гроші не можна скопіювати.', 'Your online account is active on another device. Transfers work on one device at a time, so money can’t be copied.')}</p><button class="btn block" data-a="p2prelink">${T('Перенести сюда', 'Перенести сюди', 'Move it here')}</button></div>`);
+  const lim = m.limits || {};
+  const blocked = (lim.why || []).length > 0 || lim.send_left < 1;
+  const pct = lim.send_cap ? Math.min(100, ((lim.send_cap - lim.send_left) / lim.send_cap) * 100) : 0;
+  let h = `<div class="bk-box p2p-lim"><div class="bk-row"><span>${T('Можно отправить сегодня', 'Можна відправити сьогодні', 'You can send today')}</span><b>${fmt(lim.send_left)}</b></div><div class="p2p-bar"><i style="width:${pct}%"></i></div>
+    <div class="bk-row small"><span>${T('Лимит в сутки', 'Ліміт на добу', 'Daily limit')}: ${fmt(lim.send_cap)} · ${T('переводов', 'переказів', 'transfers')} ${lim.count}/${lim.count_cap}</span><span>${T('получить', 'отримати', 'receive')} ≤ ${fmt(lim.recv_left)}</span></div>
+    ${(lim.why || []).map((w) => `<div class="p2p-why">⛔ ${esc(WHY(w))}${(w === 'cooldown' || w === 'new_account') && lim.wait ? ` · ${Math.ceil(lim.wait / 60)} ${T('мин', 'хв', 'min')}` : ''}</div>`).join('')}</div>`;
+  const fr = (d.social?.friends || []).slice().sort((a, b) => (b.id === UI.params?.to) - (a.id === UI.params?.to));
+  h += `<div class="bk-sec2">${T('Кому', 'Кому', 'To')}</div><div class="bk-box">${fr.map((f) => `<div class="p2p-f ${f.id === UI.params?.to ? 'sel' : ''}"><span class="p2p-ava" style="background:hsl(${(f.nick.charCodeAt(0) * 37) % 360} 65% 55%)">${esc(f.nick[0].toUpperCase())}</span><div class="grow"><b>${esc(f.nick)}</b><small>${flagOf(f.region)} ${T('ур.', 'рів.', 'lvl')} ${f.level} · ${T('налог', 'податок', 'tax')} ${Math.round(countryRate(f.region) * 100)}%</small></div><button class="btn xs ${blocked ? 'dark' : ''}" data-a="p2psend" data-v="${f.id}" ${blocked ? 'disabled' : ''}>${T('Отправить', 'Надіслати', 'Send')}</button></div>`).join('') || `<p class="bk-p">${T('Друзей пока нет — добавьте их по коду в Рейтинге.', 'Друзів поки немає — додайте їх за кодом у Рейтингу.', 'No friends yet — add them by code in the Leaderboard.')}</p><button class="btn block" data-a="open" data-v="rating">${T('Добавить друзей', 'Додати друзів', 'Add friends')}</button>`}</div>`;
+  if (m.in?.length) h += `<div class="bk-sec2">${T('Летят к вам', 'Летять до вас', 'Coming to you')}</div><div class="bk-box">${m.in.map((x) => `<div class="bk-row"><span>⏳ ${esc(x.nick)}${x.note ? ` · «${esc(x.note)}»` : ''}<small>${T('зачисление через', 'зарахування через', 'arrives in')} ${minsLeft(x.at)} ${T('мин', 'хв', 'min')}</small></span><b class="bk-in">+${fmt(x.net)}</b></div>`).join('')}</div>`;
+  if (m.out?.length) h += `<div class="bk-sec2">${T('В пути', 'В дорозі', 'On the way')}</div><div class="bk-box">${m.out.map((x) => `<div class="bk-row"><span>➡️ ${esc(x.nick)} · ${fmt(x.amount)}<small>${x.can_cancel && minsLeft(x.at) > 0 ? `${T('доставка через', 'доставка через', 'delivery in')} ${minsLeft(x.at)} ${T('мин', 'хв', 'min')}` : T('доставлен, ждёт получателя', 'доставлено, чекає отримувача', 'delivered, waiting for the payee')}</small></span>${x.can_cancel && minsLeft(x.at) > 0 ? `<button class="bk-mini" data-a="p2pcancel" data-v="${x.id}">${T('Отменить', 'Скасувати', 'Cancel')}</button>` : ''}</div>`).join('')}</div>`;
+  if (m.history?.length) h += `<div class="bk-sec2">${T('История переводов', 'Історія переказів', 'Transfer history')}</div><div class="bk-box">${m.history.slice(0, 12).map((x) => `<div class="bk-row"><span>${x.kind === 'send' ? '↗️' : x.kind === 'recv' ? '↘️' : '↩️'} ${esc(x.other || '')}<small>${x.kind === 'send' ? T(`комиссия ${fmt(+x.info?.fee || 0)} · другу ${fmt(+x.info?.net || 0)} после налога`, `комісія ${fmt(+x.info?.fee || 0)} · другу ${fmt(+x.info?.net || 0)} після податку`, `fee ${fmt(+x.info?.fee || 0)} · friend gets ${fmt(+x.info?.net || 0)} after tax`) : x.kind === 'recv' ? T(`налог ${fmt(+x.info?.tax || 0)} удержан`, `податок ${fmt(+x.info?.tax || 0)} утримано`, `tax ${fmt(+x.info?.tax || 0)} withheld`) : T('возврат', 'повернення', 'refund')}</small></span><b class="${+x.delta >= 0 ? 'bk-in' : ''}">${+x.delta >= 0 ? '+' : '−'}${fmt(Math.abs(+x.delta))}</b></div>`).join('')}</div>`;
+  h += `<div class="bk-box p2p-rules"><b>🛡 ${T('Как защищены переводы', 'Як захищено перекази', 'How transfers are protected')}</b>
+    <span>• ${T('Каждый перевод записан на сервере. Если откатить сохранение, банк спишет отправленное заново, а полученное дважды не придёт.', 'Кожен переказ записано на сервері. Якщо відкотити збереження, банк спише відправлене знову, а отримане двічі не прийде.', 'Every transfer is recorded on the server: roll back a save and the bank takes the sent money again; nothing arrives twice.')}</span>
+    <span>• ${T('Лимиты считаются от капитала, который подтвердил сервер, а он растёт только со временем игры.', 'Ліміти рахуються від капіталу, який підтвердив сервер, а він росте лише з часом гри.', 'Limits come from your server‑verified net worth, which only grows with real play time.')}</span>
+    <span>• ${T('Комиссия 1% (2.5% за границу) и налог страны получателя. Деньги идут 2–45 минут, крупные суммы — на финмониторинге.', 'Комісія 1% (2.5% за кордон) і податок країни отримувача. Гроші йдуть 2–45 хвилин, великі суми — на фінмоніторингу.', '1% fee (2.5% abroad) plus the payee’s country tax. Money takes 2–45 minutes; big sums go through financial monitoring.')}</span>
+    <span>• ${T('Только друзьям, не чаще раза в минуту, до 10 в сутки, и только с одного устройства.', 'Лише друзям, не частіше разу на хвилину, до 10 на добу, і лише з одного пристрою.', 'Friends only, once a minute, up to 10 a day, from one device.')}</span></div>`;
+  return P(h);
 }
