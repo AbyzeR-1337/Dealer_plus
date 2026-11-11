@@ -17,7 +17,7 @@ const W_CACHE = {};
 function modelWeights(cat) {
   if (W_CACHE[cat]) return W_CACHE[cat];
   const list = BY_CAT[cat] || [];
-  const w = list.map((m) => Math.pow(modelValue(m), -0.5) * Math.pow(0.32, m.rare || 0) * (m.tier === 'cheap' ? 1.6 : 1));
+  const w = list.map((m) => Math.pow(modelValue(m), -0.5) * Math.pow(0.32, m.rare || 0) * (m.tier === 'cheap' ? 1.6 : 1) * (m.nogen ? 0 : 1));
   return (W_CACHE[cat] = { list, w });
 }
 export function pickModel(rng, { cat, maxVal = Infinity, minVal = 0, cats } = {}) {
@@ -144,10 +144,11 @@ export function makeItem(rng, o = {}) {
       const d = DEFECTS[code];
       if (!d) continue;
       if (code === 'faceid' && m.os !== 'pear' && rng.chance(0.5)) continue;
+      if (code === 'e_os' && !['laptop', 'box'].includes(m.art?.t) && !/iMak/.test(m.name)) continue;
       const side = d.view === 'any' ? (rng.chance(0.5) ? 'front' : 'back') : d.view;
       const view = d.viz ? viewForDefect(rng, it, side, code) : side;
       const close = view.startsWith('close');
-      it.defects.push({ c: code, x: +rng.float(close ? 0.3 : 0.2, close ? 0.7 : 0.8).toFixed(3), y: +rng.float(close ? 0.3 : 0.18, close ? 0.7 : 0.82).toFixed(3), view, known: d.vis === 'visible' && (view === 'front' || view === 'back') });
+      it.defects.push({ c: code, x: +rng.float(close ? 0.3 : 0.2, close ? 0.7 : 0.8).toFixed(3), y: +rng.float(close ? 0.3 : 0.18, close ? 0.7 : 0.82).toFixed(3), view, known: code === 'e_os' || (d.vis === 'visible' && (view === 'front' || view === 'back')) });
     }
   }
   // fakes
@@ -167,6 +168,7 @@ export function makeItem(rng, o = {}) {
 export function itemTitle(it, withVar = true) {
   const m = modelOf(it);
   if (!m) return '???';
+  if (it.build) return `${T('ПК', 'ПК', 'PC')} · ${it.build.cpu}${it.build.gpu ? ' / ' + it.build.gpu : ''} / ${it.build.ram} ${T('ГБ', 'ГБ', 'GB')}`;
   let t = [m.brand, m.name].filter(Boolean).join(' ');
   if (it.cat === 'cars') return `${t}, ${it.year}`;
   const vl = withVar ? varLabel(it) : '';
@@ -226,11 +228,12 @@ export function vehicleBase(m, year) {
 const GRADE_MULT = { 10: [3, 7], 9.5: [2.2, 3.5], 9: [1.6, 2.2], 8.5: [1.3, 1.6], 8: [1.15, 1.3], 7: [0.95, 1.0], 6: [0.8, 0.85], 5: [0.65, 0.7] };
 
 // mode: 'true' (real), 'known' (what the player knows)
+const OS_MULT = { win11: 1.03, win10: 1.02, macos: 1, linux: 1, win8: 0.97, win7: 0.93 };
 export function itemValue(it, cityId, mode = 'true', opts = {}) {
   const m = modelOf(it);
   if (!m) return 0;
   const city = cityId || G.s?.player.city || 'msk';
-  let v = isVehicle(it) ? vehicleBase(m, it.year) : modelValue(m);
+  let v = it.build ? it.build.base : isVehicle(it) ? vehicleBase(m, it.year) : modelValue(m);
   const vars = varsOf(m);
   v *= vars[it.v || 0]?.[1] ?? 1;
   v *= sizeMult(it);
@@ -271,6 +274,7 @@ export function itemValue(it, cityId, mode = 'true', opts = {}) {
   if (it.cleaned) v *= 1.03;
   if (it.tune) v *= it.tune === 'wheels' || it.tune === 'exhaust' ? 1.03 : 0.98;
   if (it.data?.wiped && ['phones', 'electronics', 'consoles'].includes(it.cat)) v *= 1.03; // factory reset, ready for the next owner
+  if (it.os) v *= OS_MULT[it.os] || 1;
   if (!opts.raw) v *= priceFactor(it.cat, city, m.id, m.brand);
   return Math.max(0.5, v);
 }

@@ -35,6 +35,7 @@ const BY_CAT = {
   collectibles: ['cutting_mat', 'wood_walnut', 'marble', 'blanket_knit', 'car_seat'],
   instruments: ['laminate', 'carpet', 'sofa', 'wood_pine', 'carpet_grey'],
   gear: ['concrete', 'laminate', 'carpet_grey', 'cardboard', 'car_seat', 'wood_pine'],
+  pcparts: ['cutting_mat', 'wood_oak', 'laminate', 'cardboard', 'marble', 'wood_walnut'],
   storage: ['wood_oak', 'cutting_mat', 'laminate', 'marble', 'cardboard', 'wood_walnut'],
   misc: ['wood_oak', 'wood_walnut', 'cutting_mat', 'cardboard', 'marble', 'car_seat'],
   cars: SCENES, bikes: [...SCENES, 'concrete'],

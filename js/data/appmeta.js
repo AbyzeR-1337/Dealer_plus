@@ -36,6 +36,9 @@ export const APP_META = {
   casino: M('fun', 'Слоты, рулетка, блэкджек и краш. 18+.', 'Слоти, рулетка, блекджек і краш. 18+.', 'Slots, roulette, blackjack and crash. 18+.', { mb: 140, rating: 3.2 }),
   vpn: M('service', 'VPN и защита Wi‑Fi. Скрывает трафик и открывает скрытые приложения.', 'VPN і захист Wi‑Fi. Приховує трафік і відкриває приховані застосунки.', 'VPN & Wi‑Fi protection. Hides your traffic and unlocks hidden apps.', { mb: 30, price: 2.99, rating: 4.5 }),
   lab: M('secret', 'Джейлбрейк и перепрошивка телефонов. Снимает код-пароль и FRP.', 'Джейлбрейк і перепрошивка телефонів. Знімає код-пароль і FRP.', 'Jailbreak and reflash phones. Removes passcodes and FRP.', { mb: 12, secret: true, rating: 4.1 }),
+  hw: M('trade', 'Магазин железа: процессоры, видеокарты, память, накопители и флешки. «Неделя железа» и скидки дня.', 'Магазин заліза: процесори, відеокарти, памʼять, накопичувачі й флешки. «Тиждень заліза» і знижки дня.', 'Hardware store: CPUs, GPUs, memory, drives and flash drives. Hardware week and daily deals.', { mb: 92 }),
+  build: M('work', 'Сборка ПК под заказ: покупатели пишут, что им нужно, вы собираете и отправляете.', 'Збірка ПК під замовлення: покупці пишуть, що їм потрібно, ви збираєте й надсилаєте.', 'Custom PC builds: buyers say what they need, you build and ship.', { mb: 48 }),
+  computer: M('work', 'Переустановка Windows, macOS и Linux с флешки, ваш рабочий ПК.', 'Перевстановлення Windows, macOS і Linux з флешки, ваш робочий ПК.', 'Reinstall Windows, macOS and Linux from a flash drive; your workstation.', { mb: 30 }),
   dark: M('secret', 'Теневой рынок: дешёвый серый товар, отвязка аккаунтов, накрутки. Высокий риск.', 'Тіньовий ринок: дешевий сірий товар, відвʼязка акаунтів, накрутки. Високий ризик.', 'Shadow market: cheap grey goods, account unlocks, fake reviews. High risk.', { mb: 8, secret: true, rating: 2.9 }),
 };
 export const SYSTEM_APPS = Object.keys(APP_META).filter((k) => APP_META[k].sys);

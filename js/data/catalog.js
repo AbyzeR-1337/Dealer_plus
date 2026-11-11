@@ -6,6 +6,7 @@ import { buildCollect } from './models_collect.js';
 import { buildVehicles } from './models_vehicles.js';
 import { buildExtra } from './models_extra.js';
 import { buildStorage } from './models_storage.js';
+import { buildPC } from './models_pc.js';
 
 export const YEAR = 2026;
 
@@ -31,6 +32,7 @@ export const CATS = {
   cars:        { name: ['Авто', 'Авто', 'Cars'], icon: '🚗', color: '#60a5fa', size: 0, valMode: 'dep', dep: 0.11, floor: 0.06, fake: 0 },
   bikes:       { name: ['Мото и вело', 'Мото і вело', 'Bikes & moto'], icon: '🏍️', color: '#34d399', size: 0, valMode: 'dep', dep: 0.1, floor: 0.12, fake: 0.02 },
   gear:        { name: ['Снаряжение и сумки', 'Спорядження і сумки', 'Gear & luggage'], icon: '🎒', color: '#9a8a62', size: 2, valMode: 'dep', dep: 0.08, floor: 0.3, fake: 0.08 },
+  pcparts:     { name: ['Комплектующие ПК', 'Комплектуючі ПК', 'PC parts'], icon: '🧩', color: '#f97316', size: 1, valMode: 'dep', dep: 0.12, floor: 0.25, fake: 0.03 },
   storage:     { name: ['Носители данных', 'Носії даних', 'Data storage'], icon: '💾', color: '#5eead4', size: 1, valMode: 'dep', dep: 0.1, floor: 0.2, fake: 0.06 },
   misc:        { name: ['Мелочи и находки', 'Дрібниці та знахідки', 'Odds & ends'], icon: '🔑', color: '#a3a3a3', size: 1, valMode: 'dep', dep: 0.04, floor: 0.4, fake: 0.03 },
 };
@@ -134,6 +136,7 @@ export const DEFECTS = {
   e_dent: D('Вмятина на корпусе', 'Вмʼятина на корпусі', 'Dented body', 0.08, 'visible', 'dent', 'any', null, ['align', 0.04, 50]),
   e_scratch: D('Потёртости', 'Потертості', 'Scuffs', 0.05, 'subtle', 'scratch', 'any', null, ['scrub', 0.01, 30]),
   e_fan: D('Шумит кулер', 'Шумить кулер', 'Noisy fan', 0.06, 'hidden', null, 'any', 'sound', ['scrub', 0.02, 40]),
+  e_os: D('Не загружается система', 'Не завантажується система', 'OS won’t boot', 0.31, 'hidden', null, 'any', 'power', null),
   e_dead: D('Не включается', 'Не вмикається', 'Won’t power on', 0.6, 'hidden', null, 'any', 'power', ['wires', 0.2, 180]),
   e_water: D('Следы залития', 'Сліди залиття', 'Liquid damage', 0.3, 'hidden', null, 'any', 'water', ['wires', 0.12, 150]),
   e_lens: D('Царапина на объективе', 'Подряпина на обʼєктиві', 'Scratched lens', 0.15, 'subtle', 'scratch', 'front', 'loupe', ['align', 0.08, 60]),
@@ -143,6 +146,12 @@ export const DEFECTS = {
   c_fan: D('Гудит вентилятор', 'Гуде вентилятор', 'Loud fan', 0.06, 'hidden', null, 'any', 'sound', ['scrub', 0.02, 40]),
   c_scratch: D('Потёртый корпус', 'Потертий корпус', 'Scuffed shell', 0.05, 'subtle', 'scratch', 'front', null, ['scrub', 0.01, 30]),
   c_yellow: D('Пожелтел пластик', 'Пожовтів пластик', 'Yellowed plastic', 0.1, 'visible', 'yellow', 'front', null, ['scrub', 0.02, 60]),
+  // PC parts
+  x_pins: D('Погнуты ножки', 'Погнуті ніжки', 'Bent pins', 0.45, 'subtle', 'scratch', 'front', 'loupe', ['align', 0.12, 60]),
+  x_dead: D('Не стартует', 'Не стартує', 'Won’t POST', 0.65, 'hidden', null, 'any', 'pc', null),
+  x_oc: D('После майнинга / разгона', 'Після майнінгу / розгону', 'Ex‑mining / overclocked', 0.15, 'hidden', null, 'any', 'pc', null),
+  x_fan: D('Шумит вентилятор', 'Шумить вентилятор', 'Noisy fan', 0.06, 'hidden', null, 'any', 'sound', ['scrub', 0.02, 30]),
+  x_scratch: D('Потёртости', 'Потертості', 'Scuffs', 0.04, 'subtle', 'scratch', 'any', null, ['scrub', 0.01, 20]),
   // data storage
   s_dead: D('Не определяется', 'Не визначається', 'Not detected', 0.7, 'hidden', null, 'any', 'pc', ['solder', 0.2, 90]),
   s_click: D('Щёлкает, не читается', 'Клацає, не читається', 'Clicking, won’t read', 0.65, 'hidden', null, 'any', 'pc', null),
@@ -279,7 +288,7 @@ for (const k of Object.keys(DEFECTS)) DEFECTS[k].id = k;
 
 export const CAT_DEFECTS = {
   phones: ['crack', 'backcrack', 'scratches', 'deadpix', 'battery', 'button', 'faceid', 'water', 'camera', 'bent', 'speaker', 'port', 'nonorig'],
-  electronics: ['e_crack', 'e_keys', 'e_battery', 'e_hinge', 'e_dent', 'e_scratch', 'e_fan', 'e_dead', 'e_water', 'e_lens'],
+  electronics: ['e_crack', 'e_keys', 'e_battery', 'e_hinge', 'e_dent', 'e_scratch', 'e_fan', 'e_dead', 'e_water', 'e_lens', 'e_os'],
   consoles: ['c_drive', 'c_hdmi', 'c_fan', 'c_scratch', 'c_yellow', 'c_dead', 'c_drift', 'c_ban'],
   accessories: ['a_scratch', 'a_broken', 'a_battery', 'a_sound', 'a_wear'],
   sneakers: ['s_crease', 's_yellow', 's_scuff', 's_stain', 's_sole', 's_insole', 's_smell', 's_paint'],
@@ -300,6 +309,7 @@ export const CAT_DEFECTS = {
   gear: ['a_scratch', 'a_wear', 'a_broken', 'b_stain', 'b_smell', 'w_zip'],
   misc: ['l_scratch', 'a_wear', 'a_broken', 'l_stain'],
   storage: ['s_dead', 's_click', 's_bad', 's_slow', 's_crack', 's_scratch'],
+  pcparts: ['x_pins', 'x_dead', 'x_oc', 'x_fan', 'x_scratch'],
 };
 
 export const LOCKS = {
@@ -348,6 +358,7 @@ buildCollect(addModel);
 buildVehicles(addModel);
 buildExtra(addModel);
 buildStorage(addModel);
+buildPC(addModel);
 
 // Typical market value for an original item in excellent used condition (USD, before regional effects)
 export function modelValue(m) {

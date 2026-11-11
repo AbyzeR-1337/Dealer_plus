@@ -245,7 +245,7 @@ export function recover(it) {
   if (!canAfford(cost)) return { ok: false, msg: T('Не хватает денег на сервис', 'Не вистачає грошей на сервіс', 'Can’t afford the service') };
   charge(cost, 'service', T('Восстановление данных', 'Відновлення даних', 'Data recovery'));
   const r = new RNG(`rec|${it.seed}|${G.s.t}`);
-  if (r.chance(0.72)) { st(it).recovered = true; emit('inv'); return { ok: true }; }
+  if (r.chance(Math.min(0.9, 0.72 + ((G.s.pc?.mine ? 1 : 0) * 0.08)))) { st(it).recovered = true; emit('inv'); return { ok: true }; }
   st(it).lost = true; emit('inv');
   return { ok: false, msg: T('Сервис не смог спасти данные — пластины повреждены.', 'Сервіс не зміг врятувати дані — пластини пошкоджені.', 'The lab couldn’t save the data — the platters are damaged.') };
 }

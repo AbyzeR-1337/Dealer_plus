@@ -6,6 +6,7 @@ import { MODELS, COLORS } from '../js/data/catalog.js';
 import { RNG } from '../js/core/rng.js';
 
 const BRAND = {
+  Intell: 'Intel', AMB: 'AMD', MSE: 'MSI', Gigabait: 'Gigabyte', ASRok: 'ASRock', Corsar: 'Corsair', 'G.Skil': 'G.Skill', 'be quite!': 'be quiet!', Seasonik: 'Seasonic', Deepkool: 'DeepCool', NZXX: 'NZXT', 'Lian Lee': 'Lian Li', Fractel: 'Fractal Design', Zalmen: 'Zalman', Noctuo: 'Noctua', Arktik: 'Arctic', 'ID‑Kuler': 'ID-COOLING',
   Kingstone: 'Kingston', SanDisc: 'SanDisk', Transcand: 'Transcend', Apricorm: 'Apricorn', Lexxar: 'Lexar', Hitachy: 'Hitachi', 'Westen Digital': 'Western Digital', Seagait: 'Seagate', Toshibo: 'Toshiba', Crucal: 'Crucial', LaCi: 'LaCie', Synologi: 'Synology', Quantim: 'Quantum', Iomego: 'Iomega', Verbatum: 'Verbatim', TDQ: 'TDK', Olimpus: 'Olympus',
   Pear: 'Apple', Samsong: 'Samsung', Xiaomo: 'Xiaomi', Gugle: 'Google', Huawai: 'Huawei', OnePlas: 'OnePlus', Tekno: 'Tecno', Honar: 'Honor', Sonny: 'Sony', Nokla: 'Nokia', Motorolla: 'Motorola', Vertuo: 'Vertu', BlackBerri: 'BlackBerry',
   ThinkPed: 'Lenovo ThinkPad', Delll: 'Dell', Azus: 'Asus', Razar: 'Razer', Microsaft: 'Microsoft', Lenova: 'Lenovo', Acerr: 'Acer', HPP: 'HP', Kindel: 'Amazon Kindle', Canonn: 'Canon', Fujifim: 'Fujifilm', Nikkon: 'Nikon', Leyca: 'Leica', 'Зенитт': 'Zenit', GoPra: 'GoPro', DGI: 'DJI', Nvidio: 'Nvidia', Radeen: 'AMD Radeon', Metta: 'Meta', Kayschron: 'Keychron', 'Teenage Engeneering': 'Teenage Engineering',
@@ -27,6 +28,7 @@ const BRAND = {
 };
 const FIX = [[/iPud/g, 'iPod'], [/DataTravelar/g, 'DataTraveler'], [/Cruzar/g, 'Cruzer'], [/JetFlesh/g, 'JetFlash'], [/AliExpres/g, 'AliExpress'], [/iFone/g, 'iPhone'], [/Galaxi/g, 'Galaxy'], [/Pixl/g, 'Pixel'], [/Redmo/g, 'Redmi'], [/Poko/g, 'Poco'], [/MacBuk/g, 'MacBook'], [/AirBuds/g, 'AirPods'], [/PlayStatien/g, 'PlayStation'], [/Jordon/g, 'Jordan'], [/Yeezo/g, 'Yeezy'], [/Birkan/g, 'Birkin'], [/Submarine\b/g, 'Submariner'], [/Stratocastor/g, 'Stratocaster'], [/Charizzard/g, 'Charizard'], [/Lotos/g, 'Lotus'], [/Batmann/g, 'Batman'], [/Star Warz/g, 'Star Wars'], [/Millennium Hawk/g, 'Millennium Falcon'], [/Daytone/g, 'Daytona'], [/Speedmaster/g, 'Speedmaster'], [/Forse/g, 'Force'], [/Dunck/g, 'Dunk'], [/Yeezi/g, 'Yeezy'], [/Gameboy|GameBoi/g, 'Game Boy'], [/\bDank\b/g, 'Dunk'], [/Gyaradoss/g, 'Gyarados'], [/Piace/g, 'Piece'], [/Fyrby/g, 'Furby'], [/Blastoisse/g, 'Blastoise'], [/Pikachoo/g, 'Pikachu'], [/Mewtwoo/g, 'Mewtwo'], [/Statien/g, 'Station']];
 const NOUN = {
+  pcparts: (a) => ({ cpu: 'desktop CPU processor chip, top view of the heat spreader', mb: 'computer motherboard', ram: 'pair of DDR desktop RAM memory sticks', psu: 'ATX computer power supply unit with cables', case: 'empty PC tower case with a glass side panel', cooler: 'CPU cooler' }[a.t] || 'computer part'),
   storage: (a) => ({ usb: 'USB flash drive', secure: 'encrypted USB flash drive with a numeric keypad', sd: 'SD memory card', microsd: 'microSD memory card with an SD adapter', dashcam: 'microSD memory card from a dashcam',
     cf: 'CompactFlash memory card', memstick: 'Sony Memory Stick PRO Duo card', hdd: 'bare 3.5-inch internal hard disk drive with a white label', office: 'old bare 3.5-inch internal hard disk drive with a white label and a handwritten sticker',
     hdd25: 'bare 2.5-inch laptop hard disk drive', ssd: '2.5-inch SATA SSD drive', nvme: 'M.2 NVMe SSD stick', exthdd: 'portable external hard drive with a USB cable', extssd: 'portable external SSD',
@@ -34,7 +36,7 @@ const NOUN = {
     dvd: 'burned DVD-R disc with a handwritten marker title', gamecd: 'PC game CD in a cardboard box from 2004', floppy: 'old floppy disk with a handwritten label', cassette: 'audio cassette tape with a handwritten label',
     vhs: 'VHS video cassette with a handwritten label', minidv: 'MiniDV camcorder tape cassette', minidisc: 'MiniDisc', ipod: 'iPod classic music player', dictaphone: 'digital voice recorder dictaphone' }[a.t] || 'data storage device'),
   phones: (a) => (a.f === 'flip' || a.f === 'flipold' ? 'flip phone' : a.f === 'fold' ? 'foldable smartphone' : a.f === 'qwerty' ? 'BlackBerry style phone with keyboard' : a.f === 'retro' || a.f === 'slider' ? 'old mobile phone' : 'smartphone'),
-  electronics: (a) => ({ laptop: 'laptop', tablet: 'tablet', camera: 'camera', drone: 'drone', gpu: 'graphics card', vr: 'VR headset', monitor: 'monitor', box: 'device', keyboard: 'keyboard' }[a.t] || 'gadget'),
+  electronics: (a) => ({ laptop: 'laptop', tablet: 'tablet', camera: 'camera', drone: 'drone', gpu: 'graphics card', vr: 'VR headset', monitor: 'monitor', box: 'device', keyboard: 'keyboard', pc: 'custom-built gaming desktop PC tower with a glass side panel and RGB lighting' }[a.t] || 'gadget'),
   consoles: (a) => ({ ps1: 'original grey PS1 console from 1994 with a grey controller', ps2: 'black PS2 fat console with a DualShock 2 controller', ps2s: 'slim black PS2 console', ps3: 'glossy black PS3 console with controller', ps4: 'black PS4 console with a DualShock 4 controller', ps5: 'white PS5 console standing upright with a DualSense controller', psp: 'black PSP handheld console', xbox: 'original black Xbox console from 2001 with controller', x360: 'white Xbox 360 console with a white controller', xone: 'black Xbox One console with controller', xss: 'small white Xbox Series S console', xsx: 'black Xbox Series X tower console', nes: 'grey NES console with a rectangular controller', snes: 'grey Super Nintendo console with controller', n64: 'black Nintendo 64 console with its three-handled controller', cube: 'purple cube-shaped GameCube console', wii: 'white Wii console with a Wii remote', switch: 'Nintendo Switch console with red and blue joy-con controllers', switchlite: 'Nintendo Switch Lite handheld', gb: 'original grey Game Boy handheld from 1989', gbc: 'Game Boy Color handheld', gba: 'Game Boy Advance handheld', ds: 'Nintendo DS clamshell handheld', mega: 'black Sega Mega Drive console with controller', dream: 'white Sega Dreamcast console with controller', deck: 'Steam Deck handheld gaming pc', atari: 'Atari 2600 console with wood panel and joystick', dendy: 'retro famiclone console with a yellow cartridge' }[a.t] || 'video game console'),
   accessories: (a) => ({ buds: 'wireless earbuds in charging case', headphones: 'headphones', speaker: 'bluetooth speaker', speaker2: 'portable speaker', glasses: 'sunglasses', aviator: 'aviator sunglasses', wallet: 'wallet', belt: 'leather belt', cap: 'baseball cap', cup: 'tumbler cup', brick: 'brick', tracker: 'tracker tag', pencil: 'stylus pencil', powerbank: 'power bank', action: 'action camera', keyfob: 'keychain' }[a.t] || 'accessory'),
   sneakers: (a) => ({ high: 'high-top sneakers', low: 'low sneakers', mid: 'mid sneakers', runner: 'running shoes', knit: 'knit sneakers', chunky: 'chunky sneakers', slide: 'slides', court: 'court sneakers', skate: 'skate shoes', canvas: 'canvas sneakers', boot: 'boots', cartoon: 'big red cartoon boots', clog: 'clogs' }[a.t] || 'sneakers'),
@@ -70,16 +72,17 @@ const SCENE = {
   instruments: ['leaning against a wall', 'on a sofa', 'in a home studio', 'on a bed'],
   cars: ['parked on a city street', 'parked in a residential yard', 'parked in a parking lot', 'parked by a garage'],
   bikes: ['parked on a sidewalk', 'leaning against a wall', 'in a garage', 'parked in a yard'],
+  pcparts: ['on a wooden desk', 'on an anti-static mat', 'on a cardboard box', 'on a desk next to a keyboard', 'on a wooden table'],
   storage: ['on a wooden desk next to a keyboard', 'on a wooden table', 'in a hand', 'on a desk', 'on a cutting mat', 'on a dark cloth'],
   gear: ['on a floor', 'on a bed', 'on a table', 'in a garage'], misc: ['on a wooden table', 'in a hand', 'on a desk', 'on a dark cloth'],
 };
 const WORN = {
   phones: 'heavily used, scratched and scuffed body, dirty fingerprints, worn edges', sneakers: 'heavily worn, dirty, creased, scuffed, stained, dirty soles', clothing: 'worn, faded, stained, pilling fabric', bags: 'worn, scuffed corners, stained, cracked leather',
-  storage: 'old, scratched, dusty, worn label, fingerprints', watches: 'worn, scratched case and glass, worn strap', cars: 'old, dirty, dusty, scratched paint, small dents', bikes: 'old, dirty, rusty chain, scratched frame', default: 'heavily used, dirty, dusty, scratched, worn',
+  pcparts: 'dusty, old, worn, scratched', storage: 'old, scratched, dusty, worn label, fingerprints', watches: 'worn, scratched case and glass, worn strap', cars: 'old, dirty, dusty, scratched paint, small dents', bikes: 'old, dirty, rusty chain, scratched frame', default: 'heavily used, dirty, dusty, scratched, worn',
 };
 const BROKEN = {
   phones: 'with a badly cracked shattered screen', electronics: 'broken, cracked, missing parts', consoles: 'broken, cracked case, missing buttons', sneakers: 'torn, sole coming apart, holes', clothing: 'torn, holes, ripped seams, stains', bags: 'torn, broken strap, peeling leather',
-  storage: 'damaged, cracked casing, bent connector', watches: 'with cracked glass, broken strap', cars: 'damaged, crashed bumper, dents, rust, broken headlight', bikes: 'damaged, bent wheel, rusty, broken parts', instruments: 'damaged, cracked body, broken strings', default: 'broken, damaged, cracked',
+  pcparts: 'damaged, bent pins, burnt marks, broken parts', storage: 'damaged, cracked casing, bent connector', watches: 'with cracked glass, broken strap', cars: 'damaged, crashed bumper, dents, rust, broken headlight', bikes: 'damaged, bent wheel, rusty, broken parts', instruments: 'damaged, cracked body, broken strings', default: 'broken, damaged, cracked',
 };
 const colorEn = (k) => (COLORS[k]?.n?.[2] || '').toLowerCase();
 const latin = (s) => s.replace(/[«»"]/g, '').replace(/[^\x20-\x7E‑]+/g, ' ').replace(/‑/g, '-').replace(/(^|\s)[-–(),.]+(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
@@ -111,7 +114,7 @@ const ANGLE = {
     bags: 'turned around, showing the back side of the bag', cards: 'turned over, showing the back of the card', comics: 'turned over, showing the back cover',
     art: 'turned around, showing the back of the canvas and the stretcher frame', electronics: 'seen from the back, showing the rear panel and ports', consoles: 'seen from the back, showing the rear ports and cables',
     perfume: 'turned around, showing the back of the bottle and the label', jewelry: 'turned over, showing the inside and the hallmark', instruments: 'turned over, showing the back of the instrument',
-    storage: 'turned over, showing the back side with the label and the serial number sticker', toys: 'turned around, showing the back of the box or figure', collectibles: 'turned over, showing the reverse side', default: 'turned around, showing the back side of the item',
+    pcparts: 'turned over, showing the back side', storage: 'turned over, showing the back side with the label and the serial number sticker', toys: 'turned around, showing the back of the box or figure', collectibles: 'turned over, showing the reverse side', default: 'turned around, showing the back side of the item',
   },
   side: {
     phones: 'lying on its back, seen from the side edge showing the buttons and the frame', cars: 'side profile view of the whole car', bikes: 'side profile view of the whole vehicle',
@@ -119,7 +122,7 @@ const ANGLE = {
     bags: 'seen from the side, showing the side panel and the strap', cards: 'seen at a low angle from the side, showing the edges and the corners', comics: 'seen from the side, showing the spine',
     art: 'seen at an angle from the side, showing the frame edge', electronics: 'seen from the side, showing the edge and the ports', consoles: 'seen from the side at a low angle',
     perfume: 'seen from the side, showing the bottle profile and the cap', jewelry: 'seen from the side, showing the clasp and the profile', instruments: 'seen from the side, showing the body edge',
-    storage: 'seen from the side, showing the connector and the edge', toys: 'seen from the side', collectibles: 'seen from the side at a low angle', default: 'seen from the side at a low angle',
+    pcparts: 'seen from the side at a low angle', storage: 'seen from the side, showing the connector and the edge', toys: 'seen from the side', collectibles: 'seen from the side at a low angle', default: 'seen from the side at a low angle',
   },
 };
 export function promptFor(m, variant = 'clean') {
@@ -131,7 +134,7 @@ export function promptFor(m, variant = 'clean') {
   const real = BRAND[m.brand] ?? m.brand;
   const nm = latin(name);
   const noun = (NOUN[m.cat] || (() => 'item'))(a);
-  const col = m.cat === 'cars' ? colorEn(m.colors?.[0]) : ['sneakers', 'cards', 'comics', 'toys', 'antiques', 'art', 'collectibles', 'perfume', 'jewelry', 'gear', 'misc', 'storage'].includes(m.cat) ? '' : colorEn(m.colors?.[0]);
+  const col = m.cat === 'cars' ? colorEn(m.colors?.[0]) : ['sneakers', 'cards', 'comics', 'toys', 'antiques', 'art', 'collectibles', 'perfume', 'jewelry', 'gear', 'misc', 'storage', 'pcparts'].includes(m.cat) ? '' : colorEn(m.colors?.[0]);
   const year = m.cat === 'cars' || m.cat === 'bikes' ? (m.year || '') : '';
   const subj = [col, year, latin(real), nm && nm.length > 1 ? nm : '', noun].filter(Boolean).join(' ').replace(/\s+/g, ' ');
   const scene = r.pick(SCENE[m.cat] || SCENE.misc);
