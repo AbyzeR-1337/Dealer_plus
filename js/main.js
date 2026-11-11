@@ -10,7 +10,7 @@ import { WORK_GAMES } from './mini/games_work.js';
 import { APPS, DOCK } from './apps/index.js';
 import { UI, registerApps, initShell, renderHome, renderStatus, liveUpdate, rerender, sheet, resolveSheet, toast, banner, dayNum, refreshAll, appName } from './ui/shell.js';
 import { ensurePhone, PHONE } from './game/phone.js';
-import { readInvite } from './game/online.js';
+import { readInvite, sendPendingFriend, errText } from './game/online.js';
 import { initHome } from './ui/home.js';
 import { initGalleries } from './ui/comp.js';
 import { initWorld, startSim, isPaused } from './game/sim.js';
@@ -79,7 +79,11 @@ function startGame() {
   initWorld();
   ensurePhone(APPS);
   const inv = readInvite();
-  if (inv?.friend) (G.s.online ||= {}).pendingFriend = inv.friend;
+  if (inv?.friend) {
+    (G.s.online ||= {}).pendingFriend = inv.friend;
+    // already on the leaderboard: the request goes out right away
+    sendPendingFriend().then((ok) => ok && toast(T('Заявка в друзья отправлена', 'Заявку в друзі надіслано', 'Friend request sent'), 'g'), (e) => toast(errText(e), 'r'));
+  }
   PHONE.nameOf = (id) => (UI.apps[id] ? appName(UI.apps[id]) : id);
   initShell();
   initHome();

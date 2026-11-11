@@ -27,7 +27,8 @@ export function setServer(url, key) {
 export function clearServer() { try { localStorage.removeItem(SRV_KEY); } catch {} }
 // invite links carry the server so friends land on the same leaderboard: #srv=<url>&k=<anon key>&f=<friend code>
 export function readInvite() {
-  if (typeof location === 'undefined' || !location.hash.includes('srv=')) return null;
+  // a build with the server baked in shares short links: #f=<friend code>
+  if (typeof location === 'undefined' || !/(^|[#&])(srv|f)=/.test(location.hash)) return null;
   const q = new URLSearchParams(location.hash.slice(1));
   const ok = q.get('srv') && q.get('k') && serverSource() !== 'build' ? setServer(q.get('srv'), q.get('k')) : false;
   history.replaceState(null, '', location.pathname + location.search);
@@ -86,9 +87,20 @@ export async function register(nick) {
   save();
   await submit(true).catch(() => {});
   // opened the game through a friend's invite link: send them a friend request right away
-  if (G.s.online.pendingFriend) { await friendRequest(G.s.online.pendingFriend).catch(() => {}); delete G.s.online.pendingFriend; save(); }
+  await sendPendingFriend();
   emit('online');
   return r;
+}
+// opened a friend's invite link: send them a friend request (now, or right after registering)
+export async function sendPendingFriend() {
+  const o = G.s?.online;
+  if (!o?.pendingFriend || !o.id || !onlineEnabled()) return false;
+  const code = o.pendingFriend;
+  delete o.pendingFriend; save();
+  if (code.toUpperCase() === String(o.code || '').toUpperCase()) return false; // own link
+  await friendRequest(code);
+  emit('online');
+  return true;
 }
 let lastSubmitTry = 0;
 export async function submit(force = false) {
