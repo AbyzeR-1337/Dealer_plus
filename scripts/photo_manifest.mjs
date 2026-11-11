@@ -1,7 +1,7 @@
 // Writes js/data/photos.js: which generated item photos exist (assets/photos/<variant>/<file>.webp).
 import { readdirSync, existsSync, writeFileSync } from 'node:fs';
 const out = {};
-for (const v of ['clean', 'worn', 'broken']) {
+for (const v of ['clean', 'worn', 'broken', 'back', 'side']) {
   const d = `assets/photos/${v}`;
   out[v] = existsSync(d) ? readdirSync(d).filter((f) => f.endsWith('.webp') && !f.includes('.tmp')).map((f) => f.slice(0, -5)).sort() : [];
 }

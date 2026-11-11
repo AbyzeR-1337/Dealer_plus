@@ -95,8 +95,28 @@ export function searchFor(m) {
   return { id: m.id, file: photoFile(m.id), cat: m.cat, kind, queries: [...new Set(qs)], clip, noun };
 }
 export const photoFile = (id) => { let h = 2166136261 >>> 0; for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+// other sides of the same item: same room/scene and seed as the clean shot, different angle
+const ANGLE = {
+  back: {
+    phones: 'turned over, showing the back of the phone with the camera module', cars: 'seen from behind, rear view of the car with tail lights', bikes: 'seen from behind, rear view',
+    sneakers: 'seen from the back, showing the heels', clothing: 'turned over, laid flat showing the back of the garment', watches: 'turned over, showing the steel caseback',
+    bags: 'turned around, showing the back side of the bag', cards: 'turned over, showing the back of the card', comics: 'turned over, showing the back cover',
+    art: 'turned around, showing the back of the canvas and the stretcher frame', electronics: 'seen from the back, showing the rear panel and ports', consoles: 'seen from the back, showing the rear ports and cables',
+    perfume: 'turned around, showing the back of the bottle and the label', jewelry: 'turned over, showing the inside and the hallmark', instruments: 'turned over, showing the back of the instrument',
+    toys: 'turned around, showing the back of the box or figure', collectibles: 'turned over, showing the reverse side', default: 'turned around, showing the back side of the item',
+  },
+  side: {
+    phones: 'lying on its back, seen from the side edge showing the buttons and the frame', cars: 'side profile view of the whole car', bikes: 'side profile view of the whole vehicle',
+    sneakers: 'side profile view of one shoe', clothing: 'folded, showing the sleeve, the label and the stitching up close', watches: 'seen from the side, showing the crown and the case profile',
+    bags: 'seen from the side, showing the side panel and the strap', cards: 'seen at a low angle from the side, showing the edges and the corners', comics: 'seen from the side, showing the spine',
+    art: 'seen at an angle from the side, showing the frame edge', electronics: 'seen from the side, showing the edge and the ports', consoles: 'seen from the side at a low angle',
+    perfume: 'seen from the side, showing the bottle profile and the cap', jewelry: 'seen from the side, showing the clasp and the profile', instruments: 'seen from the side, showing the body edge',
+    toys: 'seen from the side', collectibles: 'seen from the side at a low angle', default: 'seen from the side at a low angle',
+  },
+};
 export function promptFor(m, variant = 'clean') {
-  const r = new RNG('ph|' + m.id + '|' + variant);
+  const angle = ANGLE[variant] ? variant : null;
+  const r = new RNG('ph|' + m.id + '|' + (angle ? 'clean' : variant));
   const a = m.art || {};
   let name = m.name.replace(/(\d{3,4})[‑-]х/g, '$1s').replace(/\(([^)]*)\)/g, (x, y) => (/[a-z]/i.test(y) ? x : ''));
   for (const [re, to] of FIX) name = name.replace(re, to);
@@ -111,7 +131,8 @@ export function promptFor(m, variant = 'clean') {
   const hand = /hand|fingers|wrist/.test(scene);
   const veh = m.cat === 'cars' || m.cat === 'bikes';
   const phone = m.cat === 'phones';
-  const prompt = `Casual snapshot taken at home by the owner: ${subj}, ${cond}, ${scene}. ${veh ? 'The whole vehicle is in frame, shot from a slight angle.' : 'The whole item is in frame, shot from above at a slight angle.'} Natural light, realistic colours, an ordinary unedited photo. No text, no captions, no labels, no app interface, no screenshot, no watermark${phone ? '' : ', no smartphone in the frame'}${hand ? '' : ', no people'}.`;
+  const view = angle ? ` Camera angle: ${ANGLE[angle][m.cat] || ANGLE[angle].default}.` : '';
+  const prompt = `Casual snapshot taken at home by the owner: ${subj}, ${cond}, ${scene}.${view} ${veh ? 'The whole vehicle is in frame.' : angle ? 'The whole item is in frame.' : 'The whole item is in frame, shot from above at a slight angle.'} Natural light, realistic colours, an ordinary unedited photo. No text, no captions, no labels, no app interface, no screenshot, no watermark${phone ? '' : ', no smartphone in the frame'}${hand ? '' : ', no people'}.`;
   return { id: m.id, file: photoFile(m.id), cat: m.cat, variant, seed: r.int(1, 2 ** 30), prompt };
 }
 if (process.argv[1] && process.argv[1].endsWith('photo_prompts.mjs')) {

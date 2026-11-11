@@ -14,8 +14,8 @@ const BROKEN_URL = new Set();
 export const photoFailed = (url) => BROKEN_URL.add(url);
 export const hasPhoto = (modelId) => { const f = fileOf(modelId); return SETS.clean?.has(f) || SETS.worn?.has(f) || SETS.broken?.has(f); };
 const SEVERE = new Set(['crack', 'backcrack', 'broken', 'dent', 'rust', 'tear', 'a_broken', 'bk_wheel', 'bk_dent', 'c_dent', 'c_rust', 'w_crack']);
-// which shot to show for this particular item
-export function realPhoto(it) {
+// which shot to show for this particular item (and angle: back / side are real photos of the other sides)
+export function realPhoto(it, view = 'front') {
   if (!it?.m) return null;
   const f = fileOf(it.m);
   const has = (v) => SETS[v]?.has(f);
@@ -29,15 +29,25 @@ export function realPhoto(it) {
   if (!has(v)) v = has('clean') ? 'clean' : has('worn') ? 'worn' : 'broken';
   const url = `assets/photos/${v}/${f}.webp`;
   if (BROKEN_URL.has(url)) return null;
+  if ((view === 'back' || view === 'side') && has(view)) {
+    const u2 = `assets/photos/${view}/${f}.webp`;
+    // the other sides are shot clean: grime and defects are drawn on top for a worn item
+    if (!BROKEN_URL.has(u2)) return { v: 'clean', f, url: u2, side: view, worn: v !== 'clean' };
+  }
   return { v, f, url };
 }
-export const PHOTO_VIEWS = ['front', 'close', 'close2'];
+export const PHOTO_VIEWS = ['front', 'back', 'side', 'close'];
+// the angles this model really has photos of
+export function photoViews(modelId) {
+  const f = fileOf(modelId);
+  return ['front', ...(SETS.back?.has(f) ? ['back'] : []), ...(SETS.side?.has(f) ? ['side'] : []), 'close'];
+}
 // framing of the shot for a view: zoom, centre and tilt (deterministic per item)
 export function framing(it, view) {
   let s = (it.seed >>> 0) || 1;
   const r = () => { s = (s * 1103515245 + 12345) >>> 0; return ((s >>> 8) & 0xffff) / 0xffff; };
   const tilt = (r() - 0.5) * 3.2;
-  if (view === 'front') { const z = 1.04 + r() * 0.1 + Math.abs(tilt) * 0.02; return { z, cx: 200 + (r() - 0.5) * 60 * (z - 1) * 4, cy: 200 + (r() - 0.5) * 60 * (z - 1) * 4, tilt }; }
+  if (view === 'front' || view === 'back' || view === 'side') { const z = 1.04 + r() * 0.1 + Math.abs(tilt) * 0.02; return { z, cx: 200 + (r() - 0.5) * 60 * (z - 1) * 4, cy: 200 + (r() - 0.5) * 60 * (z - 1) * 4, tilt }; }
   r(); r(); r();
   const k = view === 'close' ? 0 : 1;
   for (let i = 0; i < k * 3; i++) r();

@@ -5,7 +5,7 @@ import { shade, mix, clamp, lum, esc } from '../core/util.js';
 import { DRAW2 } from './art2.js';
 import { pickSprite, spriteMarkup } from './sprite_art.js';
 import { photoSetup, photoBackground, photoPost, shadowDefs, groundShadow, hrefAttr } from './photo.js';
-import { realPhoto, framing, PHOTO_BOX, PHOTO_VIEWS } from './real_photo.js';
+import { realPhoto, framing, PHOTO_BOX, PHOTO_VIEWS, photoViews } from './real_photo.js';
 import { viewsOf, defectView } from '../data/views.js';
 
 let UID = 0;
@@ -902,6 +902,7 @@ const PHOTO_VIZ = new Set(['crack', 'lightcrack', 'glass', 'scratch', 'scuff', '
 function photoItem(it, o, rp) {
   const ctx = mkCtx(it, o);
   const view = PHOTO_VIEWS.includes(o.view || 'front') ? o.view || 'front' : 'close';
+  if (view === 'close' && rp.side) rp = realPhoto(it, 'front');
   ctx.view = view;
   ctx.vizOf = (d) => DEFECTS[d.c]?.viz;
   const fr = framing(it, view);
@@ -918,7 +919,7 @@ function photoItem(it, o, rp) {
   // grime on top of a clean shot of a dirty item (worn/broken shots are already dirty)
   let grime = '';
   const dirt = dirtOf(it);
-  if (rp.v === 'clean' && dirt > 0.3) {
+  if (rp.v === 'clean' && (dirt > 0.3 || rp.worn)) {
     const gid = `${ctx.P}gm`;
     ctx.defs.push(`<filter id="${gid}" x="0" y="0" width="1" height="1"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="3" seed="${(it.seed % 97) + 1}"/><feColorMatrix type="matrix" values="0 0 0 0 0.3  0 0 0 0 0.22  0 0 0 0 0.14  0 0 0 -2.1 1.25"/></filter>`);
     const mask = ctx.rad([[0, '#fff', 1], [0.6, '#fff', 0.7], [1, '#fff', 0]]);
@@ -928,7 +929,7 @@ function photoItem(it, o, rp) {
   }
   // visible defects drawn where they are on this view
   let ov = '';
-  const vs = PHOTO_VIEWS;
+  const vs = photoViews(it.m);
   for (const d of it.defects || []) {
     const D = DEFECTS[d.c];
     if (!D?.viz || D.vis === 'hidden') continue;
@@ -954,7 +955,7 @@ function photoItem(it, o, rp) {
   return { svg, box: tb, ctx, buttons: [], hot: [], screen: null, scale: fr.z, tilt, sprite: false, photo: rp };
 }
 export function renderItem(it, o = {}) {
-  if (usesPhoto(it, o)) return photoItem(it, o, realPhoto(it));
+  if (usesPhoto(it, o)) return photoItem(it, o, realPhoto(it, o.view));
   const ctx = mkCtx(it, o);
   const view = ctx.view;
   const veh = it.cat === 'cars' || it.cat === 'bikes';

@@ -44,7 +44,7 @@ async function rasterize(it, o, size) {
   let embed;
   let photoOk = usesPhoto(it, o);
   if (photoOk) {
-    const url = realPhoto(it).url;
+    const url = realPhoto(it, o.view).url;
     try {
       const [photo, grain] = await Promise.all([assetData(url), assetData('assets/photo/grain.webp')]);
       embed = { photo, grain };

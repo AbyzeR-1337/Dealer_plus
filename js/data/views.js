@@ -1,6 +1,6 @@
 // Camera angles for every item: what a seller can photograph and what a buyer can look at in person.
 import { MODEL } from './catalog.js';
-import { hasPhoto, PHOTO_VIEWS } from '../ui/real_photo.js';
+import { hasPhoto, photoViews } from '../ui/real_photo.js';
 export const VIEW_NAMES = {
   front: ['Спереди', 'Спереду', 'Front'], back: ['Сзади', 'Ззаду', 'Back'],
   left: ['Слева', 'Зліва', 'Left'], right: ['Справа', 'Справа', 'Right'],
@@ -17,13 +17,15 @@ export const VIEWS = {
 const RETRO = ['retro', 'slider', 'flipold', 'qwerty'];
 // items with a real photo: the whole shot plus close-ups; the hands-on inspection of a phone keeps every side
 export const viewsOf = (it, o = {}) => {
-  if (hasPhoto(it.m) && !(o.inspect && it.cat === 'phones')) return PHOTO_VIEWS;
+  if (hasPhoto(it.m) && !(o.inspect && it.cat === 'phones')) return photoViews(it.m);
   if (it.cat === 'phones') return RETRO.includes(MODEL[it.m]?.art?.f) ? FLAT : PHONE;
   if (it.cat === 'cars' || it.cat === 'bikes') return VEH;
   return VIEWS[it.cat] || FLAT;
 };
 export const viewLabel = (it, v) => {
   if (v === 'front' && hasPhoto(it.m)) return VIEW_NAMES.overview;
+  if (v === 'side' && hasPhoto(it.m)) return ['Сбоку', 'Збоку', 'Side'];
+  if (v === 'back' && hasPhoto(it.m)) return VIEW_NAMES.back;
   if (it.cat === 'phones' && v === 'front') return VIEW_NAMES.screen;
   if ((it.cat === 'cars' || it.cat === 'bikes') && v === 'front') return VIEW_NAMES.side;
   if ((it.cat === 'cars' || it.cat === 'bikes') && v === 'back') return VIEW_NAMES.side2;
