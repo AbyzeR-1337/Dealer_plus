@@ -5,7 +5,7 @@ import { esc, clamp, rnd } from '../core/util.js';
 import { fmt, rate, curCode, nicePrice, fmtNum, symOf } from '../core/money.js';
 import { CURRENCIES, countryOf } from '../data/world.js';
 import { icon } from '../ui/icons.js';
-import { go, rerender, toast, askPrice, confirmBox, choose, sheet, resolveSheet, ago, gameDate, UI } from '../ui/shell.js';
+import { go, rerender, toast, askPrice, confirmBox, choose, sheet, resolveSheet, ago, gameDate, UI, openApp } from '../ui/shell.js';
 import { empty, bar, kv, sparkline } from '../ui/comp.js';
 import { creditInfo, LOAN_TERMS, loanTotal, takeLoan, repayLoan, deposit, withdraw, CARDS, buyCard, TICKERS, buyStock, sellStock, numbersMarket, buyNumber, listNumber } from '../game/finance.js';
 import { REGIMES, taxDue, taxRate, taxBase, payTax, register } from '../game/life.js';
@@ -13,22 +13,26 @@ import { earn, spend, stat, today, getStat } from '../game/player.js';
 import { playMini } from '../mini/engine.js';
 import { regName, regColors, region } from './common.js';
 import { sfx } from '../ui/sfx.js';
-import { bankHome, bankRates, bankSkin } from './bank_skins.js';
+import { bankHome, bankRates, bankSkin, bankCredit, bankSave, bankMore, bankCards, bankSkins, bankQR, bankStatusBar, setBankSkin } from './bank_skins.js';
 import { CG, slotsView, playSlots, rouletteView, playRoulette, blackjackView, bjDeal, bjHit, bjDouble, bjFinish, diceView, playDice } from './casino_games.js';
 
-// ---------------------------------------------------------------- BANK
-function bankCards() {
-  const s = G.s;
-  return `<p class="p">${T('Премиальные карты дают кэшбэк на покупки и повышают кредитный лимит.', 'Преміальні картки дають кешбек на покупки й підвищують кредитний ліміт.', 'Premium cards give cashback and raise your credit limit.')}</p>` + CARDS.map((c) => `<div class="card"><div style="height:120px;border-radius:16px;margin-bottom:10px;background:linear-gradient(135deg,${c.grad[0]},${c.grad[1]});padding:14px;display:flex;flex-direction:column;justify-content:space-between;color:#fff"><b>${esc(L(c.n))}</b><span style="font-family:var(--mono);letter-spacing:2px">•••• •••• ••••</span></div><div class="kv"><span class="small">${esc(L(c.d))}</span>${s.bank.card === c.id ? `<span class="tag g">✓</span>` : `<button class="btn xs" data-a="card" data-v="${c.id}">${fmt(c.price)}</button>`}</div></div>`).join('');
-}
+// ---------------------------------------------------------------- BANK (looks like the real bank app of the country; see bank_skins.js)
 export const bankApp = {
   id: 'bank', glyph: 'card', lvl: 1,
-  name: () => regName('bank'), colors: () => regColors('bank'), glyphColor: '#fff',
-  title: (v) => (v === 'cards' ? T('Карты', 'Картки', 'Cards') : v === 'rates' ? T('Курсы валют', 'Курси валют', 'Exchange rates') : bankSkin().name),
-  right: () => `<b>${esc(G.s.player.name)}</b>`,
-  dark: (v) => v === 'main' && bankSkin().layout === 'neo',
-  views: { main: bankHome, cards: bankCards, rates: bankRates },
+  name: () => bankSkin().name, colors: () => { const k = bankSkin(); return k.tpl === 'mono' ? ['#3a3fc0', '#14166a'] : k.tpl === 'tbank' ? ['#ffdd2d', '#e6b800'] : [k.c, k.c2 || k.c]; }, glyphColor: '#fff',
+  title: () => bankSkin().name,
+  bare: true,
+  statusBar: (v) => bankStatusBar(v),
+  views: { main: bankHome, credit: bankCredit, save: bankSave, more: bankMore, cards: bankCards, rates: bankRates, skins: bankSkins, qr: bankQR },
   actions: {
+    bskin: (id) => { setBankSkin(id); sfx('ok'); toast(T('Оформление изменено', 'Оформлення змінено', 'Skin changed'), 'g'); rerender(); },
+    bhide: () => { G.s.bank.hideBal = !G.s.bank.hideBal; rerender(); },
+    bqr: () => { const w = document.querySelector('#appwin'); void w; go('qr'); },
+    bother: async () => {
+      const v = await choose(T('Другие платежи', 'Інші платежі', 'Other payments'), [{ v: 'gov', label: '🏛 ' + T('Налоги', 'Податки', 'Taxes') }, { v: 'credit', label: '💳 ' + T('Погасить кредит', 'Погасити кредит', 'Repay a loan') }, { v: 'rates', label: '💱 ' + T('Обмен валют', 'Обмін валют', 'Currency exchange') }, { v: 'cards', label: '✨ ' + T('Оформить карту', 'Оформити картку', 'Get a card') }]);
+      if (!v) return;
+      if (v === 'gov') openApp('gov'); else go(v);
+    },
     loan: async () => {
       const ci = creditInfo();
       const left = ci.limit - loanTotal();

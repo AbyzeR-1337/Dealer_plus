@@ -98,7 +98,7 @@ export function home() {
   setTimeout(() => { w.classList.add('hidden'); w.classList.remove('closing'); w.innerHTML = ''; }, 190);
   UI.app = null;
   document.body.classList.remove('in-app');
-  $('#status').classList.remove('on-app', 'dark-head');
+  $('#status').classList.remove('on-app', 'dark-head', 'light-head', 'bare-head');
   renderHome(); renderStatus();
 }
 // while the finger is on the screen or the list is still gliding, background updates wait
@@ -138,10 +138,25 @@ function render(fresh = false, scrollTo) {
   const st = $('#status');
   st.classList.add('on-app'); st.classList.toggle('dark-head', !!dark);
   st.style.setProperty('--c1', c1);
+  applyBare(a, v, w, st);
   const nb = w.querySelector('.abody');
   nb.scrollTop = keep;
   if (a.after) try { a.after(v, nb, UI.params); } catch (e) { console.error(e); }
   liveUpdate();
+}
+// apps that draw their own chrome (e.g. the bank in the style of the real bank app): no shell header,
+// the status bar takes the colour of the app's top edge
+function applyBare(a, v, w, st) {
+  const bare = typeof a.bare === 'function' ? a.bare(v) : !!a.bare;
+  w.classList.toggle('bare', bare);
+  st.classList.toggle('bare-head', bare);
+  for (const c of [...w.classList]) if (c.startsWith('skin-')) w.classList.remove(c);
+  if (!bare) { st.classList.remove('light-head'); return; }
+  const sb = a.statusBar ? a.statusBar(v) : { bg: '#000', light: false };
+  if (sb.cls) w.classList.add('skin-' + sb.cls);
+  st.classList.remove('dark-head');
+  st.style.setProperty('--c1', sb.bg);
+  st.classList.toggle('light-head', !!sb.light);
 }
 function headHTML(showBack, title, sub, right) {
   return `${showBack ? `<button class="back" data-a="back">${icon('back')}</button>` : ''}<h1>${esc(title)}${sub ? `<small>${sub}</small>` : ''}</h1>${right}`;
@@ -162,6 +177,7 @@ function patchRender(a, w, body) {
   const hh = headHTML(UI.stack.length > 1, a.title ? a.title(v, UI.params) : appName(a), a.sub ? a.sub(v, UI.params) : '', a.right ? a.right(v, UI.params) : `<span class="pill" data-live="money">${fmt(G.s.money)}</span>`);
   if (head && head._h !== hh) { morphHTML(head, hh); head._h = hh; }
   if (head) head.classList.toggle('dark', !!dark);
+  applyBare(a, v, w, $('#status'));
   if (w._body !== html) {
     // keep whatever the player is looking at in place even if something was added above it
     const top = body.scrollTop;

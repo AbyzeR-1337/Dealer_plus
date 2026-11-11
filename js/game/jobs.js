@@ -65,7 +65,8 @@ export const DOCS = {
 };
 const JOB_DOCS = { flyers: ['resume'], courier: ['resume'], loader: ['resume'], cashier: ['resume', 'medbook'], barista: ['resume', 'medbook'], sorter: ['resume'], guard: ['resume', 'criminal'], tech: ['resume', 'course'], appraiser: ['resume', 'criminal'], taxi: ['resume', 'license', 'criminal'], dev: ['resume', 'course'], legit: ['resume', 'course'], auctioneer: ['resume', 'criminal'], manager: ['resume', 'criminal', 'medbook'] };
 export const jobDocs = (job) => JOB_DOCS[job.id] || ['resume'];
-const docs = () => (G.s.docs ||= {});
+// a CV is ready from the very start, so the first application can go out immediately
+const docs = () => { const d = (G.s.docs ||= {}); d.resume ||= { at: 0, ready: 0 }; return d; };
 export const docState = (k) => { const d = docs()[k]; if (!d) return 'none'; return d.ready <= G.s.t ? 'ready' : 'pending'; };
 export const docReady = (k) => docState(k) === 'ready';
 export const docReadyAt = (k) => docs()[k]?.ready || 0;
@@ -77,15 +78,12 @@ export function orderDoc(k) {
   emit('jobs');
   return { ok: true };
 }
-// daily window: from 08:00 until the job's own deadline hour
-export function vacancyWindow(job) {
-  const t = G.s.t;
-  const day = Math.floor(t / 1440) * 1440;
-  const h = 12 + (job.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % 9); // 12:00–20:00
-  const open = day + 8 * 60, close = day + h * 60;
-  if (t < open) return { open: false, at: open };
-  if (t >= close) return { open: false, at: open + 1440 };
-  return { open: true, until: close };
+// applications: the first one can go out right away, after that there is a cooldown before the next one
+export const APPLY_COOLDOWN = 180; // game minutes = 3 real minutes
+export const nextApplyAt = () => G.s.job.nextApply || 0;
+export function vacancyWindow() {
+  const at = nextApplyAt();
+  return at > G.s.t ? { open: false, at, cooldown: true } : { open: true };
 }
 
 export function apply(jobId) {
@@ -94,6 +92,7 @@ export function apply(jobId) {
   const job = jobById(jobId);
   if (!vacancyWindow(job).open) return false;
   if (jobDocs(job).some((k) => !docReady(k))) return false;
+  s.job.nextApply = s.t + APPLY_COOLDOWN;
   const miss = reqOk(job);
   const rng = new RNG(`${s.id}:app:${jobId}:${s.t}`);
   const hr = npcName(rng, s.player.city).name;

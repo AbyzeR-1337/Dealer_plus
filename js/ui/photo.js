@@ -67,7 +67,7 @@ export function photoSetup(it, view = 'front') {
 
 // <image> background + vignette layers. ctx: art context (P prefix, rad()).
 // ctx.o.embed (bitmap rendering): assets come in as data URLs so the SVG can be rasterized as an image
-const hrefAttr = (ctx, url, embedded) => (embedded ? `xlink:href="${embedded}"` : `href="${url}" xlink:href="${url}"`);
+export const hrefAttr = (ctx, url, embedded) => (embedded ? `xlink:href="${embedded}"` : `href="${url}" xlink:href="${url}"`);
 export function photoBackground(ctx, ps) {
   const t = ps.flipBg ? 'translate(400 0) scale(-1 1)' : `rotate(${ps.rot} 200 200)`;
   return `<image ${hrefAttr(ctx, ps.ph.f, ctx.o.embed?.bg)} x="0" y="0" width="400" height="400" preserveAspectRatio="xMidYMid slice" transform="${t}"/>`;

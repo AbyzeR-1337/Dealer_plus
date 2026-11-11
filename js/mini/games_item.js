@@ -18,7 +18,7 @@ function localPoint(svg, ev) {
 }
 function inspect(api, { item, time = 30 }) {
   const extra = upLevel('eye') * 4;
-  const views = viewsOf(item);
+  const views = viewsOf(item, { inspect: true });
   api.setTime(time + extra + Math.max(0, views.length - 2) * 4, () => finish(true));
   let attempts = 4 + Math.floor(upLevel('eye') / 2);
   let view = views[0];
@@ -100,7 +100,7 @@ function inspect(api, { item, time = 30 }) {
       return;
     }
     const box = R.box;
-    const hit = findable.find((d) => !d.known && defectView(item, d) === view && Math.hypot(p.x - (box.x + d.x * box.w), p.y - (box.y + d.y * box.h)) < Math.max(36, Math.min(box.w, box.h) * 0.16));
+    const hit = findable.find((d) => !d.known && defectView(item, d, views) === view && Math.hypot(p.x - (box.x + d.x * box.w), p.y - (box.y + d.y * box.h)) < Math.max(36, Math.min(box.w, box.h) * 0.16));
     if (hit) { hit.known = true; found++; api.sfx('ok'); api.flash(true); ring(svg, box.x + hit.x * box.w, box.y + hit.y * box.h, true); label(defectName(hit.c), true); setTimeout(draw, 350); }
     else { attempts--; att.textContent = `${T('Попыток', 'Спроб', 'Attempts')}: ${attempts}`; api.sfx('err'); ring(svg, p.x, p.y, false); if (attempts <= 0) finish(false); }
   }

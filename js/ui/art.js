@@ -4,7 +4,8 @@ import { RNG } from '../core/rng.js';
 import { shade, mix, clamp, lum, esc } from '../core/util.js';
 import { DRAW2 } from './art2.js';
 import { pickSprite, spriteMarkup } from './sprite_art.js';
-import { photoSetup, photoBackground, photoPost, shadowDefs, groundShadow } from './photo.js';
+import { photoSetup, photoBackground, photoPost, shadowDefs, groundShadow, hrefAttr } from './photo.js';
+import { realPhoto, framing, PHOTO_BOX, PHOTO_VIEWS } from './real_photo.js';
 import { viewsOf, defectView } from '../data/views.js';
 
 let UID = 0;
@@ -891,8 +892,67 @@ function dirtFilter(ctx, amt, lite) {
   return `url(#${id})`;
 }
 // watches turned over show the procedural caseback; everything else uses the painted photo when there is one
-export const spritePickFor = (it, view = 'front', o = {}) => (o.procedural || (view === 'back' && it.cat === 'watches') ? null : pickSprite(it));
+// the old cut-out painted sprites are retired: items use real photos, or the procedural drawing when there is none
+export const spritePickFor = () => null;
+void pickSprite;
+// ---------------------------------------------------------------- real photo of the item
+// (the hands-on phone inspection keeps the interactive drawing: buttons, SIM tray, port, screws)
+export const usesPhoto = (it, o = {}) => !o.procedural && !(o.inspect && it.cat === 'phones') && !!realPhoto(it);
+const PHOTO_VIZ = new Set(['crack', 'lightcrack', 'glass', 'scratch', 'scuff', 'chip', 'dent', 'rust', 'stain', 'tear', 'crease']);
+function photoItem(it, o, rp) {
+  const ctx = mkCtx(it, o);
+  const view = PHOTO_VIEWS.includes(o.view || 'front') ? o.view || 'front' : 'close';
+  ctx.view = view;
+  ctx.vizOf = (d) => DEFECTS[d.c]?.viz;
+  const fr = framing(it, view);
+  const tilt = o.inspect ? 0 : fr.tilt;
+  const box = PHOTO_BOX;
+  // per-item exposure and white balance; a cleaned item looks fresher
+  let s2 = (it.seed >>> 0) % 997;
+  const e = 0.94 + (s2 % 13) / 100 + (it.cleaned ? 0.04 : 0);
+  const w = ((s2 >> 2) % 9 - 4) / 100;
+  const sat = it.cleaned ? 1.14 : 0.96 + (s2 % 7) / 60;
+  const fid = `${ctx.P}pf`;
+  ctx.defs.push(`<filter id="${fid}" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="${sat.toFixed(3)}"/><feColorMatrix type="matrix" values="${(e * (1 + w)).toFixed(3)} 0 0 0 0  0 ${e.toFixed(3)} 0 0 0  0 0 ${(e * (1 - w)).toFixed(3)} 0 0  0 0 0 1 0"/></filter>`);
+  const img = `<image ${hrefAttr(ctx, rp.url, o.embed?.photo)} x="0" y="0" width="400" height="400" preserveAspectRatio="xMidYMid slice" filter="url(#${fid})"/>`;
+  // grime on top of a clean shot of a dirty item (worn/broken shots are already dirty)
+  let grime = '';
+  const dirt = dirtOf(it);
+  if (rp.v === 'clean' && dirt > 0.3) {
+    const gid = `${ctx.P}gm`;
+    ctx.defs.push(`<filter id="${gid}" x="0" y="0" width="1" height="1"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="3" seed="${(it.seed % 97) + 1}"/><feColorMatrix type="matrix" values="0 0 0 0 0.3  0 0 0 0 0.22  0 0 0 0 0.14  0 0 0 -2.1 1.25"/></filter>`);
+    const mask = ctx.rad([[0, '#fff', 1], [0.6, '#fff', 0.7], [1, '#fff', 0]]);
+    const mid = `${ctx.P}gmm`;
+    ctx.defs.push(`<mask id="${mid}"><rect x="${box.x - 30}" y="${box.y - 30}" width="${box.w + 60}" height="${box.h + 60}" fill="${mask}"/></mask>`);
+    grime = `<rect x="${box.x - 30}" y="${box.y - 30}" width="${box.w + 60}" height="${box.h + 60}" filter="url(#${gid})" mask="url(#${mid})" opacity="${Math.min(0.75, (dirt - 0.25) * 1.1).toFixed(2)}" style="mix-blend-mode:multiply;pointer-events:none"/>`;
+  }
+  // visible defects drawn where they are on this view
+  let ov = '';
+  const vs = PHOTO_VIEWS;
+  for (const d of it.defects || []) {
+    const D = DEFECTS[d.c];
+    if (!D?.viz || D.vis === 'hidden') continue;
+    const dv = defectView(it, d, vs);
+    if (dv !== view && dv !== 'any') continue;
+    // on a real photo only marks that look like real damage; flat tint layers would look painted on
+    if (!PHOTO_VIZ.has(D.viz)) continue;
+    let op = D.vis === 'visible' ? 0.7 : o.inspect ? 0.42 : 0.25;
+    if (d.known) op = Math.max(op, 0.7);
+    if (rp.v !== 'clean' && D.vis === 'visible') op *= 0.5;
+    ov += overlay(ctx, d, box, op);
+  }
+  const tr = `translate(200 200) rotate(${tilt.toFixed(2)}) scale(${fr.z.toFixed(3)}) translate(${(-fr.cx).toFixed(1)} ${(-fr.cy).toFixed(1)})`;
+  const gr = `${ctx.P}gr`;
+  ctx.defs.push(`<pattern id="${gr}" width="128" height="128" patternUnits="userSpaceOnUse"><image ${hrefAttr(ctx, 'assets/photo/grain.webp', o.embed?.grain)} width="128" height="128"/></pattern>`);
+  const vg = ctx.rad([[0, '#000', 0], [0.7, '#000', 0.05], [1, '#000', 0.34]], 0.5, 0.5, 0.74);
+  const post = `<g style="pointer-events:none"><rect width="400" height="400" fill="${vg}"/><rect width="400" height="400" fill="url(#${gr})" opacity="0.35"/></g>`;
+  const svg = `<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid slice"><defs>${ctx.defs.join('')}</defs><g transform="${tr}">${img}${grime}${ov ? `<g style="mix-blend-mode:${rp.v === 'clean' ? 'normal' : 'multiply'}">${ov}</g>` : ''}</g>${post}</svg>`;
+  // box in screen coordinates (inspection taps): the shot is zoomed around (cx, cy)
+  const tb = { x: 200 + (box.x - fr.cx) * fr.z, y: 200 + (box.y - fr.cy) * fr.z, w: box.w * fr.z, h: box.h * fr.z };
+  return { svg, box: tb, ctx, buttons: [], hot: [], screen: null, scale: fr.z, tilt, sprite: false, photo: rp };
+}
 export function renderItem(it, o = {}) {
+  if (usesPhoto(it, o)) return photoItem(it, o, realPhoto(it));
   const ctx = mkCtx(it, o);
   const view = ctx.view;
   const veh = it.cat === 'cars' || it.cat === 'bikes';
@@ -914,7 +974,7 @@ export function renderItem(it, o = {}) {
   const { box } = res;
   ctx.vizOf = (d) => DEFECTS[d.c]?.viz;
   let ov = '';
-  const vs = viewsOf(it);
+  const vs = viewsOf(it, o);
   for (const d of it.defects || []) {
     if (!DEFECTS[d.c]?.viz) continue;
     const dv = defectView(it, d, vs);

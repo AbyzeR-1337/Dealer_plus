@@ -1,4 +1,5 @@
 // Item instances: generation, naming, condition and valuation.
+import { hasPhoto } from '../ui/real_photo.js';
 import { CATS, CAT_LIST, MODELS, MODEL, BY_CAT, DEFECTS, CAT_DEFECTS, LOCKS, RARITY, RARE_TRAITS, COLORS, CAR_COLORS, colorName, colorHex, modelValue, YEAR, LUXURY_CATS, VEHICLE_CATS } from '../data/catalog.js';
 import { RNG } from '../core/rng.js';
 import { L, T } from '../core/i18n.js';
@@ -86,6 +87,8 @@ export function makeItem(rng, o = {}) {
   const colors = m.colors || ['black'];
   if (cat === 'cars') it.color = rng.pick(colors.length ? colors : CAR_COLORS);
   else it.color = rng.pick(colors);
+  // models with a real photo come in the colour that is on the photo
+  if (hasPhoto(m.id) && colors.length) it.color = colors[0];
   // variant
   const vars = varsOf(m);
   it.v = rng.weighted(vars.map((_, i) => i), (i) => (vars.length > 2 && (i === 0 || i === vars.length - 1) ? 0.6 : 1));

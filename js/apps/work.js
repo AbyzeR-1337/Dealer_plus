@@ -37,13 +37,13 @@ function jobMain() {
 function docsBlock(j) {
   const list = jobDocs(j);
   const w = vacancyWindow(j);
-  const head = w.open ? `<div class="vwin open">⏳ ${T('Приём документов закроется через', 'Прийом документів закриється через', 'Applications close in')} <b data-cd="${w.until}"></b></div>` : `<div class="vwin">🔒 ${T('Приём документов откроется через', 'Прийом документів відкриється через', 'Applications open in')} <b data-cd="${w.at}"></b></div>`;
+  const head = w.open ? `<div class="vwin open">✅ ${T('Можно подать заявку прямо сейчас', 'Можна подати заявку просто зараз', 'You can apply right now')}</div>` : `<div class="vwin">⏳ ${T('Следующую заявку можно подать через', 'Наступну заявку можна подати через', 'Next application in')} <b data-cd="${w.at}"></b></div>`;
   return head + `<div class="docs">${list.map((k) => { const d = DOCS[k]; const st = docState(k); return `<div class="doc ${st}"><span>${d.icon} ${esc(L(d.n))}</span>${st === 'ready' ? `<b class="g">✓</b>` : st === 'pending' ? `<b class="o">⏳ <span data-cd="${docReadyAt(k)}"></span></b>` : `<button class="btn xs dark" data-a="doc" data-v="${k}">${T('Оформить', 'Оформити', 'Get it')} · ${d.price ? fmt(d.price) : T('бесплатно', 'безкоштовно', 'free')} · ${dur(d.mins)}</button>`}</div>`; }).join('')}</div>`;
 }
 function applyBtn(j) {
   const w = vacancyWindow(j);
   const ready = jobDocs(j).every((k) => docReady(k));
-  if (!w.open) return `<button class="btn sm dark" disabled>${T('Приём закрыт', 'Прийом закрито', 'Closed')}</button>`;
+  if (!w.open) return `<button class="btn sm dark" disabled>⏳ <span data-cd="${w.at}"></span></button>`;
   if (!ready) return `<button class="btn sm dark" disabled>${T('Сначала документы', 'Спочатку документи', 'Documents first')}</button>`;
   return `<button class="btn sm" data-a="apply" data-v="${j.id}">📨 ${T('Подать документы', 'Подати документи', 'Submit documents')}</button>`;
 }
@@ -87,7 +87,7 @@ export const jobsApp = {
   ],
   views: { main: jobMain, vac: vacView, apps: appsView, gigs: gigsView },
   actions: {
-    apply: (id) => { if (apply(id)) { sfx('ok'); toast(T('Документы поданы — ждите ответа HR', 'Документи подано — чекайте відповіді HR', 'Documents submitted — wait for HR'), 'g'); rerender(); } else toast(T('Приём закрыт или не хватает документов', 'Прийом закрито або бракує документів', 'Closed or documents missing'), 'r'); },
+    apply: (id) => { if (apply(id)) { sfx('ok'); toast(T('Документы поданы — ждите ответа HR. Следующая заявка через 3 минуты', 'Документи подано — чекайте відповіді HR. Наступна заявка через 3 хвилини', 'Submitted — wait for HR. Next application in 3 minutes'), 'g'); rerender(); } else toast(vacancyWindow().open ? T('Не хватает документов', 'Бракує документів', 'Documents missing') : T('Подождите перед следующей заявкой', 'Зачекайте перед наступною заявкою', 'Wait before the next application'), 'r'); },
     doc: (k) => { const r = orderDoc(k); if (r.ok) { sfx('ok'); toast(T(`Оформляется: ${L(DOCS[k].n)}`, `Оформлюється: ${L(DOCS[k].n)}`, `In progress: ${L(DOCS[k].n)}`), 'g'); } else if (r.msg) toast(r.msg, 'r'); rerender(); },
     interview: async (id) => { const r = await playMini('interview', { title: T('Собеседование', 'Співбесіда', 'Interview'), pass: 0.55 }); if (r.quit) return; const ok = interviewResult(id, r.score); toast(ok ? T('Вам сделали оффер!', 'Вам зробили офер!', 'You got an offer!') : T('Увы, отказ', 'На жаль, відмова', 'Sorry, rejected'), ok ? 'g' : 'r'); rerender(); },
     accept: async (id) => { if (G.s.job.cur && !(await confirmBox(T('Сменить работу?', 'Змінити роботу?', 'Switch jobs?'), T('Текущая должность будет потеряна.', 'Поточна посада буде втрачена.', 'You’ll lose your current rank.')))) return; acceptOffer(id); sfx('win'); go('main'); },

@@ -2,7 +2,8 @@
 // is expensive for a phone to repaint while scrolling or swiping, so every photo is rendered ONCE into a
 // JPEG blob and shown as an ordinary <img>. Rendering happens in a background queue; until a photo is ready
 // its slot shows a soft placeholder. Inspection and minigames keep the interactive SVG.
-import { renderItem, itemSig, spritePickFor } from './art.js';
+import { renderItem, itemSig, spritePickFor, usesPhoto } from './art.js';
+import { realPhoto } from './real_photo.js';
 import { SHEETS, SHEET_SCALE } from '../data/sprites.js';
 import { spriteFit } from './sprite_art.js';
 import { photoSetup } from './photo.js';
@@ -40,10 +41,17 @@ function spriteCrop(s) {
 }
 async function rasterize(it, o, size) {
   const view = o.view || 'front';
-  const pick = spritePickFor(it, view, o);
-  const ps = photoSetup(it, view);
-  const [bg, grain, sprite] = await Promise.all([assetData(ps.ph.f), assetData('assets/photo/grain.webp'), pick ? spriteCrop(pick.sprite) : null]);
-  const { svg } = renderItem(it, { ...o, embed: { bg, grain, sprite } });
+  let embed;
+  if (usesPhoto(it, o)) {
+    const [photo, grain] = await Promise.all([assetData(realPhoto(it).url), assetData('assets/photo/grain.webp')]);
+    embed = { photo, grain };
+  } else {
+    const pick = spritePickFor(it, view, o);
+    const ps = photoSetup(it, view);
+    const [bg, grain, sprite] = await Promise.all([assetData(ps.ph.f), assetData('assets/photo/grain.webp'), pick ? spriteCrop(pick.sprite) : null]);
+    embed = { bg, grain, sprite };
+  }
+  const { svg } = renderItem(it, { ...o, embed });
   const u = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
   try {
     const img = await loadImg(u);

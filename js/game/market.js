@@ -52,13 +52,38 @@ export function feedFor(cityId = G.s.player.city) {
   const s = G.s;
   let f = s.feeds[cityId];
   if (!f || f.refreshAt <= s.t) f = s.feeds[cityId] = generateFeed(cityId);
+  else trickle(f, cityId);
   return f;
+}
+// people keep posting: a fresh listing appears every few minutes (more often in big cities)
+function trickle(f, cityId) {
+  const s = G.s;
+  const size = CITY[cityId]?.size || 1;
+  const gap = (rng) => rng.int(4, 12) / (0.6 + size * 0.35);
+  if (!f.nextNew) { f.nextNew = s.t + 3; return; }
+  let added = 0;
+  while (f.nextNew <= s.t && added < 8) {
+    const rng = new RNG(`${s.id}:new:${cityId}:${f.nextNew}`);
+    const l = makeListing(rng, cityId, { fresh: true, quality: rng.chance(0.08) ? 'junk' : 'any' });
+    l.posted = Math.floor(f.nextNew);
+    f.items.unshift(l);
+    f.nextNew += gap(rng);
+    added++;
+  }
+  if (f.nextNew <= s.t) f.nextNew = s.t + 2;
+  const cap = 70 + size * 25;
+  if (f.items.length > cap) {
+    const keep = new Set([...s.favs, ...s.chats.map((c) => c.ref)]);
+    const old = f.items.filter((l) => !keep.has(l.id)).sort((a, b) => a.posted - b.posted).slice(0, f.items.length - cap).map((l) => l.id);
+    const drop = new Set(old);
+    f.items = f.items.filter((l) => !drop.has(l.id));
+  }
 }
 export function generateFeed(cityId) {
   const s = G.s;
   const rng = new RNG(`${s.id}:feed:${cityId}:${s.t}`);
   const size = CITY[cityId]?.size || 1;
-  const n = 16 + size * 6;
+  const n = 28 + size * 10;
   const items = [];
   for (let i = 0; i < n; i++) items.push(makeListing(rng, cityId, { quality: rng.chance(0.08) ? 'junk' : 'any' }));
   // keep player's chats with sellers? feed refresh drops them (like the reference game)

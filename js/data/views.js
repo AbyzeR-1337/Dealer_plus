@@ -1,11 +1,11 @@
 // Camera angles for every item: what a seller can photograph and what a buyer can look at in person.
 import { MODEL } from './catalog.js';
-import { pickSprite } from '../ui/sprite_art.js';
+import { hasPhoto, PHOTO_VIEWS } from '../ui/real_photo.js';
 export const VIEW_NAMES = {
   front: ['Спереди', 'Спереду', 'Front'], back: ['Сзади', 'Ззаду', 'Back'],
   left: ['Слева', 'Зліва', 'Left'], right: ['Справа', 'Справа', 'Right'],
   bottom: ['Снизу', 'Знизу', 'Bottom'], close: ['Крупно', 'Крупно', 'Close‑up'], close2: ['Детали', 'Деталі', 'Details'],
-  screen: ['Экран', 'Екран', 'Screen'], side: ['Борт', 'Борт', 'Side'], side2: ['Другой борт', 'Інший борт', 'Other side'],
+  screen: ['Экран', 'Екран', 'Screen'], overview: ['Общий план', 'Загальний план', 'Overview'], side: ['Борт', 'Борт', 'Side'], side2: ['Другой борт', 'Інший борт', 'Other side'],
 };
 const PHONE = ['front', 'back', 'left', 'right', 'bottom'];
 const VEH = ['front', 'back', 'close', 'close2'];
@@ -15,15 +15,15 @@ export const VIEWS = {
   phones: PHONE, cars: VEH, bikes: VEH, jewelry: SMALL, watches: FLAT, cards: ['front', 'back', 'close', 'close2'], comics: ['front', 'back', 'close'],
 };
 const RETRO = ['retro', 'slider', 'flipold', 'qwerty'];
-const SPRITE_FLAT = ['front', 'left', 'right', 'close', 'close2'];
-export const viewsOf = (it) => {
+// items with a real photo: the whole shot plus close-ups; the hands-on inspection of a phone keeps every side
+export const viewsOf = (it, o = {}) => {
+  if (hasPhoto(it.m) && !(o.inspect && it.cat === 'phones')) return PHOTO_VIEWS;
   if (it.cat === 'phones') return RETRO.includes(MODEL[it.m]?.art?.f) ? FLAT : PHONE;
   if (it.cat === 'cars' || it.cat === 'bikes') return VEH;
-  // painted sprites have one real side: other angles are camera moves and close-ups (watches show the caseback)
-  if (pickSprite(it)) return it.cat === 'watches' ? FLAT : SPRITE_FLAT;
   return VIEWS[it.cat] || FLAT;
 };
 export const viewLabel = (it, v) => {
+  if (v === 'front' && hasPhoto(it.m)) return VIEW_NAMES.overview;
   if (it.cat === 'phones' && v === 'front') return VIEW_NAMES.screen;
   if ((it.cat === 'cars' || it.cat === 'bikes') && v === 'front') return VIEW_NAMES.side;
   if ((it.cat === 'cars' || it.cat === 'bikes') && v === 'back') return VIEW_NAMES.side2;
