@@ -3,7 +3,7 @@
 // JPEG blob and shown as an ordinary <img>. Rendering happens in a background queue; until a photo is ready
 // its slot shows a soft placeholder. Inspection and minigames keep the interactive SVG.
 import { renderItem, itemSig, spritePickFor, usesPhoto } from './art.js';
-import { realPhoto } from './real_photo.js';
+import { realPhoto, photoFailed } from './real_photo.js';
 import { SHEETS, SHEET_SCALE } from '../data/sprites.js';
 import { spriteFit } from './sprite_art.js';
 import { photoSetup } from './photo.js';
@@ -19,7 +19,7 @@ export let bitmapsOK = typeof document !== 'undefined' && !!document.createEleme
 
 const blobToData = (b) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(b); });
 function assetData(url) {
-  if (!dataCache.has(url)) dataCache.set(url, fetch(url).then((r) => r.blob()).then(blobToData));
+  if (!dataCache.has(url)) dataCache.set(url, fetch(url).then((r) => { if (!r.ok || !/^image\//.test(r.headers.get('content-type') || 'image/')) throw new Error(`asset ${r.status} ${url}`); return r.blob(); }).then(blobToData));
   return dataCache.get(url);
 }
 function loadImg(src) {
@@ -42,10 +42,15 @@ function spriteCrop(s) {
 async function rasterize(it, o, size) {
   const view = o.view || 'front';
   let embed;
-  if (usesPhoto(it, o)) {
-    const [photo, grain] = await Promise.all([assetData(realPhoto(it).url), assetData('assets/photo/grain.webp')]);
-    embed = { photo, grain };
-  } else {
+  let photoOk = usesPhoto(it, o);
+  if (photoOk) {
+    const url = realPhoto(it).url;
+    try {
+      const [photo, grain] = await Promise.all([assetData(url), assetData('assets/photo/grain.webp')]);
+      embed = { photo, grain };
+    } catch (e) { photoFailed(url); dataCache.delete(url); photoOk = false; console.warn('photo missing, drawing instead', url); }
+  }
+  if (!photoOk) {
     const pick = spritePickFor(it, view, o);
     const ps = photoSetup(it, view);
     const [bg, grain, sprite] = await Promise.all([assetData(ps.ph.f), assetData('assets/photo/grain.webp'), pick ? spriteCrop(pick.sprite) : null]);

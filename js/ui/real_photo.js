@@ -9,6 +9,9 @@ const SETS = Object.fromEntries(Object.entries(PHOTO_FILES).map(([k, v]) => [k, 
 export const photoFile = (id) => { let h = 2166136261 >>> 0; for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 const FILE = new Map();
 const fileOf = (m) => { let f = FILE.get(m); if (!f) { f = photoFile(m); FILE.set(m, f); } return f; };
+// photos that failed to load on this device fall back to the drawing
+const BROKEN_URL = new Set();
+export const photoFailed = (url) => BROKEN_URL.add(url);
 export const hasPhoto = (modelId) => { const f = fileOf(modelId); return SETS.clean?.has(f) || SETS.worn?.has(f) || SETS.broken?.has(f); };
 const SEVERE = new Set(['crack', 'backcrack', 'broken', 'dent', 'rust', 'tear', 'a_broken', 'bk_wheel', 'bk_dent', 'c_dent', 'c_rust', 'w_crack']);
 // which shot to show for this particular item
@@ -24,7 +27,9 @@ export function realPhoto(it) {
   if (severe && has('broken')) v = 'broken';
   else if (cond < 58 && has('worn')) v = 'worn';
   if (!has(v)) v = has('clean') ? 'clean' : has('worn') ? 'worn' : 'broken';
-  return { v, f, url: `assets/photos/${v}/${f}.webp` };
+  const url = `assets/photos/${v}/${f}.webp`;
+  if (BROKEN_URL.has(url)) return null;
+  return { v, f, url };
 }
 export const PHOTO_VIEWS = ['front', 'close', 'close2'];
 // framing of the shot for a view: zoom, centre and tilt (deterministic per item)
