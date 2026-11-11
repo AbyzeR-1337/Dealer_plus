@@ -120,6 +120,9 @@ export function buyListing(l, mode, price = l.price) {
   l.sold = true; l.buyer = 'me';
   const it = l.item;
   it.paid = price + fee;
+  // deal protection: what was known (and promised in the chat) at the moment of purchase
+  const chat = s.chats.find((x) => x.kind === 'buy' && x.ref === l.id);
+  it.bought = { at: s.t, price: price + fee, safe: mode === 'delivery', seller: l.seller.name, trait: l.seller.trait, knownAt: it.defects.filter((d) => d.known).map((d) => d.c), fakeKnownAt: !!it.fakeKnown, lies: chat?.sellerLies || [] };
   if (mode === 'delivery') {
     s.deliveries.push({ id: uid('d'), kind: 'in', item: it, from: l.city, to: s.player.city, start: s.t, eta: s.t + deliveryTime(l.city, s.player.city, isVehicle(it)), price: price + fee, who: l.seller.name });
     notify('delivery', T('Заказ оформлен', 'Замовлення оформлено', 'Order placed'), itemTitle(it), { silent: true });

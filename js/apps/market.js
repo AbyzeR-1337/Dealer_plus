@@ -10,7 +10,10 @@ import { img, tile, tags, specs, defectList, empty, avatar, stars, gallery } fro
 import { listingViews } from '../data/views.js';
 import { hashStr } from '../core/rng.js';
 import { feedFor, feedTimeLeft, findListing, isBelowMarket, marketEstimate, listingDesc, openBuyChat, sellerRespond, DISTRICTS, pickupInfo } from '../game/market.js';
-import { chatGreet, chatPersuade, chatCounter, chatAccept, chatDecline, completeSale, scamClick, scamReport, resolveClaim, myListing, unlist, PLATFORMS } from '../game/sell.js';
+import { chatGreet, chatPersuade, chatCounter, chatAccept, chatDecline, chatAnswer, completeSale, scamClick, scamReport, resolveClaim, myListing, unlist, PLATFORMS } from '../game/sell.js';
+import { answerOptions, sellerTopics, sellerAnswer } from '../game/talk.js';
+import { TYPES, isBanned, banLeft, appealReview, appealBan, askQuestion, sellerDisputeInfo, disputeSeller, BAN_STRIKES, openTickets } from '../game/support.js';
+import { RNG } from '../core/rng.js';
 import { itemTitle, itemSub, isVehicle } from '../game/items.js';
 import { getItem, repScore, getStat } from '../game/player.js';
 import { traitName, TRAITS } from '../game/npc.js';
@@ -76,7 +79,7 @@ function chatsView() {
   if (!list.length) return `<h2 class="sec">${T('Сообщения', 'Повідомлення', 'Messages')}</h2><p class="p">${T('Здесь и продавцы, у которых вы покупаете, и покупатели ваших вещей. Переписка с продавцами пропадает, когда лента обновляется.', 'Тут і продавці, у яких ви купуєте, і покупці ваших речей. Листування з продавцями зникає після оновлення стрічки.', 'Sellers you buy from and buyers of your items. Seller chats vanish when the feed refreshes.')}</p>` + empty('chat', T('Пока пусто', 'Поки порожньо', 'Nothing yet'), T('Выставьте вещь на продажу — покупатели напишут.', 'Виставте річ на продаж — покупці напишуть.', 'List an item and buyers will write.'));
   return `<h2 class="sec">${T('Сообщения', 'Повідомлення', 'Messages')}</h2>` + list.map((c) => {
     const last = c.msgs[c.msgs.length - 1];
-    const role = c.kind === 'buy' ? T('продаёт', 'продає', 'selling') : c.kind === 'claim' ? T('претензия', 'претензія', 'complaint') : T('покупает', 'купує', 'buying');
+    const role = c.kind === 'buy' ? T('продаёт', 'продає', 'selling') : c.kind === 'claim' ? (c.st === 'dispute' ? T('спор в поддержке', 'спір у підтримці', 'dispute') : T('претензия', 'претензія', 'complaint')) : T('покупает', 'купує', 'buying');
     const tr = c.npc.trait ? ` · ${traitName(c.npc.trait)}` : '';
     return `<div class="list-item" data-a="go" data-v="chat" data-id="${c.id}" style="${c.st === 'closed' ? 'opacity:.55' : ''}">${avatar(c.npc.name, c.npc.hue)}<div class="grow"><div class="t">${esc(c.npc.name)} <span class="${c.kind === 'claim' ? 'r' : 'g'} small">${role}${esc(tr)}</span></div><div class="s">${esc(c.title)}</div><div class="s" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(last?.tx || '')}</div></div>${c.unread ? '<span class="tag r">●</span>' : ''}</div>`;
   }).join('');
@@ -92,7 +95,11 @@ function chatView(p) {
   const msgs = c.msgs.map((m) => `<div class="msg ${m.f}">${m.link ? esc(m.tx).replace(esc(m.link), `<a class="link">${esc(m.link)}</a>`) : esc(m.tx)}<span class="tm">${new Date(0, 0, 0, Math.floor((m.t % 1440) / 60), m.t % 60).toTimeString().slice(0, 5)}</span></div>`).join('');
   let opts = '';
   const O = (a, label, cls = '') => `<button class="opt ${cls}" data-a="${a}" data-v="${c.id}">${label}</button>`;
-  if (c.kind === 'sell' && c.st === 'open') {
+  if (c.kind === 'sell' && c.st === 'open' && c.q && it) {
+    const TAG = { honest: '✅', vague: '🤷', lie: '🤥', social: '💬' };
+    answerOptions(it, c.q).forEach((a, i) => { opts += `<button class="opt ${a.k === 'honest' || a.k === 'social' ? 'solid' : a.k === 'lie' ? 'red' : ''}" data-a="answer" data-v="${c.id}" data-k="${a.k}" data-i="${i}">${TAG[a.k]} ${esc(a.label)}${a.k === 'lie' ? `<small style="display:block;opacity:.75;font-weight:500;font-size:12px">${T('ложь сохранится в переписке — покупатель может пойти в поддержку', 'брехня збережеться в листуванні — покупець може піти до підтримки', 'the lie stays in the chat — the buyer may go to support')}</small>` : ''}</button>`; });
+    opts += O('decline', T('Нет, спасибо', 'Ні, дякую', 'No, thanks'));
+  } else if (c.kind === 'sell' && c.st === 'open') {
     if (!c.greeted) opts += O('greet', T('Здравствуйте! Да, ещё продаётся.', 'Добрий день! Так, ще продається.', 'Hello! Yes, still available.'));
     opts += O('accept', T(`Согласен, продам за ${fmt(c.offer)}`, `Згоден, продам за ${fmt(c.offer)}`, `Deal, I’ll sell for ${fmt(c.offer)}`), 'solid');
     opts += O('counter', T('Предложить свою цену', 'Запропонувати свою ціну', 'Counter‑offer'));
@@ -102,18 +109,49 @@ function chatView(p) {
     opts += O('ship', `📦 ${T('Упаковать и отправить', 'Запакувати й відправити', 'Pack & ship')}`, 'solid');
     if (it && (it.loc || G.s.player.city) === G.s.player.city) opts += O('meet', `🤝 ${T('Встретиться лично (деньги сразу)', 'Зустрітися особисто (гроші одразу)', 'Meet in person (cash now)')}`);
   } else if (c.st === 'scam') {
-    opts += O('scamclick', `🔗 ${T('Перейти по ссылке', 'Перейти за посиланням', 'Open the link')}`, 'red');
+    const SCL = { link: T('🔗 Перейти по ссылке', '🔗 Перейти за посиланням', '🔗 Open the link'), code: T('🔢 Отправить код из СМС', '🔢 Надіслати код з СМС', '🔢 Send the SMS code'), shot: T('📦 Поверить скрину и отправить', '📦 Повірити скріну й відправити', '📦 Trust the screenshot and ship'), over: T('💸 Вернуть «лишнее»', '💸 Повернути «зайве»', '💸 Send back the “extra”') };
+    opts += O('scamclick', SCL[c.scamKind] || SCL.link, 'red');
     opts += O('scamreport', `🛡 ${T('Это развод — пожаловаться', 'Це розвод — поскаржитися', 'It’s a scam — report')}`, 'solid');
+  } else if (c.kind === 'claim' && c.st === 'dispute') {
+    opts += `<button class="opt" data-a="go" data-v="ticket" data-id="${c.ticket}">🛡 ${T('Открыть спор в поддержке', 'Відкрити спір у підтримці', 'Open the dispute')}</button>`;
   } else if (c.kind === 'claim' && c.st === 'claim') {
     opts += O('refund', T('Вернуть деньги (вещь вернётся)', 'Повернути гроші (річ повернеться)', 'Refund (item comes back)'), 'solid');
     opts += O('partial', T('Предложить компенсацию', 'Запропонувати компенсацію', 'Offer partial compensation'));
     opts += O('refuse', T('Отказать', 'Відмовити', 'Refuse'), 'red');
   } else if (c.kind === 'buy' && (c.st === 'open' || c.st === 'deal') && l && !l.sold) {
     if (!c.msgs.length) opts += O('bhello', T('Здравствуйте! Ещё актуально?', 'Добрий день! Ще актуально?', 'Hi! Still available?'));
+    if ((c.askedSeller || []).length < 3) opts += O('bask', `❓ ${T('Спросить продавца', 'Запитати продавця', 'Ask the seller')}`);
     if (c.st === 'deal') opts += O('bbuy', T(`Беру за ${fmt(c.deal)}`, `Беру за ${fmt(c.deal)}`, `I’ll take it for ${fmt(c.deal)}`), 'solid');
     else { opts += O('boffer', T('Предложить цену', 'Запропонувати ціну', 'Make an offer')); opts += O('bbuy', T(`Купить за ${fmt(c.ask)}`, `Купити за ${fmt(c.ask)}`, `Buy for ${fmt(c.ask)}`), 'solid'); }
   }
   return `${top}<div class="msgs">${msgs || `<div class="msg sys">${T('Начните диалог', 'Почніть діалог', 'Start the conversation')}</div>`}</div>${opts ? `<div class="opts">${opts}</div>` : `<div class="msg sys" style="margin:10px auto">${T('Диалог завершён', 'Діалог завершено', 'Conversation closed')}</div>`}`;
+}
+
+function supportView() {
+  const s = G.s;
+  const st = s.support || { tickets: [], strikes: 0, banUntil: 0 };
+  const banned = isBanned();
+  const eligible = s.inv.filter((it) => it.bought && sellerDisputeInfo(it).ok);
+  return `<h2 class="sec">${T('Служба поддержки', 'Служба підтримки', 'Support')}</h2>
+    <div class="card ${banned ? 'warn' : ''}"><div class="row between"><b>${T('Статус аккаунта', 'Статус акаунта', 'Account status')}</b><span class="${banned ? 'r' : st.strikes ? 'o' : 'g'} bold">${banned ? T('Объявления заморожены', 'Оголошення заморожено', 'Listings frozen') : st.strikes ? T(`Предупреждений: ${st.strikes}/${BAN_STRIKES}`, `Попереджень: ${st.strikes}/${BAN_STRIKES}`, `Warnings: ${st.strikes}/${BAN_STRIKES}`) : T('Без нарушений', 'Без порушень', 'In good standing')}</span></div>
+      ${banned ? `<div class="small m">${T('Осталось', 'Залишилося', 'Time left')}: ${clockDur(banLeft())}</div><button class="btn block mt" data-a="banappeal">${T('Подать апелляцию', 'Подати апеляцію', 'Appeal')}</button>` : `<div class="small m">${T('Ложь в переписке и продажа подделок дают предупреждения. Три предупреждения — заморозка объявлений на 2 дня.', 'Брехня в листуванні та продаж підробок дають попередження. Три попередження — заморожування оголошень на 2 дні.', 'Lying in chats and selling fakes earn warnings. Three warnings freeze your listings for 2 days.')}</div>`}</div>
+    <h3 class="sub">${T('Новое обращение', 'Нове звернення', 'New request')}</h3>
+    <div class="opt-grid">
+      <button data-a="sdispute">🧾 ${esc(L(TYPES.seller))}<small>${eligible.length ? T(`Можно по ${eligible.length} покупкам`, `Можна за ${eligible.length} покупками`, `${eligible.length} purchases eligible`) : T('Покупки с доставкой, 3 дня', 'Покупки з доставкою, 3 дні', 'Delivered purchases, 3 days')}</small></button>
+      <button data-a="go" data-v="profile">⭐ ${esc(L(TYPES.review))}<small>${T('Из профиля, у отзыва', 'З профілю, біля відгуку', 'From your profile')}</small></button>
+      <button data-a="go" data-v="chats">🚨 ${esc(L(TYPES.scam))}<small>${T('Кнопка в чате с мошенником', 'Кнопка в чаті з шахраєм', 'Button in the scam chat')}</small></button>
+      <button data-a="squestion">💬 ${esc(L(TYPES.question))}<small>${T('Советы и правила', 'Поради та правила', 'Tips and rules')}</small></button>
+    </div>
+    <h3 class="sub">${T('Мои обращения', 'Мої звернення', 'My tickets')}</h3>
+    ${st.tickets.length ? st.tickets.map((t) => `<div class="list-item" data-a="go" data-v="ticket" data-id="${t.id}"><div class="avatar" style="background:#1d2a44;color:#7fb0ff">🛡</div><div class="grow"><div class="t">${esc(t.title)}</div><div class="s">${t.st === 'done' ? (t.outcome === 'win' ? `<span class="g">${T('Решено в вашу пользу', 'Вирішено на вашу користь', 'Resolved in your favour')}</span>` : `<span class="r">${T('Отказано / не в вашу пользу', 'Відмовлено / не на вашу користь', 'Not in your favour')}</span>`) : t.st === 'review' ? T('На рассмотрении', 'На розгляді', 'Under review') : T('Принято', 'Прийнято', 'Received')} · ${ago(t.at)}</div></div>${t.unread ? '<span class="tag r">●</span>' : ''}</div>`).join('') : empty('shield', T('Обращений нет', 'Звернень немає', 'No tickets'), T('Надеемся, и не понадобятся 🙂', 'Сподіваємося, і не знадобляться 🙂', 'Hopefully you won’t need any 🙂'))}`;
+}
+function ticketView(p) {
+  const t = (G.s.support?.tickets || []).find((x) => x.id === p.id);
+  if (!t) return empty('shield', T('Обращение не найдено', 'Звернення не знайдено', 'Ticket not found'));
+  t.unread = 0;
+  const msgs = t.msgs.map((m) => `<div class="msg ${m.f === 'me' ? 'me' : m.f === 'sys' ? 'sys' : 'them'}">${m.f === 'agent' ? `<b class="small" style="display:block;color:#7fb0ff">${esc(t.agent)} · ${T('поддержка', 'підтримка', 'support')}</b>` : ''}${esc(m.tx)}<span class="tm">${new Date(0, 0, 0, Math.floor((m.t % 1440) / 60), m.t % 60).toTimeString().slice(0, 5)}</span></div>`).join('');
+  const status = t.st === 'done' ? '' : `<div class="msg sys" style="margin:10px auto">${t.st === 'review' ? T('Специалист изучает материалы…', 'Фахівець вивчає матеріали…', 'An agent is reviewing…') : T('Обращение в очереди…', 'Звернення в черзі…', 'Ticket queued…')} ⏳ ${clockDur(Math.max(0, t.eta - G.s.t))}</div>`;
+  return `<div class="card"><b>${esc(t.title)}</b><div class="small m">№ ${esc(t.id.slice(-6).toUpperCase())} · ${ago(t.at)}</div></div><div class="msgs">${msgs}</div>${status}`;
 }
 
 function mineView() {
@@ -132,7 +170,7 @@ function profileView() {
   const sc = repScore();
   return `<div class="card center"><div class="avatar" style="width:72px;height:72px;font-size:30px;margin:0 auto 8px;background:hsl(${s.player.avatar} 40% 20%);color:hsl(${s.player.avatar} 80% 70%)">${esc(s.player.name[0])}</div><h3>${esc(s.player.name)}</h3><div class="y" style="font-size:22px">${r.n ? stars(sc) : '☆☆☆☆☆'}</div><div class="small m">${r.n ? `${sc.toFixed(2)} · ${r.n} ${T('отзывов', 'відгуків', 'reviews')}` : T('Пока нет отзывов', 'Поки немає відгуків', 'No reviews yet')}</div></div>
     <div class="stats"><div class="stat"><small>${T('Продано', 'Продано', 'Sold')}</small><b>${getStat('sold')}</b></div><div class="stat"><small>${T('Куплено', 'Куплено', 'Bought')}</small><b>${getStat('bought')}</b></div><div class="stat"><small>${T('Прибыль', 'Прибуток', 'Profit')}</small><b class="g">${fmt(getStat('profit'))}</b></div><div class="stat"><small>${T('Лучшая сделка', 'Найкраща угода', 'Best flip')}</small><b>${fmt(s.stats.bestFlip || 0)}</b></div></div>
-    <h3 class="sub">${T('Отзывы', 'Відгуки', 'Reviews')}</h3>${(r.reviews || []).map((x) => `<div class="card"><div class="y">${stars(x.stars)}</div><div>${esc(x.text)}</div><div class="tiny m">${ago(x.t)}</div></div>`).join('') || `<p class="p">${T('Продавайте честно — и отзывы будут хорошими.', 'Продавайте чесно — і відгуки будуть добрими.', 'Sell honestly to earn good reviews.')}</p>`}`;
+    <h3 class="sub">${T('Отзывы', 'Відгуки', 'Reviews')}</h3>${(r.reviews || []).map((x) => `<div class="card"><div class="row between"><span class="y">${stars(x.stars)}</span>${x.stars <= 3 && x.id ? (x.appealed ? `<span class="tiny m">${T('на проверке/проверен', 'на перевірці/перевірено', 'appealed')}</span>` : `<button class="btn xs dark" data-a="appeal" data-v="${x.id}">🛡 ${T('Оспорить', 'Оскаржити', 'Appeal')}</button>`) : ''}</div><div>${esc(x.text)}</div><div class="tiny m">${x.buyer ? esc(x.buyer) + ' · ' : ''}${ago(x.t)}</div></div>`).join('') || `<p class="p">${T('Продавайте честно — и отзывы будут хорошими.', 'Продавайте чесно — і відгуки будуть добрими.', 'Sell honestly to earn good reviews.')}</p>`}`;
 }
 
 export default {
@@ -143,13 +181,14 @@ export default {
     { v: 'main', label: ['Объявления', 'Оголошення', 'Listings'], icon: 'grid' },
     { v: 'chats', label: ['Сообщения', 'Повідомлення', 'Messages'], icon: 'chat', badge: unreadChats },
     { v: 'mine', label: ['Мои', 'Мої', 'Mine'], icon: 'tag' },
+    { v: 'support', label: ['Поддержка', 'Підтримка', 'Support'], icon: 'shield', badge: () => (G.s.support?.tickets || []).filter((t) => t.unread).length },
     { v: 'profile', label: ['Профиль', 'Профіль', 'Profile'], icon: 'user' },
   ],
-  tabOf: (v) => (v === 'item' ? 'main' : v === 'chat' ? 'chats' : v),
+  tabOf: (v) => (v === 'item' ? 'main' : v === 'chat' ? 'chats' : v === 'ticket' ? 'support' : v),
   badge: unreadChats,
   title: (v) => (v === 'chat' ? (G.s.chats.find((c) => c.id === UI.params.id)?.npc.name || '') : regName('classifieds')),
   sub: (v) => { if (v !== 'chat') return ''; const c = G.s.chats.find((x) => x.id === UI.params.id); return c ? `${c.kind === 'buy' ? T('Продавец', 'Продавець', 'Seller') : T('Покупатель', 'Покупець', 'Buyer')}${c.npc.trait ? ' · ' + esc(traitName(c.npc.trait)) : ''}` : ''; },
-  views: { main: feedView, item: itemView, chats: chatsView, chat: chatView, mine: mineView, profile: profileView },
+  views: { main: feedView, item: itemView, chats: chatsView, chat: chatView, mine: mineView, profile: profileView, support: supportView, ticket: ticketView },
   inputs: { q: (v) => { F.q = v; clearTimeout(F._t); F._t = setTimeout(() => { const el = document.activeElement; rerender(); setTimeout(() => { const i = document.querySelector('[data-in="q"]'); if (i && el?.dataset?.in === 'q') { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 30); }, 350); } },
   actions: {
     cat: (v) => { F.cat = v; rerender(); },
@@ -173,6 +212,30 @@ export default {
     unlist: (v, el, ev) => { ev.stopPropagation(); unlist(v); toast(T('Снято с продажи', 'Знято з продажу', 'Unlisted')); rerender(); },
     // sell-side chat
     greet: (id) => { chatGreet(chat(id)); sfx('tap'); rerender(); },
+    answer: (id, el) => { const c = chat(id); const it = getItem(c.itemId); if (!it || !c.q) return; const a = answerOptions(it, c.q)[+el.dataset.i]; if (a) { chatAnswer(c, a.k, a.label); sfx('tap'); rerender(); } },
+    appeal: (id) => { if (appealReview(id)) { toast(T('Обращение отправлено в поддержку', 'Звернення надіслано до підтримки', 'Sent to support'), 'g'); rerender(); } },
+    banappeal: () => { const t = appealBan(); if (t) go('ticket', { id: t.id }); },
+    squestion: async () => { const v = await choose(T('Вопрос в поддержку', 'Питання до підтримки', 'Question for support'), [T('Как не нарваться на мошенников?', 'Як не натрапити на шахраїв?', 'How do I avoid scammers?'), T('Как работает гарантия сделки?', 'Як працює гарантія угоди?', 'How does deal protection work?'), T('Почему мне дали предупреждение?', 'Чому мені дали попередження?', 'Why did I get a warning?')].map((x) => ({ v: x, label: x, cls: 'dark' }))); if (v) { const t = askQuestion(v); go('ticket', { id: t.id }); } },
+    sdispute: async () => {
+      const list = G.s.inv.filter((it) => it.bought && sellerDisputeInfo(it).ok);
+      if (!list.length) return toast(T('Нет покупок с доставкой за последние 3 дня', 'Немає покупок із доставкою за останні 3 дні', 'No delivered purchases in the last 3 days'), 'r');
+      const v = await choose(L(TYPES.seller), list.map((it) => { const inf = sellerDisputeInfo(it); return { v: it.id, label: `${itemTitle(it)}${inf.hidden.length || inf.fake ? ` — ${T('найдено скрытое', 'знайдено приховане', 'hidden issues found')}` : ''}`, cls: 'dark' }; }));
+      if (!v) return;
+      const t = disputeSeller(getItem(v)); if (t) go('ticket', { id: t.id });
+    },
+    bask: async (id) => {
+      const c = chat(id); const l = findListing(c.ref); if (!l || l.sold) return;
+      const topics = sellerTopics(l.item, new RNG(`${c.id}:topics`)).filter((q) => !(c.askedSeller || []).includes(q.topic));
+      const v = await choose(T('Спросить продавца', 'Запитати продавця', 'Ask the seller'), topics.map((q) => ({ v: q.topic, label: q.tx, cls: 'dark' })));
+      if (!v) return;
+      const q = topics.find((x) => x.topic === v);
+      (c.askedSeller ||= []).push(v);
+      c.msgs.push({ f: 'me', tx: q.tx, t: G.s.t });
+      const a = sellerAnswer(c, l.item, v);
+      c.msgs.push({ f: 'them', tx: a.tx, t: G.s.t });
+      if (a.lie && a.codes?.length) (c.sellerLies ||= []).push({ topic: v, codes: a.codes });
+      sfx('tap'); rerender();
+    },
     accept: (id) => { chatAccept(chat(id)); rerender(); },
     decline: (id) => { chatDecline(chat(id)); rerender(); },
     counter: async (id) => { const c = chat(id); const p = await askPrice({ title: T('Ваша цена', 'Ваша ціна', 'Your price'), value: nicePrice((c.offer + c.ask) / 2), min: 1, max: c.ask * 1.5 }); if (p) { chatCounter(c, p); sfx('tap'); rerender(); } },

@@ -4,6 +4,7 @@ import { T, L } from '../core/i18n.js';
 import { chance } from '../core/util.js';
 import { marketTick, feedFor } from './market.js';
 import { sellTick, feedbackTick, finishSale } from './sell.js';
+import { supportTick } from './support.js';
 import { auctionTick, ownAuctionTick } from './sources.js';
 import { workshopTick } from './workshop.js';
 import { jobsTick } from './jobs.js';
@@ -70,6 +71,7 @@ export function tick(fast = false) {
   marketTick();
   sellTick();
   feedbackTick();
+  supportTick();
   deliveriesTick();
   workshopTick();
   auctionTick();

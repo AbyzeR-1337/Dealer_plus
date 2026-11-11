@@ -69,12 +69,22 @@ export function addXP(n) {
 }
 
 // ---------------------------------------------------------------- reputation
-export function addReview(stars, text) {
+export function addReview(stars, text, o = {}) {
   const s = G.s;
   s.rep.sum += stars; s.rep.n++;
-  (s.rep.reviews ||= []).unshift({ stars, text, t: s.t });
+  (s.rep.reviews ||= []).unshift({ id: 'r' + s.t.toString(36) + Math.floor(Math.random() * 1e4).toString(36), stars, text, t: s.t, buyer: o.buyer || '', fair: o.fair !== false, sale: o.sale || '' });
   if (s.rep.reviews.length > 40) s.rep.reviews.length = 40;
   emit('rep');
+}
+export function removeReview(id) {
+  const s = G.s;
+  const i = (s.rep.reviews || []).findIndex((r) => r.id === id);
+  if (i < 0) return false;
+  const r = s.rep.reviews[i];
+  s.rep.sum -= r.stars; s.rep.n = Math.max(0, s.rep.n - 1);
+  s.rep.reviews.splice(i, 1);
+  emit('rep');
+  return true;
 }
 export const repScore = () => { const r = G.s?.rep; return r && r.n ? r.sum / r.n : 0; };
 // Reputation factor used in buyer frequency/trust (0.6..1.3)
