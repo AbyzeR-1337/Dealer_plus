@@ -3,6 +3,7 @@ import { MODEL, colorHex, DEFECTS } from '../data/catalog.js';
 import { RNG } from '../core/rng.js';
 import { shade, mix, clamp, lum, esc } from '../core/util.js';
 import { DRAW2 } from './art2.js';
+import { pickSprite, spriteMarkup } from './sprite_art.js';
 
 let UID = 0;
 const CACHE = new Map();
@@ -735,12 +736,53 @@ function perfume(ctx) {
 const DRAW = { phones: phone, electronics, consoles, accessories, sneakers, clothing, bags, watches, jewelry, perfume };
 
 // ---------------------------------------------------------------- public
+const TEX = { char: 'assets/tex/bg_char.webp', warm: 'assets/tex/bg_warm.webp', cold: 'assets/tex/bg_cold.webp', green: 'assets/tex/bg_green.webp', red: 'assets/tex/bg_red.webp', asphalt: 'assets/tex/bg_asphalt.webp' };
+const TEX_BY_CAT = { cars: ['asphalt', 'char', 'cold'], bikes: ['asphalt', 'char'], jewelry: ['warm', 'red', 'char'], watches: ['char', 'warm', 'cold'], bags: ['warm', 'char', 'red'], perfume: ['warm', 'char', 'cold'], art: ['warm', 'char'], antiques: ['warm', 'char'], cards: ['cold', 'char', 'green'], comics: ['char', 'warm'] };
+function texBackground(ctx) {
+  const r = new RNG((ctx.it.seed || 1) * 7 + 3);
+  const key = r.pick(TEX_BY_CAT[ctx.it.cat] || ['char', 'cold', 'warm', 'green']);
+  const rot = r.pick([0, 90, 180, 270]);
+  const vg = ctx.rad([[0, '#000', 0], [0.7, '#000', 0.18], [1, '#000', 0.62]], 0.5, 0.45, 0.75);
+  return `<image href="${TEX[key]}" xlink:href="${TEX[key]}" x="0" y="0" width="400" height="400" preserveAspectRatio="xMidYMid slice" transform="rotate(${rot} 200 200)"/><rect width="400" height="400" fill="${vg}"/>`;
+}
+// Grit filter: follows the object's own silhouette (no rectangles). Inner bevel from the blurred alpha gives
+// volume, fractal noise adds grain, low-frequency noise adds grime patches — the same worn look as the sprites.
+function grit(ctx, box, lite) {
+  const id = ctx.P + 'gf';
+  const x = Math.max(0, box.x - 40), y = Math.max(0, box.y - 40);
+  const w = Math.min(400 - x, box.w + 80), h = Math.min(400 - y, box.h + 80);
+  const seed = ((ctx.it.seed || 1) % 997) + 1;
+  // dirt follows condition: mint items get almost none, junk gets visible patches
+  const wear = Math.max(0, Math.min(1, (100 - (ctx.it.cond ?? 80)) / 90));
+  const ga = (0.6 + 3.2 * wear).toFixed(2), gb = (-(0.33 + 1.76 * wear)).toFixed(2);
+  const grime = lite || wear < 0.08 ? '' : `<feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="3" seed="${seed}" result="gn"/><feColorMatrix in="gn" type="matrix" values="0 0 0 0 0.16  0 0 0 0 0.11  0 0 0 0 0.06  ${ga} 0 0 0 ${gb}" result="gc"/><feComposite in="gc" in2="SourceAlpha" operator="in" result="grime"/>`;
+  ctx.defs.push(`<filter id="${id}" filterUnits="userSpaceOnUse" x="${S(x)}" y="${S(y)}" width="${S(w)}" height="${S(h)}" color-interpolation-filters="sRGB">`
+    + `<feGaussianBlur in="SourceAlpha" stdDeviation="6" result="b"/>`
+    + `<feOffset in="b" dx="-6" dy="-8" result="bs"/><feComposite in="SourceAlpha" in2="bs" operator="out" result="rs"/>`
+    + `<feOffset in="b" dx="5" dy="7" result="bh"/><feComposite in="SourceAlpha" in2="bh" operator="out" result="rh"/>`
+    + `<feFlood flood-color="#000" flood-opacity="0.6"/><feComposite in2="rs" operator="in" result="shade"/>`
+    + `<feFlood flood-color="#fff" flood-opacity="0.2"/><feComposite in2="rh" operator="in" result="hi"/>`
+    + `<feTurbulence type="fractalNoise" baseFrequency="0.95" numOctaves="1" seed="${seed}" result="n"/>`
+    + `<feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.9 0 0 0 -0.44" result="nd"/><feComposite in="nd" in2="SourceAlpha" operator="in" result="gd"/>`
+    + `<feColorMatrix in="n" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0.55 0 0 -0.33" result="nl"/><feComposite in="nl" in2="SourceAlpha" operator="in" result="gl"/>`
+    + grime
+    + `<feMerge><feMergeNode in="SourceGraphic"/>${grime ? '<feMergeNode in="grime"/>' : ''}<feMergeNode in="gd"/><feMergeNode in="gl"/><feMergeNode in="shade"/><feMergeNode in="hi"/></feMerge></filter>`);
+  return `url(#${id})`;
+}
 export function renderItem(it, o = {}) {
   const ctx = mkCtx(it, o);
-  const draw = DRAW[it.cat] || DRAW2[it.cat];
-  let res;
-  try { res = draw ? draw(ctx) : null; } catch (e) { console.error('art', it.m, e); res = null; }
-  if (!res) res = { g: rr(120, 120, 160, 160, 20, ctx.c), box: { x: 120, y: 120, w: 160, h: 160 } };
+  const veh = it.cat === 'cars' || it.cat === 'bikes';
+  let res = null, sprite = false;
+  const pick = o.procedural ? null : pickSprite(it);
+  if (pick) {
+    const back = ctx.view === 'back';
+    res = spriteMarkup(ctx, pick, { flip: back && veh, closeup: back && !veh ? 1.55 : 1 });
+    sprite = true;
+  } else {
+    const draw = DRAW[it.cat] || DRAW2[it.cat];
+    try { res = draw ? draw(ctx) : null; } catch (e) { console.error('art', it.m, e); res = null; }
+    if (!res) res = { g: rr(120, 120, 160, 160, 20, ctx.c), box: { x: 120, y: 120, w: 160, h: 160 } };
+  }
   const { box } = res;
   ctx.vizOf = (d) => DEFECTS[d.c]?.viz;
   let ov = '';
@@ -754,16 +796,14 @@ export function renderItem(it, o = {}) {
     ov += overlay(ctx, d, box, op);
   }
   if (ov) ov = `<g clip-path="${ctx.clip(res.clip || rr(box.x - 4, box.y - 4, box.w + 8, box.h + 8, 14, '#000'))}">${ov}</g>`;
-  const bg = o.bg === false ? '' : background(ctx);
-  const veh = it.cat === 'cars' || it.cat === 'bikes';
-  const tilt = o.tilt && !veh ? new RNG(it.seed + 7).float(-9, 9) : 0;
-  const shadow = o.bg === false ? '' : el(box.x + box.w / 2, Math.min(392, box.y + box.h + 10), box.w * 0.48, 12, '#000', 'opacity=".22"');
-  const scale = o.zoom || (veh ? 1.1 : 0.92);
+  const bg = o.bg === false ? '' : texBackground(ctx);
+  const tilt = o.tilt && !veh && !sprite ? new RNG(it.seed + 7).float(-9, 9) : o.tilt && sprite && !veh ? new RNG(it.seed + 7).float(-4, 4) : 0;
+  const shadow = o.bg === false || sprite ? '' : el(box.x + box.w / 2, Math.min(392, box.y + box.h + 10), box.w * 0.5, 13, '#000', 'opacity=".45"');
+  const scale = o.zoom || (sprite ? 1 : veh ? 1.1 : 0.92);
   const tr = `translate(200 200) rotate(${S(tilt)}) scale(${scale}) translate(-200 -200)`;
-  let badge = '';
-  if (it.grade && o.slab !== false && !['cards', 'comics'].includes(it.cat)) badge = '';
-  const svg = `<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><defs>${ctx.defs.join('')}</defs>${bg}<g transform="${tr}">${shadow}${res.g}${ov}</g>${badge}</svg>`;
-  return { svg, box, ctx, buttons: ctx.buttons, screen: ctx.screen, scale, tilt };
+  const body = sprite ? res.g : `<g filter="${grit(ctx, box, o.lite)}">${res.g}</g>`;
+  const svg = `<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid slice"><defs>${ctx.defs.join('')}</defs>${bg}<g transform="${tr}">${shadow}${body}${ov}</g></svg>`;
+  return { svg, box, ctx, buttons: ctx.buttons, screen: ctx.screen, scale, tilt, sprite };
 }
 export function itemSVG(it, o = {}) {
   const sig = `${it.id}|${o.view || 'front'}|${o.bg !== false}|${o.tilt ? 1 : 0}|${o.inspect ? 1 : 0}|${(it.defects || []).map((d) => d.c + (d.known ? 1 : 0)).join(',')}|${it.lock || ''}|${it.grade || ''}|${it.fill ?? ''}|${it.cond}`;

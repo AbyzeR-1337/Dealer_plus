@@ -8,8 +8,8 @@ import { execSync } from 'node:child_process';
 const out = 'dist';
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
-for (const p of ['index.html', 'manifest.webmanifest', 'sw.js', '.nojekyll', 'css', 'js', 'icons']) {
-  if (existsSync(p)) cpSync(p, `${out}/${p}`, { recursive: true });
+for (const p of ['index.html', 'manifest.webmanifest', 'sw.js', '.nojekyll', 'css', 'js', 'icons', 'assets/sheets', 'assets/tex']) {
+  if (existsSync(p)) cpSync(p, `${out}/${p}`, { recursive: true }); // assets/src (original sheets) stays out of the site
 }
 
 let build = process.env.GITHUB_SHA ? process.env.GITHUB_SHA.slice(0, 8) : '';

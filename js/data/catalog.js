@@ -4,6 +4,7 @@ import { buildTech } from './models_tech.js';
 import { buildFashion } from './models_fashion.js';
 import { buildCollect } from './models_collect.js';
 import { buildVehicles } from './models_vehicles.js';
+import { buildExtra } from './models_extra.js';
 
 export const YEAR = 2026;
 
@@ -28,6 +29,8 @@ export const CATS = {
   instruments: { name: ['Музыкальные инструменты', 'Музичні інструменти', 'Instruments'], icon: '🎸', color: '#fb7185', size: 4, valMode: 'dep', dep: 0.05, floor: 0.45, fake: 0.07 },
   cars:        { name: ['Авто', 'Авто', 'Cars'], icon: '🚗', color: '#60a5fa', size: 0, valMode: 'dep', dep: 0.11, floor: 0.06, fake: 0 },
   bikes:       { name: ['Мото и вело', 'Мото і вело', 'Bikes & moto'], icon: '🏍️', color: '#34d399', size: 0, valMode: 'dep', dep: 0.1, floor: 0.12, fake: 0.02 },
+  gear:        { name: ['Снаряжение и сумки', 'Спорядження і сумки', 'Gear & luggage'], icon: '🎒', color: '#9a8a62', size: 2, valMode: 'dep', dep: 0.08, floor: 0.3, fake: 0.08 },
+  misc:        { name: ['Мелочи и находки', 'Дрібниці та знахідки', 'Odds & ends'], icon: '🔑', color: '#a3a3a3', size: 1, valMode: 'dep', dep: 0.04, floor: 0.4, fake: 0.03 },
 };
 export const CAT_LIST = Object.keys(CATS);
 for (const id of CAT_LIST) CATS[id].id = id;
@@ -283,6 +286,8 @@ export const CAT_DEFECTS = {
   instruments: ['i_scratch', 'i_neck', 'i_electro', 'i_crack', 'i_frets', 'i_keys'],
   cars: ['v_dent', 'v_rust', 'v_scratch', 'v_paint', 'v_light', 'v_engine', 'v_gearbox', 'v_mileage', 'v_accident', 'v_tire', 'v_glass', 'v_docs', 'v_electric'],
   bikes: ['bk_rust', 'bk_scratch', 'bk_brake', 'bk_wheel', 'bk_battery', 'bk_dent'],
+  gear: ['a_scratch', 'a_wear', 'a_broken', 'b_stain', 'b_smell', 'w_zip'],
+  misc: ['l_scratch', 'a_wear', 'a_broken', 'l_stain'],
 };
 
 export const LOCKS = {
@@ -329,6 +334,7 @@ buildTech(addModel);
 buildFashion(addModel);
 buildCollect(addModel);
 buildVehicles(addModel);
+buildExtra(addModel);
 
 // Typical market value for an original item in excellent used condition (USD, before regional effects)
 export function modelValue(m) {

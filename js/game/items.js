@@ -161,7 +161,7 @@ export function makeItem(rng, o = {}) {
 export function itemTitle(it, withVar = true) {
   const m = modelOf(it);
   if (!m) return '???';
-  let t = `${m.brand} ${m.name}`;
+  let t = [m.brand, m.name].filter(Boolean).join(' ');
   if (it.cat === 'cars') return `${t}, ${it.year}`;
   const vl = withVar ? varLabel(it) : '';
   if (vl) t += `, ${vl}`;

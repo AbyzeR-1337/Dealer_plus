@@ -1,0 +1,51 @@
+// Gear and odds & ends — models drawn with hand-painted sprites (art.sprite).
+export function buildExtra(add) {
+  const g = (name, price, year, sprite, o = {}) => add('gear', o.brand || '', name, price, year, { sprite }, { colors: ['col'], vars: [['', 1]], ...o });
+  g('Тактический рюкзак 45 л', 180, 2022, 'g2_backpack_blk', { brand: 'Tasmanian Tigr' });
+  g('Рюкзак камуфляж', 90, 2021, 'g2_backpack_camo', { brand: 'Mil‑Tek' });
+  g('Рюкзак городской', 70, 2023, 'g2_backpack_tan', { brand: 'Eastpack' });
+  g('Kanken рюкзак', 90, 2023, 'g3_backpackgreen', { brand: 'Fjallraven' });
+  g('Чемодан Cosmolite', 320, 2022, 'g2_suitcase', { brand: 'Samsonaite' });
+  g('Чемодан алюминиевый Original', 1100, 2021, 'g2_suitcase2', { brand: 'Rimova', dep: 0.03, hype: 1.1 });
+  g('Спортивная сумка', 60, 2023, 'g2_duffel1', { brand: 'Pumo' });
+  g('Дорожная сумка кожаная', 250, 2020, 'g2_duffel2', {});
+  g('Сумка‑дафл «Purple»', 400, 2022, 'g2_duffel3', { brand: 'Vetemenz', hype: 1.1 });
+  g('Сумка‑почтальонка', 300, 2020, 'g3_messenger', { brand: 'Filsen', dep: 0.04 });
+  g('Почтальонка чёрная', 150, 2021, 'g3_messblk', { brand: 'Carhart WIP' });
+  g('Мотошлем X‑15', 900, 2023, 'g2_helmet1', { brand: 'Shoeii' });
+  g('Мотошлем Pista GP', 1200, 2023, 'g2_helmet2', { brand: 'AGV‑X' });
+  g('Мотошлем RX‑7', 750, 2022, 'g2_helmet3', { brand: 'Araii' });
+  g('Открытый шлем Custom 500', 200, 2021, 'g2_openhelmet', { brand: 'Bel' });
+  g('Тактический шлем FAST', 600, 2022, 'g2_tactical', { brand: 'Opz‑Kor' });
+  g('Армейская каска (винтаж)', 120, 1985, 'g2_milhelmet', { fixed: true });
+  g('Пробковый шлем (винтаж)', 150, 1960, 'g2_helmettan', { fixed: true, rare: 1 });
+  g('Противогаз ГП‑5 (СССР)', 25, 1980, 'g2_gasmask', { fixed: true });
+
+  const x = (name, price, year, sprite, o = {}) => add('misc', o.brand || '', name, price, year, { sprite }, { colors: ['col'], vars: [['', 1]], tier: o.tier || 'cheap', ...o });
+  x('Зажигалка «Zippa» потёртая', 45, 1985, 'x3_zippo', { brand: 'Zippa', fixed: true });
+  x('Зажигалка «Zippa Gold» 1970‑х', 80, 1974, 'x3_zippogold', { brand: 'Zippa', fixed: true, rare: 1 });
+  x('Зажигалка одноразовая', 2, 2024, 'x3_bic', { brand: 'BIK' });
+  x('Зажигалка металлическая', 15, 2018, 'x1_lighter', {});
+  x('Зажигалка бензиновая', 10, 2015, 'x3_lighter2', {});
+  x('Зажигалка‑«траншейка»', 120, 1944, 'x3_lighter3', { fixed: true, rare: 1 });
+  x('Брелок‑мишка', 8, 2020, 'x1_teddy', {});
+  x('Связка ключей с брелоком', 3, 2015, 'x3_keys', {});
+  x('Смарт‑ключ от авто', 30, 2019, 'x1_keyfob', {});
+  x('Армейский жетон', 15, 1990, 'x1_dogtag', { fixed: true });
+  x('Жетон на цепочке', 15, 2000, 'x2_dogtag', { fixed: true });
+  x('Жетон именной (винтаж)', 25, 1970, 'x3_dogtag2', { fixed: true });
+  x('Памятная медаль (позолота)', 60, 1980, 'x1_medalgold', { fixed: true });
+  x('Памятная медаль (серебрение)', 35, 1982, 'x1_medalsilver', { fixed: true });
+  x('Памятная медаль (бронза)', 20, 1985, 'x1_medalbronze', { fixed: true });
+  x('Звезда на колодке (сувенир)', 25, 1990, 'x3_medal', { fixed: true });
+  x('Знак «Звезда», латунь', 20, 1975, 'x1_star', { fixed: true });
+  x('Байкерский значок «Череп»', 25, 1995, 'x1_skull', { fixed: true });
+  x('Знак «Крылья пилота»', 40, 1985, 'x1_wings', { fixed: true });
+  x('Кокарда «Красная звезда»', 15, 1980, 'x1_redstar', { fixed: true });
+  x('Компас Адрианова (СССР)', 70, 1965, 'x3_compass', { fixed: true, rare: 1 });
+  x('Фляжка стальная', 20, 2010, 'x3_flask', {});
+  x('Аптечная бутылка XIX века', 30, 1890, 'x3_bottle', { fixed: true });
+  x('Жестяная коробка из‑под леденцов', 18, 1965, 'x3_tin', { fixed: true });
+  x('Флешка 64 ГБ (неизвестные данные)', 8, 2020, 'x3_usb', {});
+  x('Швейцарский нож Huntsman', 60, 2019, 'x3_swiss', { brand: 'Victorinoks', tier: 'mid' });
+}
