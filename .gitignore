@@ -3,4 +3,4 @@ dist/
 .DS_Store
 *.log
 gallery_test.html
-assets/photos/**/*.tmp.jpg
+assets/photos/**/*.tmp.*

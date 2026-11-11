@@ -20,9 +20,11 @@ const BRAND = {
   Fander: 'Fender', Gibsen: 'Gibson', Martyn: 'Martin', Taylar: 'Taylor', Yamahha: 'Yamaha', 'Урал': 'Ural', Korgg: 'Korg', Rolland: 'Roland', Mogg: 'Moog', Stradivarri: 'old', Selmar: 'Selmer', Pearll: 'Pearl', Kalla: 'Kala',
   'Ладда': 'Lada', 'Волго': 'GAZ Volga', 'Москвичок': 'Moskvich', 'Запорожик': 'ZAZ Zaporozhets', 'Уазон': 'UAZ', BMV: 'BMW', Merzedes: 'Mercedes-Benz', Audy: 'Audi', Volksvagon: 'Volkswagen', Toyoda: 'Toyota', Nissen: 'Nissan', Hondo: 'Honda', Mazdo: 'Mazda', Mitsubishy: 'Mitsubishi', Subaro: 'Subaru', Hyondai: 'Hyundai', Kio: 'Kia', Fard: 'Ford', Chevi: 'Chevrolet', Dodje: 'Dodge', Tesler: 'Tesla', Porshe: 'Porsche', Ferrara: 'Ferrari', Lamborjini: 'Lamborghini', Bentlee: 'Bentley', 'Rols‑Roys': 'Rolls-Royce', 'Range Rovar': 'Range Rover', Lexsus: 'Lexus', Gilly: 'Geely', Cheri: 'Chery', Havall: 'Haval', 'Lee Auto': 'Li Auto', Zeeker: 'Zeekr', BYT: 'BYD', Deo: 'Daewoo', Reno: 'Renault', Shkoda: 'Skoda', Opal: 'Opel', Pejo: 'Peugeot', Fiet: 'Fiat', Mimi: 'Mini Cooper', Smarty: 'Smart', Valvo: 'Volvo',
   'Стелс': 'Stels', Gaint: 'Giant', Speshalized: 'Specialized', Trekk: 'Trek', Cannondal: 'Cannondale', Brompten: 'Brompton', Mongus: 'Mongoose', 'Кама': 'Soviet Kama', 'Аист': 'Soviet Aist', Ninebott: 'Ninebot', 'Кугу': 'Kugoo', Vesppa: 'Vespa', Kawasakki: 'Kawasaki', Duccati: 'Ducati', 'Harlee‑Davidsan': 'Harley-Davidson', 'Уралл': 'Ural', 'Ява': 'Jawa', 'Минскк': 'Minsk', 'Восход': 'Voskhod',
+  'Claude Monnay': 'Claude Monet', 'Vincent van Goff': 'Vincent van Gogh', 'Pablo Picazzo': 'Pablo Picasso', 'Kazimir Malevsky': 'Kazimir Malevich', 'Mark Rotkko': 'Mark Rothko', 'Jean‑Michel Baskia': 'Jean-Michel Basquiat', 'Frida Kallo': 'Frida Kahlo', 'Andy Warhole': 'Andy Warhol', Banksi: 'Banksy', 'Yayoi Kusamma': 'Yayoi Kusama', 'Damien Hirsch': 'Damien Hirst', 'Takashi Murakamy': 'Takashi Murakami', 'Jeff Kuns': 'Jeff Koons',
+  'The Beatlz': 'The Beatles', 'Pink Floid': 'Pink Floyd', 'Michael Jaxon': 'Michael Jackson', Nirvanna: 'Nirvana', 'Daft Punkk': 'Daft Punk', 'Фаберджи': 'Faberge', 'Баташов': 'Batashev', 'ЛФЗ': 'Lomonosov porcelain', 'Андервуд': 'Underwood', "His Master's Vois": "His Master's Voice", 'Павел Бурэ': 'Pavel Buhre', 'Тонет': 'Thonet', 'Монетный двор': '', 'US Mint': 'US', 'Банк России': 'Russian', 'НБУ': 'Ukrainian', 'US Treasury': 'US', 'Royal Post': 'British', 'US Post': 'US', 'Почта СССР': 'Soviet',
   'Tasmanian Tigr': 'Tasmanian Tiger', 'Mil‑Tek': 'Mil-Tec', Eastpack: 'Eastpak', Fjallraven: 'Fjallraven', Samsonaite: 'Samsonite', Rimova: 'Rimowa', Filsen: 'Filson', Shoeii: 'Shoei', 'AGV‑X': 'AGV', Araii: 'Arai', Bel: 'Bell', 'Opz‑Kor': 'Ops-Core', Zippa: 'Zippo', BIK: 'BIC', Victorinoks: 'Victorinox',
 };
-const FIX = [[/iFone/g, 'iPhone'], [/Galaxi/g, 'Galaxy'], [/Pixl/g, 'Pixel'], [/Redmo/g, 'Redmi'], [/Poko/g, 'Poco'], [/MacBuk/g, 'MacBook'], [/AirBuds/g, 'AirPods'], [/PlayStatien/g, 'PlayStation'], [/Jordon/g, 'Jordan'], [/Yeezo/g, 'Yeezy'], [/Birkan/g, 'Birkin'], [/Submarine\b/g, 'Submariner'], [/Stratocastor/g, 'Stratocaster'], [/Charizzard/g, 'Charizard'], [/Lotos/g, 'Lotus'], [/Batmann/g, 'Batman'], [/Star Warz/g, 'Star Wars'], [/Millennium Hawk/g, 'Millennium Falcon'], [/Daytone/g, 'Daytona'], [/Speedmaster/g, 'Speedmaster'], [/Forse/g, 'Force'], [/Dunck/g, 'Dunk'], [/Yeezi/g, 'Yeezy'], [/Gameboy|GameBoi/g, 'Game Boy'], [/Statien/g, 'Station']];
+const FIX = [[/iFone/g, 'iPhone'], [/Galaxi/g, 'Galaxy'], [/Pixl/g, 'Pixel'], [/Redmo/g, 'Redmi'], [/Poko/g, 'Poco'], [/MacBuk/g, 'MacBook'], [/AirBuds/g, 'AirPods'], [/PlayStatien/g, 'PlayStation'], [/Jordon/g, 'Jordan'], [/Yeezo/g, 'Yeezy'], [/Birkan/g, 'Birkin'], [/Submarine\b/g, 'Submariner'], [/Stratocastor/g, 'Stratocaster'], [/Charizzard/g, 'Charizard'], [/Lotos/g, 'Lotus'], [/Batmann/g, 'Batman'], [/Star Warz/g, 'Star Wars'], [/Millennium Hawk/g, 'Millennium Falcon'], [/Daytone/g, 'Daytona'], [/Speedmaster/g, 'Speedmaster'], [/Forse/g, 'Force'], [/Dunck/g, 'Dunk'], [/Yeezi/g, 'Yeezy'], [/Gameboy|GameBoi/g, 'Game Boy'], [/\bDank\b/g, 'Dunk'], [/Gyaradoss/g, 'Gyarados'], [/Piace/g, 'Piece'], [/Fyrby/g, 'Furby'], [/Blastoisse/g, 'Blastoise'], [/Pikachoo/g, 'Pikachu'], [/Mewtwoo/g, 'Mewtwo'], [/Statien/g, 'Station']];
 const NOUN = {
   phones: (a) => (a.f === 'flip' || a.f === 'flipold' ? 'flip phone' : a.f === 'fold' ? 'foldable smartphone' : a.f === 'qwerty' ? 'BlackBerry style phone with keyboard' : a.f === 'retro' || a.f === 'slider' ? 'old mobile phone' : 'smartphone'),
   electronics: (a) => ({ laptop: 'laptop', tablet: 'tablet', camera: 'camera', drone: 'drone', gpu: 'graphics card', vr: 'VR headset', monitor: 'monitor', box: 'device', keyboard: 'keyboard' }[a.t] || 'gadget'),
@@ -34,7 +36,7 @@ const NOUN = {
   watches: (a) => (a.t === 'digital' ? 'digital watch' : a.t === 'smart' ? 'smartwatch' : 'wristwatch'),
   jewelry: (a) => ({ ring: 'ring', band: 'ring', signet: 'signet ring', nail: 'nail bracelet', love: 'bracelet', cuff: 'cuff bracelet', serpent: 'snake bracelet', pendant: 'pendant necklace', pearls: 'pearl necklace', chain: 'gold chain', cuban: 'cuban link chain', earrings: 'earrings', cross: 'cross pendant', heart: 'heart pendant', charm: 'charm bracelet', clover: 'clover necklace', clovers: 'clover bracelet', trinity: 'trinity ring' }[a.t] || 'jewelry'),
   perfume: () => 'perfume bottle', cards: (a) => (a.t === 'box' ? 'sealed trading card booster box' : a.t === 'pack' ? 'sealed booster pack' : a.t === 'album' ? 'sticker album' : 'trading card in a protective sleeve'),
-  comics: () => 'comic book', toys: (a) => ({ brickbox: 'LEGO set box', minifig: 'LEGO minifigure', pop: 'vinyl figure in box', bear: 'designer bear figure', kawz: 'designer art toy', boxfig: 'action figure in box', labobo: 'plush monster toy', tama: 'tamagotchi virtual pet', furby: 'furby toy', diecast: 'die-cast toy car', doll: 'doll', robot: 'toy robot', blister: 'action figure in blister pack', cube: 'rubik cube', handheld: 'handheld electronic game', plush: 'plush toy', matryoshka: 'matryoshka doll' }[a.t] || 'toy'),
+  comics: () => 'printed paper comic book issue (a real physical magazine, not on a screen)', toys: (a) => ({ brickbox: 'sealed LEGO set box', minifig: 'LEGO minifigure', pop: 'vinyl figure in box', bear: 'designer bear figure', kawz: 'designer art toy', boxfig: 'action figure in box', labobo: 'plush monster toy', tama: 'tamagotchi virtual pet', furby: 'furby toy', diecast: 'die-cast toy car', doll: 'doll', robot: 'toy robot', blister: 'action figure in blister pack', cube: 'rubik cube', handheld: 'handheld electronic game', plush: 'plush toy', matryoshka: 'matryoshka doll' }[a.t] || 'toy'),
   antiques: (a) => ({ samovar: 'antique brass samovar', teapot: 'antique porcelain teapot', vase: 'antique vase', egg: 'jeweled Faberge style egg', icon: 'antique orthodox icon', badge: 'vintage soviet pin badge', typewriter: 'vintage typewriter', gramophone: 'antique gramophone', pocketwatch: 'antique pocket watch', mantel: 'antique bronze mantel clock', carpet: 'persian carpet', spoons: 'antique silver spoons', radio: 'vintage tube radio', globe: 'antique globe', candle: 'antique candlestick', chess: 'vintage chess set', chest: 'antique wooden chest', chair: 'antique bentwood chair', rotary: 'vintage rotary phone', sword: 'katana sword' }[a.t] || 'antique'),
   art: (a) => (a.t === 'sculpt' ? 'small sculpture' : a.t === 'print' ? 'framed art print' : `framed ${a.style || ''} painting`),
   collectibles: (a) => ({ coin: `old ${a.metal || ''} coin`, banknote: 'old banknote', stamp: 'rare postage stamp', album: 'stamp album', vinyl: 'vinyl record with sleeve', ball: 'signed football', jersey: 'signed sports jersey', baseball: 'signed baseball', rock: 'meteorite rock', fossil: 'fossil', tooth: 'dinosaur tooth fossil', wrappers: 'vintage gum wrappers collection', pogs: 'pogs collection', kinder: 'kinder surprise toys collection', poster: 'vintage movie poster', pins: 'olympic pins collection', saber: 'replica lightsaber prop', ticket: 'old concert ticket' }[a.t] || 'collectible'),
@@ -49,10 +51,10 @@ const SCENE = {
   electronics: ['on an office desk', 'on a wooden table at home', 'on a bed', 'on a carpet floor'],
   consoles: ['on a carpet next to a TV stand', 'on a wooden floor', 'on a sofa', 'on a desk'],
   accessories: ['on a wooden table', 'on a bed sheet', 'on a desk', 'in a hand'],
-  sneakers: ['on a wooden floor', 'on concrete pavement', 'on a bed', 'on a doormat in a hallway', 'next to the original box on a floor'],
+  sneakers: ['standing on a wooden floor', 'standing on concrete pavement', 'lying on a bed', 'standing on a doormat in a hallway', 'standing next to the original box on a floor'],
   clothing: ['laid flat on a bed', 'hanging on a hanger on a door', 'laid flat on a wooden floor', 'on a sofa'],
   bags: ['on a sofa', 'on a bed', 'on a wooden table', 'on a shelf'],
-  watches: ['on a wooden desk', 'on a wrist', 'on a leather notebook', 'in an open watch box'],
+  watches: ['lying on a wooden desk', 'lying on a leather notebook', 'in an open watch box', 'lying on a bed sheet'],
   jewelry: ['on a black velvet cloth', 'in an open jewelry box', 'on a white marble table', 'on a palm of a hand'],
   perfume: ['on a bathroom shelf', 'on a dresser', 'on a white table', 'next to the box on a table'],
   cards: ['on a wooden table', 'held in fingers', 'on a desk mat'], comics: ['on a wooden table', 'on a bed', 'on a shelf'],
@@ -73,6 +75,25 @@ const BROKEN = {
 };
 const colorEn = (k) => (COLORS[k]?.n?.[2] || '').toLowerCase();
 const latin = (s) => s.replace(/[«»"]/g, '').replace(/[^\x20-\x7E‑]+/g, ' ').replace(/‑/g, '-').replace(/(^|\s)[-–(),.]+(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim();
+// search terms for real photos (Wikimedia Commons): exact product first, then shorter fallbacks
+export function searchFor(m) {
+  const a = m.art || {};
+  let name = m.name.replace(/(\d{3,4})[‑-]х/g, '$1s').replace(/«([^»]*)»/g, '$1');
+  for (const [re, to] of FIX) name = name.replace(re, to);
+  const real = latin(BRAND[m.brand] ?? m.brand);
+  const nm = latin(name).replace(/\b(OG|GB|TB|ГБ)\b/g, '').replace(/\s+/g, ' ').trim();
+  const noun = (NOUN[m.cat] || (() => 'item'))(a).replace(/^(original|used|old|antique|vintage|framed|small|signed|rare|sealed) /, '');
+  const kind = a.t || a.body || '';
+  const qs = [];
+  const full = [real, nm].filter(Boolean).join(' ').trim();
+  if (full.length > 3) qs.push(full);
+  const short = [real, nm.split(' ').slice(0, 2).join(' ')].filter(Boolean).join(' ').trim();
+  if (short.length > 3 && short !== full) qs.push(short);
+  if (['antiques', 'collectibles', 'toys', 'misc', 'gear', 'art', 'jewelry', 'instruments'].includes(m.cat)) qs.push([real, noun].filter(Boolean).join(' '));
+  if (!qs.length) qs.push(noun);
+  const clip = `a photo of ${/^[aeiou]/i.test(full || noun) ? 'an' : 'a'} ${[full, noun].filter(Boolean).join(' ')}`.replace(/\s+/g, ' ');
+  return { id: m.id, file: photoFile(m.id), cat: m.cat, kind, queries: [...new Set(qs)], clip, noun };
+}
 export const photoFile = (id) => { let h = 2166136261 >>> 0; for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 export function promptFor(m, variant = 'clean') {
   const r = new RNG('ph|' + m.id + '|' + variant);
@@ -86,11 +107,14 @@ export function promptFor(m, variant = 'clean') {
   const year = m.cat === 'cars' || m.cat === 'bikes' ? (m.year || '') : '';
   const subj = [col, year, latin(real), nm && nm.length > 1 ? nm : '', noun].filter(Boolean).join(' ').replace(/\s+/g, ' ');
   const scene = r.pick(SCENE[m.cat] || SCENE.misc);
-  const cond = variant === 'worn' ? (WORN[m.cat] || WORN.default) : variant === 'broken' ? (BROKEN[m.cat] || BROKEN.default) : 'used, good condition, second hand';
-  const prompt = `amateur smartphone photo for a classifieds listing, ${subj}, ${cond}, ${scene}, realistic, natural light, high detail`;
+  const cond = variant === 'worn' ? (WORN[m.cat] || WORN.default) : variant === 'broken' ? (BROKEN[m.cat] || BROKEN.default) : 'used but in good condition';
+  const hand = /hand|fingers|wrist/.test(scene);
+  const veh = m.cat === 'cars' || m.cat === 'bikes';
+  const prompt = `Amateur smartphone photo for a second-hand listing on a classifieds website. ${subj}, ${cond}, ${scene}. ${veh ? 'Whole vehicle in frame, shot from a slight angle.' : 'The whole item is in frame, shot from above at a slight angle.'} Natural light, realistic colours, ordinary home photo, slightly imperfect framing${hand ? '' : ', no people'}, no text overlay, no watermark.`;
   return { id: m.id, file: photoFile(m.id), cat: m.cat, variant, seed: r.int(1, 2 ** 30), prompt };
 }
 if (process.argv[1] && process.argv[1].endsWith('photo_prompts.mjs')) {
+  if (process.argv[2] === 'search') { process.stdout.write(JSON.stringify(MODELS.map(searchFor))); process.exit(0); }
   const variants = (process.argv[2] || 'clean').split(',');
   // interleave categories so every category gets photos early
   const byCat = {};
