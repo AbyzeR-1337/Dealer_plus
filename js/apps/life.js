@@ -20,6 +20,7 @@ import { pawnSell } from '../game/sell.js';
 import { advance } from '../game/sim.js';
 import { cityName } from './common.js';
 import { sfx } from '../ui/sfx.js';
+import { playMini } from '../mini/engine.js';
 
 // ---------------------------------------------------------------- PROFILE
 function profMain() {
@@ -42,7 +43,11 @@ export const profileApp = {
     eatMenu: async () => {
       const v = await choose(T('Поесть', 'Поїсти', 'Eat'), FOOD.map((f) => ({ v: f.id, label: `${f.icon} ${L(f.n)} · ${fmt(foodPrice(f))}`, sub: `+${f.food} 🍔${f.energy ? ` +${f.energy} ⚡` : ''}` })));
       if (!v) return;
-      const r = eat(FOOD.find((f) => f.id === v));
+      const f0 = FOOD.find((f) => f.id === v);
+      let cookQ = null;
+      if (f0.home && G.s.house.type !== 'none') { const rc = await playMini('pancake', { title: T('Готовим дома', 'Готуємо вдома', 'Cooking at home'), pass: 0.6 }); if (!rc.quit) cookQ = rc.score; }
+      const r = eat(f0);
+      if (r.ok && cookQ != null) G.s.food = Math.max(0, Math.min(100, G.s.food + Math.round((cookQ - 0.5) * 16)));
       if (r.ok) { sfx('ok'); toast(T('Вкусно!', 'Смачно!', 'Yum!'), 'g'); } else toast(r.msg, 'r');
       refreshAll();
     },
@@ -60,7 +65,10 @@ export const profileApp = {
       if (!v) return;
       if (v === 'hotel') { if (!spend(hotelPrice(), 'rent', T('Отель', 'Готель', 'Hotel'))) return toast(T('Не хватает денег', 'Не вистачає грошей', 'Not enough money'), 'r'); s.hotelNight = true; }
       const hours = v === 'nap' ? 2 : 8;
-      await sheet(`<div class="center" style="padding:30px 0"><div style="font-size:64px" class="pulse">💤</div><h2>${T('Спим…', 'Спимо…', 'Sleeping…')}</h2><p class="p">${hours} ${T('ч', 'год', 'h')}</p></div>`, { modal: true, after() { setTimeout(() => { advance(hours * 60); afterSleep(hours); resolveSheet('ok'); }, 900); } });
+      // counting sheep: a calm mind sleeps better (bonus energy), a restless one a bit worse
+      let sleepQ = 0.6;
+      if (v !== 'nap') { const r = await playMini('sheep', { title: T('Считаем овец', 'Рахуємо овець', 'Counting sheep'), pass: 1 }); sleepQ = r.quit ? 0.6 : r.score; }
+      await sheet(`<div class="center" style="padding:30px 0"><div style="font-size:64px" class="pulse">💤</div><h2>${T('Спим…', 'Спимо…', 'Sleeping…')}</h2><p class="p">${hours} ${T('ч', 'год', 'h')}</p></div>`, { modal: true, after() { setTimeout(() => { advance(hours * 60); afterSleep(hours); s.energy = Math.max(0, Math.min(100, s.energy + Math.round((sleepQ - 0.6) * 20))); resolveSheet('ok'); }, 900); } });
       sfx('ok'); toast(T('Выспались!', 'Виспалися!', 'Rested!'), 'g');
       refreshAll();
     },

@@ -121,6 +121,7 @@ export function pickSprite(it) {
 // The sheets carry alpha, so the object sits directly on whatever photo background is used.
 // Filters use explicit user-space regions: a nested <svg> reports the bbox of the whole sheet image.
 const MAX_UPSCALE = 3.4; // sheet px (1x) → canvas units; beyond that small sprites turn mushy
+export const spriteFit = (s) => FIT[s.id] || [s.x, s.y, s.w, s.h];
 export function spriteMarkup(ctx, pick, o = {}) {
   const s = pick.sprite;
   const f = FIT[s.id];
@@ -146,7 +147,11 @@ export function spriteMarkup(ctx, pick, o = {}) {
     filt += `<feColorMatrix in="lift" type="saturate" values="0" result="g"/><feFlood flood-color="${pick.tint}" result="c"/><feBlend in="c" in2="g" mode="multiply" result="m"/><feComponentTransfer in="g" result="hi"><feFuncR type="gamma" amplitude="0.75" exponent="6"/><feFuncG type="gamma" amplitude="0.75" exponent="6"/><feFuncB type="gamma" amplitude="0.75" exponent="6"/></feComponentTransfer><feComposite in="m" in2="hi" operator="arithmetic" k2="${lum(pick.tint) < 0.35 ? 1.6 : 1.3}" k3="1" result="o"/><feComposite in="o" in2="SourceGraphic" operator="in"/>`;
   }
   ctx.defs.push(`<filter id="${id}t" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" ${rect}>${filt}</filter>`);
-  const img = `<svg ${rect} viewBox="${fx * k} ${fy * k} ${fw * k} ${fh * k}" preserveAspectRatio="none"><image href="${href}" xlink:href="${href}" width="${SHEET_W * k}" height="${SHEET_H * k}"/></svg>`;
+  // bitmap rendering passes the sprite already cropped to its tight box as a data URL
+  const emb = ctx.o.embed?.sprite;
+  const img = emb
+    ? `<svg ${rect} viewBox="0 0 ${fw * k} ${fh * k}" preserveAspectRatio="none"><image xlink:href="${emb}" width="${fw * k}" height="${fh * k}"/></svg>`
+    : `<svg ${rect} viewBox="${fx * k} ${fy * k} ${fw * k} ${fh * k}" preserveAspectRatio="none"><image href="${href}" xlink:href="${href}" width="${SHEET_W * k}" height="${SHEET_H * k}"/></svg>`;
   const g = `<g filter="url(#${id}t)">${img}</g>`;
   const box = { x: tx, y: ty, w: tw, h: th };
   return { g, box, bottom: ty + th };

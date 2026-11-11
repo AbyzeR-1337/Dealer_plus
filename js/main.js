@@ -12,16 +12,18 @@ import { UI, registerApps, initShell, renderHome, renderStatus, liveUpdate, rere
 import { ensurePhone, PHONE } from './game/phone.js';
 import { readInvite } from './game/online.js';
 import { initHome } from './ui/home.js';
+import { initGalleries } from './ui/comp.js';
 import { initWorld, startSim, isPaused } from './game/sim.js';
 import { resolveCustoms } from './game/travel.js';
 import { log, earn, charge, addXP, addReview, addItem, canStore, spend, stat } from './game/player.js';
 import { eventsTick } from './game/events.js';
 import { playMini } from './mini/engine.js';
+import { MORE_GAMES } from './mini/games_more.js';
 import { itemSVG } from './ui/art.js';
 import { itemTitle, itemSub } from './game/items.js';
 import { unlockAudio, sfx } from './ui/sfx.js';
 
-registerGames({ ...ITEM_GAMES, ...WORK_GAMES });
+registerGames({ ...ITEM_GAMES, ...WORK_GAMES, ...MORE_GAMES });
 window.GR = { G }; // debug handle
 registerApps(APPS, DOCK);
 
@@ -79,6 +81,7 @@ function startGame() {
   PHONE.nameOf = (id) => (UI.apps[id] ? appName(UI.apps[id]) : id);
   initShell();
   initHome();
+  initGalleries();
   wire();
   renderStatus();
   renderHome();

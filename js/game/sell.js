@@ -60,7 +60,7 @@ export function sellTick() {
     if (!it || l.frozen) continue;
     const city = s.player.city;
     const pf = PLATFORMS[l.platform] || PLATFORMS.classifieds;
-    const val = buyerView(it, l, city) * (pf.bonus || 1) * (1 + upLevel('photo') * 0.03);
+    const val = buyerView(it, l, city) * (pf.bonus || 1) * (1 + upLevel('photo') * 0.03) * (0.94 + (l.photoQ ?? 0.35) * 0.18);
     const ratio = val / Math.max(0.01, l.price);
     const attract = clamp(Math.pow(ratio, 3.2), 0.02, 4);
     const rate = (1 / 95) * demand(it.cat, city) * repFactor() * (1 + upLevel('clients') * 0.22) * attract * pf.rate * (l.city === city ? 1 : 0.8) * ((G.s.boostUntil || 0) > G.s.t ? 2 : 1);

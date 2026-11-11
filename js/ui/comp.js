@@ -4,18 +4,40 @@ import { T, L } from '../core/i18n.js';
 import { esc, clamp } from '../core/util.js';
 import { fmt } from '../core/money.js';
 import { itemSVG } from './art.js';
+import { itemBitmap } from './bitmap.js';
 import { itemTitle, itemSub, gradeOf, rarityName, traitName, knownDefects, unknownCount, defectName, fakeLabel, lockName, itemValue, isVehicle, fmtKm } from '../game/items.js';
 import { DEFECTS, LOCKS, CATS, TESTS } from '../data/catalog.js';
 import { icon } from './icons.js';
 import { CITY } from '../data/world.js';
 import { viewLabel } from '../data/views.js';
 
-export const img = (it, o = {}) => itemSVG(it, o);
+// item photos are pre-rendered bitmaps (smooth scrolling); size = pixels of the rendered photo
+export const img = (it, o = {}) => itemBitmap(it, o, o.size || 460);
 // photo carousel: views = camera angles shown (a seller posts only some of them)
+export const GAL_POS = new Map();
+export function initGalleries() {
+  document.addEventListener('scroll', (e) => {
+    const t = e.target;
+    if (!t.classList || !t.classList.contains('gtrack')) return;
+    const g = t.closest('.gallery');
+    const i = Math.round(t.scrollLeft / Math.max(1, t.clientWidth));
+    if (g._i === i) return;
+    g._i = i;
+    GAL_POS.set(g.dataset.gal, i);
+    let labels = [];
+    try { labels = JSON.parse(g.dataset.labels || '[]'); } catch {}
+    g.querySelector('.gi').textContent = i + 1;
+    g.querySelector('.gl').textContent = labels[i] || '';
+    g.querySelectorAll('.gdots i').forEach((d, k) => d.classList.toggle('on', k === i));
+  }, { capture: true, passive: true });
+}
 export function gallery(it, views, idx, o = {}) {
-  const i = Math.max(0, Math.min(idx || 0, views.length - 1));
-  const v = views[i];
-  return `<div class="gallery"><div class="gimg">${itemSVG(it, { view: v, ...o })}</div>${views.length > 1 ? '<button class="gnav l" data-a="gal" data-v="-1"></button><button class="gnav r" data-a="gal" data-v="1"></button>' : ''}<div class="gcount">${i + 1} / ${views.length} · ${esc(L(viewLabel(it, v)))}</div><div class="gdots">${views.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div></div>`;
+  // horizontal scroll-snap carousel: swipe between photos, dots follow; photos are full-size bitmaps
+  // keep the swiped-to photo across background refreshes; a freshly opened item starts at the first photo
+  const live = typeof document !== 'undefined' && document.querySelector(`.gallery[data-gal="${CSS.escape(String(it.id))}"]`);
+  if (!live) GAL_POS.delete(it.id);
+  const i = Math.max(0, Math.min(GAL_POS.get(it.id) ?? idx ?? 0, views.length - 1));
+  return `<div class="gallery swipe" data-gal="${esc(it.id)}"><div class="gtrack" data-start="${i}">${views.map((v) => `<div class="gslide">${itemBitmap(it, { view: v, ...o }, 960)}</div>`).join('')}</div><div class="gcount"><span class="gi">${i + 1}</span> / ${views.length} · <span class="gl">${esc(L(viewLabel(it, views[i])))}</span></div><div class="gdots">${views.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div></div>`.replace('class="gallery swipe"', `class="gallery swipe" data-labels="${esc(JSON.stringify(views.map((v) => L(viewLabel(it, v)))))}"`);
 }
 export function tags(it, o = {}) {
   const t = [];

@@ -1,13 +1,15 @@
 // Jobs (vacancies, interviews, shifts, gigs) and Freebies (giveaways, dumpster diving).
 import { G, emit } from '../core/state.js';
 import { T, L, dur } from '../core/i18n.js';
-import { esc, clamp } from '../core/util.js';
+import { esc, clamp, pickR } from '../core/util.js';
 import { fmt } from '../core/money.js';
 import { icon } from '../ui/icons.js';
-import { go, rerender, toast, confirmBox, ago, openApp } from '../ui/shell.js';
+import { go, rerender, toast, confirmBox, ago, openApp, choose } from '../ui/shell.js';
 import { img, empty, bar, tags } from '../ui/comp.js';
-import { JOBS, RANKS, jobById, reqOk, shiftPay, apply, interviewResult, acceptOffer, quitJob, canShift, finishShift, GIGS, finishGig, gigReady, SHIFT_COOLDOWN, wageIdx, DOCS, jobDocs, docState, docReady, docReadyAt, orderDoc, vacancyWindow } from '../game/jobs.js';
-import { freeFeed, claimFree, dumpsterLoot } from '../game/sources.js';
+import { JOBS, RANKS, jobById, reqOk, shiftPay, apply, interviewResult, acceptOffer, quitJob, canShift, finishShift, GIGS, finishGig, gigReady, SHIFT_COOLDOWN, wageIdx, shiftGame, DOCS, jobDocs, docState, docReady, docReadyAt, orderDoc, vacancyWindow } from '../game/jobs.js';
+import { freeFeed, claimFree, dumpsterLoot, giveTier, freeAlreadyGone, raceParams, payBait } from '../game/sources.js';
+import { gallery } from '../ui/comp.js';
+import { viewsOf } from '../data/views.js';
 import { itemTitle, itemSub } from '../game/items.js';
 import { addItem, canStore, stat, addXP } from '../game/player.js';
 import { DISTRICTS } from '../game/market.js';
@@ -93,7 +95,7 @@ export const jobsApp = {
     shift: async () => {
       if (!canShift()) return;
       const job = jobById(G.s.job.cur);
-      const r = await playMini(job.game, { title: `${job.icon} ${L(job.n)}`, item: G.s.inv[0], pass: 0.6 });
+      const r = await playMini(shiftGame(job), { title: `${job.icon} ${L(job.n)}`, item: G.s.inv[0], pass: 0.6 });
       if (r.quit) return;
       const { pay, event } = finishShift(r.score);
       sfx('cash'); toast(`+${fmt(pay)}${event === 'promo' ? ' · ' + T('Повышение!', 'Підвищення!', 'Promotion!') : ''}`, 'g');
@@ -111,19 +113,36 @@ export const jobsApp = {
 };
 
 // ---------------------------------------------------------------- FREEBIES
+const HYPE = { cheap: '', mid: '👀', good: '🔥 ' , jackpot: '🔥🔥 ' };
+function freeCard(g) {
+  const hot = g.tier === 'good' || g.tier === 'jackpot';
+  return `<div class="card ${hot ? 'hot' : ''}" data-key="${g.id}"><div class="row" data-a="go" data-v="fitem" data-id="${g.id}"><div class="th" style="width:84px;height:84px;border-radius:14px;overflow:hidden;flex:none">${img(g.item)}</div><div class="grow"><b>${HYPE[g.tier] || ''}${esc(itemTitle(g.item))}</b><div class="small m">${esc(L(g.reason))}</div><div class="small m">📍 ${esc(L(DISTRICTS[g.dist]))} · 👥 ${g.claimers} ${T('желающих', 'охочих', 'want it')}</div><div class="small ${hot ? 'r' : 'm'}">⏳ ${T('разберут через', 'розберуть через', 'gone in')} ~<span data-cd="${g.until}"></span></div></div></div><button class="btn block mt" data-a="claim" data-v="${g.id}">${T('Забрать', 'Забрати', 'Grab it')} ⚡−6</button></div>`;
+}
+function freeItem(p) {
+  const g = (G.s.free.items || []).find((x) => x.id === p.id);
+  if (!g || g.taken) return empty('gift', T('Уже забрали', 'Вже забрали', 'Already taken'));
+  return `${gallery(g.item, viewsOf(g.item).slice(0, 3), 0)}
+    <div style="font-size:20px;font-weight:800;margin:6px 0 2px">${T('Даром', 'Даром', 'Free')}</div><div style="font-size:18px">${esc(itemTitle(g.item))}</div>
+    <div class="small m">${esc(itemSub(g.item))} · 📍 ${esc(L(DISTRICTS[g.dist]))} · ${esc(g.who)}</div>
+    <div class="card mt">${esc(L(g.reason))}</div>
+    <div class="card"><div class="row between"><span>👥 ${T('Желающих', 'Охочих', 'Takers')}</span><b>${g.claimers}</b></div><div class="row between"><span>⏳ ${T('Разберут через', 'Розберуть через', 'Gone in')}</span><b><span data-cd="${g.until}"></span></b></div></div>${tags(g.item)}
+    <button class="btn block mt" data-a="claim" data-v="${g.id}">${T('Забрать', 'Забрати', 'Grab it')} ⚡−6</button>`;
+}
 function freeMain() {
   const s = G.s;
   const f = freeFeed();
   const can = (s.dumpAt || 0) <= s.t;
   return `<div class="card hl"><div class="row"><div style="font-size:34px">🗑️</div><div class="grow"><h3>${T('Порыться в мусорке', 'Покопатися в смітнику', 'Dumpster dive')}</h3><div class="d">${T('Иногда люди выбрасывают ценное. Энергия −8.', 'Іноді люди викидають цінне. Енергія −8.', 'People toss valuables sometimes. Energy −8.')}</div></div></div>${can ? `<button class="btn block mt" data-a="dig">${T('Искать', 'Шукати', 'Search')}</button>` : `<button class="btn dark block mt dis">${T('Снова через', 'Знову через', 'Again in')} <span data-cd="${s.dumpAt}" data-fmt="long"></span></button>`}</div>
     <div class="row between"><h2 class="sec">${T('Отдам даром', 'Віддам безкоштовно', 'Free to take')}</h2><span class="small m">⟳ <span data-cd="${f.refreshAt}"></span></span></div>
-    ${f.items.filter((g) => !g.taken).map((g) => `<div class="card"><div class="row"><div class="th" style="width:84px;height:84px;border-radius:14px;overflow:hidden;flex:none">${img(g.item, { tilt: true })}</div><div class="grow"><b>${esc(itemTitle(g.item))}</b><div class="small m">${esc(L(g.reason))}</div><div class="small m">📍 ${esc(L(DISTRICTS[g.dist]))} · 👥 ${g.claimers} ${T('желающих', 'охочих', 'want it')} · ${esc(g.who)}</div>${tags(g.item)}</div></div><button class="btn block mt" data-a="claim" data-v="${g.id}">${T('Забрать', 'Забрати', 'Grab it')} ⚡−6</button></div>`).join('') || empty('gift', T('Всё разобрали', 'Усе розібрали', 'All taken'), T('Новые объявления скоро появятся.', 'Нові оголошення скоро зʼявляться.', 'New ones soon.'))}`;
+    <p class="small m">${T('Почти всё здесь — дешёвый хлам. Ценное появляется редко, его разбирают за минуты, а часть «подарков» — развод.', 'Майже все тут — дешевий мотлох. Цінне зʼявляється рідко, його розбирають за хвилини, а частина «подарунків» — розвод.', 'Almost everything here is cheap junk. Valuables are rare, gone in minutes, and some “gifts” are scams.')}</p>
+    ${f.items.filter((g) => !g.taken).map((g) => freeCard(g)).join('') || empty('gift', T('Всё разобрали', 'Усе розібрали', 'All taken'), T('Новые объявления скоро появятся.', 'Нові оголошення скоро зʼявляться.', 'New ones soon.'))}`;
 }
 export const freeApp = {
   id: 'free', glyph: 'gift', lvl: 1,
   name: ['Даром', 'Даром', 'Freebies'], colors: ['#2ec27e', '#0f7a4a'],
   badge: () => 0,
-  views: { main: freeMain },
+  views: { main: freeMain, fitem: freeItem },
+  tabOf: () => 'main',
   actions: {
     claim: async (id) => {
       const s = G.s;
@@ -131,9 +150,21 @@ export const freeApp = {
       if (!g || g.taken) return;
       if (s.energy < 6) return toast(T('Нет сил', 'Немає сил', 'Too tired'), 'r');
       if (!canStore(g.item)) return toast(T('Нет места на складе', 'Немає місця на складі', 'No storage space'), 'r');
+      // bait: "free, just pay delivery"
+      if (g.bait) {
+        const v = await choose(T('Сообщение от дарителя', 'Повідомлення від дарувальника', 'Message from the giver'), [{ v: 'pay', label: T('Оплатить «доставку» по ссылке', 'Оплатити «доставку» за посиланням', 'Pay the “delivery” via link'), cls: 'red' }, { v: 'no', label: T('Это развод, пропустить', 'Це розвод, пропустити', 'It’s a scam, skip'), cls: 'dark' }], T('«Вещь ваша! Я в другом городе, отправлю курьером — оплатите только доставку по ссылке 👇»', '«Річ ваша! Я в іншому місті, відправлю курʼєром — оплатіть лише доставку за посиланням 👇»', '“It’s yours! I’m in another city, I’ll send it by courier — just pay delivery via the link 👇”'));
+        if (v === 'pay') { const loss = payBait(g); sfx('lose'); toast(T(`Развод: −${fmt(loss)}, вещи не будет`, `Розвод: −${fmt(loss)}, речі не буде`, `Scam: −${fmt(loss)}, no item`), 'r'); }
+        else if (v === 'no') { g.taken = true; sfx('ok'); toast(T('Правильно — это была ловушка', 'Правильно — це була пастка', 'Right — it was a trap'), 'g'); }
+        rerender(); return;
+      }
+      s.energy = clamp(s.energy - 3, 0, 100);
+      // while you were on the way someone else may already have taken it
+      if (freeAlreadyGone(g)) { g.taken = true; sfx('lose'); toast(T('Пока вы ехали — уже забрали', 'Поки ви їхали — вже забрали', 'Gone before you got there'), 'r'); rerender(); return; }
       let won = true;
       if (g.claimers > 0) {
-        const r = await playMini('tapRace', { title: T('Кто первый — того и вещь', 'Хто перший — того й річ', 'First come, first served'), rival: T('Другой желающий', 'Інший охочий', 'Another taker'), speed: 3.2 + g.claimers * 0.55, goal: 26, pass: 1 });
+        const rp = raceParams(g);
+        const game = pickR(['tapRace', 'run']);
+        const r = await playMini(game, { title: T('Кто первый — того и вещь', 'Хто перший — того й річ', 'First come, first served'), rival: T('Другой желающий', 'Інший охочий', 'Another taker'), speed: rp.speed, goal: rp.goal, hard: rp.speed / 10, pass: 1 });
         if (r.quit) return;
         won = !!r.won;
       }
@@ -150,7 +181,13 @@ export const freeApp = {
       s.dumpAt = s.t + 60;
       const r = await playMini('dig', { title: T('Мусорка', 'Смітник', 'Dumpster'), pass: 0.4 });
       if (r.quit) return;
-      const loot = dumpsterLoot(r.score);
+      let bonus = 0;
+      if (Math.random() < 0.18) {
+        // a locked toolbox / suitcase in the trash: pick the lock for a better find
+        const lp = await playMini('lockpick', { title: T('Запертый ящик в мусорке', 'Замкнена скриня у смітнику', 'A locked box in the trash'), pins: 3, pass: 1 });
+        if (!lp.quit && lp.score >= 1) bonus = 0.35;
+      }
+      const loot = dumpsterLoot(Math.min(1, r.score + bonus));
       let got = 0;
       for (const it of loot) if (canStore(it)) { addItem(it, 0, 'dump'); got++; }
       stat('dumpster'); stat('freebies', got); addXP(4);

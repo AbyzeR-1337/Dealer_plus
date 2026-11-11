@@ -34,6 +34,9 @@ export const RANKS = [
   { n: ['Директор направления', 'Директор напряму', 'Head of unit'], mult: 3.2, need: 55 },
 ];
 export const SHIFT_COOLDOWN = 150; // game minutes
+// every shift picks one of the job's tasks, so the same job doesn't always play the same minigame
+const JOB_GAMES = { flyers: ['flyers', 'whack'], courier: ['courier', 'run', 'swipe'], loader: ['rhythm', 'catch'], cashier: ['cashier', 'change'], barista: ['recipe', 'pancake'], sorter: ['sort', 'swipe'], guard: ['guard', 'whack'], tech: ['code', 'simon'], appraiser: ['appraise', 'scale', 'spot'], taxi: ['taxi'], dev: ['code', 'compose', 'simon'], legit: ['spot', 'appraise'], auctioneer: ['memory', 'change'], manager: ['memory', 'change', 'swipe'] };
+export const shiftGame = (job) => { const l = JOB_GAMES[job.id] || [job.game]; return l[Math.floor(Math.random() * l.length)] || job.game; };
 export const jobById = (id) => JOBS.find((j) => j.id === id);
 export const wageIdx = () => countryOf(G.s.player.city).wage;
 
@@ -162,6 +165,14 @@ export const GIGS = [
   { id: 'move', n: ['Помочь с переездом', 'Допомогти з переїздом', 'Help someone move'], pay: 12, game: 'rhythm', cd: 240 },
   { id: 'flyer', n: ['Раздать листовки у метро', 'Роздати листівки біля метро', 'Hand out flyers at the metro'], pay: 7, game: 'flyers', cd: 180 },
   { id: 'deliver', n: ['Разовая доставка', 'Разова доставка', 'One‑off delivery'], pay: 9, game: 'courier', cd: 200 },
+  { id: 'truck', n: ['Разгрузить фуру', 'Розвантажити фуру', 'Unload a truck'], pay: 14, game: 'catch', cd: 260 },
+  { id: 'till', n: ['Подменить кассира на рынке', 'Підмінити касира на ринку', 'Cover a market till'], pay: 10, game: 'change', cd: 220 },
+  { id: 'parcels', n: ['Сортировка посылок в ночную', 'Сортування посилок у нічну', 'Night parcel sorting'], pay: 12, game: 'swipe', cd: 240 },
+  { id: 'concert', n: ['Охрана на концерте', 'Охорона на концерті', 'Concert security'], pay: 16, game: 'whack', cd: 300 },
+  { id: 'audit', n: ['Инвентаризация в магазине', 'Інвентаризація в магазині', 'Store stock count'], pay: 11, game: 'memory', cd: 260 },
+  { id: 'lock', n: ['Помочь соседу с замком', 'Допомогти сусідові із замком', 'Help a neighbour with a lock'], pay: 8, game: 'lockpick', cd: 300 },
+  { id: 'pancakes', n: ['Смена на блинной точке', 'Зміна на млинцевій точці', 'Pancake stall shift'], pay: 9, game: 'pancake', cd: 220 },
+  { id: 'ads', n: ['Написать объявления для соседей', 'Написати оголошення для сусідів', 'Write ads for neighbours'], pay: 7, game: 'compose', cd: 200 },
 ];
 export function finishGig(gig, score) {
   const s = G.s;

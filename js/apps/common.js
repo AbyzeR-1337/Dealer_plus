@@ -82,7 +82,21 @@ export async function sellFlow(itemId) {
     if (!d) return false;
     disclose = d === 'yes';
   }
+  // optional: shoot photos and write the text yourself — a good listing draws more buyers
+  const how = await choose(T('Оформление объявления', 'Оформлення оголошення', 'Listing setup'), [
+    { v: 'pro', label: T('📸 Сфотографировать и написать текст', '📸 Сфотографувати й написати текст', '📸 Take photos and write the text'), sub: T('больше просмотров', 'більше переглядів', 'more views'), cls: '' },
+    { v: 'quick', label: T('Быстро: одно фото с телефона', 'Швидко: одне фото з телефону', 'Quick: one phone snap'), cls: 'dark' },
+  ]);
+  if (!how) return false;
+  let q = 0.35;
+  if (how === 'pro') {
+    const r1 = await playMini('photo', { title: T('Фото для объявления', 'Фото для оголошення', 'Listing photos'), item: it, pass: 0.6 });
+    const r2 = r1.quit ? { score: 0 } : await playMini('compose', { title: T('Текст объявления', 'Текст оголошення', 'Listing text'), pass: 0.6, rounds: 1 });
+    q = (r1.score || 0) * 0.65 + (r2.score || 0) * 0.35;
+  }
   listItem(itemId, p, price, disclose);
+  const lst = G.s.listings.find((x) => x.itemId === itemId);
+  if (lst) lst.photoQ = +q.toFixed(2);
   sfx('ok');
   toast(T('Объявление опубликовано', 'Оголошення опубліковано', 'Listing published'), 'g');
   return true;

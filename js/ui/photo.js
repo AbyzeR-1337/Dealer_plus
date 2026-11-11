@@ -66,9 +66,11 @@ export function photoSetup(it, view = 'front') {
 }
 
 // <image> background + vignette layers. ctx: art context (P prefix, rad()).
+// ctx.o.embed (bitmap rendering): assets come in as data URLs so the SVG can be rasterized as an image
+const hrefAttr = (ctx, url, embedded) => (embedded ? `xlink:href="${embedded}"` : `href="${url}" xlink:href="${url}"`);
 export function photoBackground(ctx, ps) {
   const t = ps.flipBg ? 'translate(400 0) scale(-1 1)' : `rotate(${ps.rot} 200 200)`;
-  return `<image href="${ps.ph.f}" xlink:href="${ps.ph.f}" x="0" y="0" width="400" height="400" preserveAspectRatio="xMidYMid slice" transform="${t}"/>`;
+  return `<image ${hrefAttr(ctx, ps.ph.f, ctx.o.embed?.bg)} x="0" y="0" width="400" height="400" preserveAspectRatio="xMidYMid slice" transform="${t}"/>`;
 }
 
 // drop shadow (soft + contact) following the light; applied through <use> of the object group
@@ -95,7 +97,7 @@ export function groundShadow(ctx, objId, bottom, box) {
 // camera look on top of everything: light fall-off, white balance, flash hotspot, grain, vignette
 export function photoPost(ctx, ps) {
   const id = `${ctx.P}gr`;
-  ctx.defs.push(`<pattern id="${id}" width="128" height="128" patternUnits="userSpaceOnUse"><image href="assets/photo/grain.webp" xlink:href="assets/photo/grain.webp" width="128" height="128"/></pattern>`);
+  ctx.defs.push(`<pattern id="${id}" width="128" height="128" patternUnits="userSpaceOnUse"><image ${hrefAttr(ctx, 'assets/photo/grain.webp', ctx.o.embed?.grain)} width="128" height="128"/></pattern>`);
   const fall = ctx.rad([[0, '#000', 0], [0.55, '#000', 0.08], [1, '#000', 0.4]], ps.lx, ps.ly, 1.05);
   const vg = ctx.rad([[0, '#000', 0], [0.72, '#000', 0.06], [1, '#000', 0.4]], 0.5, 0.5, 0.72);
   const wb = ps.warm > 0.05 ? `<rect width="400" height="400" fill="#ff9a3c" opacity="${Math.min(0.13, ps.warm * 0.12).toFixed(3)}"/>` : ps.warm < -0.05 ? `<rect width="400" height="400" fill="#4a8cff" opacity="${Math.min(0.1, -ps.warm * 0.1).toFixed(3)}"/>` : '';

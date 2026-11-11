@@ -8,12 +8,13 @@ import { CATS, CAT_LIST, RARITY } from '../data/catalog.js';
 import { makeItem, itemValue, itemTitle, isVehicle, sizeUnits } from './items.js';
 import { nicePrice, fmt } from '../core/money.js';
 import { npcName } from './npc.js';
-import { canStore, addItem, spend, earn, stat, addXP, upLevel, notify, log, freeSpace, getItem, removeItem, addProfit } from './player.js';
+import { canStore, addItem, spend, earn, charge, stat, addXP, upLevel, notify, log, freeSpace, getItem, removeItem, addProfit } from './player.js';
 import { DISTRICTS, maxValForLevel } from './market.js';
 
 // ---------------------------------------------------------------- free stuff
 export function freeFeed() {
   const s = G.s;
+  if (s.free.items) for (const g of s.free.items) if (!g.taken && g.until && g.until <= s.t) g.taken = true; // snapped up by others
   if (s.free.refreshAt <= s.t || s.free.city !== s.player.city) {
     const rng = new RNG(`${s.id}:free:${s.t}`);
     const n = 6 + upLevel('network');
@@ -22,10 +23,21 @@ export function freeFeed() {
   }
   return s.free;
 }
+// Giveaways are almost all cheap junk. Anything valuable is rare, swarmed by takers, gone within
+// minutes, and often bait ("free iPhone, just pay delivery").
+const GIVE_TIERS = [
+  { k: 'cheap', p: 0.84, max: 40, claim: [0, 5], life: [120, 480], gone: 0.12, speed: [2.4, 0.38], goal: 24 },
+  { k: 'mid', p: 0.97, max: 180, claim: [3, 11], life: [40, 180], gone: 0.35, speed: [5.4, 0.22], goal: 28 },
+  { k: 'good', p: 0.995, max: 900, claim: [14, 32], life: [8, 40], gone: 0.68, speed: [8.6, 0.06], goal: 32 },
+  { k: 'jackpot', p: 1, max: 6000, claim: [35, 90], life: [3, 15], gone: 0.88, speed: [10.8, 0.03], goal: 34 },
+];
+export const giveTier = (g) => GIVE_TIERS.find((t) => t.k === g.tier) || GIVE_TIERS[0];
 function makeGiveaway(rng) {
   const s = G.s;
-  const q = rng.chance(0.75) ? 'junk' : 'any';
-  const item = makeItem(rng, { city: s.player.city, quality: q, maxVal: rng.chance(0.08) ? 3000 : 250, rareBoost: 0.3 + upLevel('network') * 0.25, lockRate: 0.2 });
+  const roll = rng.float(0, 1) * (1 - upLevel('network') * 0.004);
+  const tier = GIVE_TIERS.find((t) => roll < t.p) || GIVE_TIERS[0];
+  const q = tier.k === 'cheap' ? (rng.chance(0.85) ? 'junk' : 'any') : rng.chance(0.55) ? 'junk' : 'any';
+  const item = makeItem(rng, { city: s.player.city, quality: q, maxVal: tier.max, rareBoost: 0.15 + upLevel('network') * 0.15, lockRate: 0.25 });
   for (const d of item.defects) if (rng.chance(0.4)) d.known = true;
   const reason = rng.pick([
     ['Отдам даром, переезд', 'Віддам безкоштовно, переїзд', 'Free — moving out'],
@@ -34,9 +46,24 @@ function makeGiveaway(rng) {
     ['Самовывоз сегодня', 'Самовивіз сьогодні', 'Pick up today'],
     ['Не работает, может кому на запчасти', 'Не працює, може комусь на запчастини', 'Broken, maybe for parts'],
     ['Освобождаю гараж', 'Звільняю гараж', 'Clearing the garage'],
+    ['Заберите, иначе выброшу', 'Заберіть, інакше викину', 'Take it or it goes in the bin'],
+    ['Бывший оставил, видеть не могу', 'Колишній залишив, бачити не можу', 'My ex left it, can’t stand it'],
   ]);
-  return { id: uid('f'), item, who: npcName(rng, s.player.city).name, dist: rng.int(0, DISTRICTS.length - 1), claimers: rng.int(0, 6), reason, until: s.t + rng.int(120, 480), taken: false };
+  const bait = (tier.k === 'good' || tier.k === 'jackpot') && rng.chance(0.4);
+  return { id: uid('f'), item, tier: tier.k, bait, who: npcName(rng, s.player.city).name, dist: rng.int(0, DISTRICTS.length - 1), claimers: rng.int(tier.claim[0], tier.claim[1]), reason: bait ? ['Отдам даром, оплатите только доставку', 'Віддам безкоштовно, оплатіть лише доставку', 'Free, just pay for delivery'] : reason, until: s.t + rng.int(tier.life[0], tier.life[1]), taken: false };
 }
+// before the race: did someone already grab it while you were on the way?
+export function freeAlreadyGone(g) { return chance(giveTier(g).gone); }
+export function raceParams(g) { const t = giveTier(g); return { speed: t.speed[0] + g.claimers * t.speed[1], goal: t.goal }; }
+// the bait: paying "delivery" for a free gadget just loses the money
+export function payBait(g) {
+  const loss = Math.max(5, Math.min(G.s.money, 8 + itemValue(g.item, G.s.player.city, 'true') * 0.04));
+  charge(loss, 'scam', T('«Доставка» бесплатной вещи', '«Доставка» безкоштовної речі', '“Delivery” for a free item'));
+  g.taken = true;
+  stat('scammed');
+  return loss;
+}
+
 export function claimFree(g, won) {
   const s = G.s;
   g.taken = true;

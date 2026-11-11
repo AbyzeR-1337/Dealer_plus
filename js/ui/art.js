@@ -31,7 +31,7 @@ export const rr = (x, y, w, h, r, fill, extra = '') => `<rect x="${S(x)}" y="${S
 export const ci = (x, y, r, fill, extra = '') => `<circle cx="${S(x)}" cy="${S(y)}" r="${S(r)}" fill="${fill}" ${extra}/>`;
 export const el = (x, y, rx, ry, fill, extra = '') => `<ellipse cx="${S(x)}" cy="${S(y)}" rx="${S(rx)}" ry="${S(ry)}" fill="${fill}" ${extra}/>`;
 export const pa = (d, fill, extra = '') => `<path d="${d}" fill="${fill}" ${extra}/>`;
-export const tx = (x, y, s, size, fill, extra = '') => `<text x="${S(x)}" y="${S(y)}" font-size="${size}" fill="${fill}" font-family="-apple-system,Helvetica,Arial,sans-serif" text-anchor="middle" ${extra}>${esc(s)}</text>`;
+export const tx = (x, y, s, size, fill, extra = '') => `<text x="${S(x)}" y="${S(y)}" font-size="${size}" fill="${fill}"${/font-family=/.test(extra) ? '' : ' font-family="-apple-system,Helvetica,Arial,sans-serif"'}${/text-anchor=/.test(extra) ? '' : ' text-anchor="middle"'} ${extra}>${esc(s)}</text>`;
 export const ln = (x1, y1, x2, y2, st, w = 2, extra = '') => `<line x1="${S(x1)}" y1="${S(y1)}" x2="${S(x2)}" y2="${S(y2)}" stroke="${st}" stroke-width="${w}" stroke-linecap="round" ${extra}/>`;
 export const metal = (ctx, kind) => {
   const M = { steel: ['#f4f5f7', '#b9bdc4', '#7c818a'], gold: ['#fff1b8', '#e2b84a', '#9b7420'], ygold: ['#fff1b8', '#e2b84a', '#9b7420'], rose: ['#ffe2d4', '#e3a68c', '#a86a52'], rgold: ['#ffe2d4', '#e3a68c', '#a86a52'], white: ['#ffffff', '#dfe3e8', '#9aa1aa'], wgold: ['#ffffff', '#dfe3e8', '#9aa1aa'], platinum: ['#ffffff', '#dfe3e8', '#9aa1aa'], silver: ['#ffffff', '#cfd3d8', '#8a9099'], titanium: ['#e2e0db', '#a7a49e', '#6d6a64'], black: ['#4a4c52', '#1f2024', '#0a0a0b'], alu: ['#f4f5f7', '#cfd3d8', '#9aa1aa'], plastic: ['#5a5c62', '#2a2b2f', '#141416'], brass: ['#ffe9a8', '#c99a3a', '#7a5a1a'] };
@@ -890,6 +890,8 @@ function dirtFilter(ctx, amt, lite) {
   ctx.defs.push(`<filter id="${id}" filterUnits="userSpaceOnUse" x="0" y="0" width="400" height="400" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.028" numOctaves="${lite ? 2 : 3}" seed="${seed}" result="gn"/><feColorMatrix in="gn" type="matrix" values="0 0 0 0 0.24  0 0 0 0 0.19  0 0 0 0 0.13  ${a} 0 0 0 ${b}" result="gc"/><feComposite in="gc" in2="SourceAlpha" operator="in" result="grime"/>${specks}<feMerge><feMergeNode in="grime"/>${specks ? '<feMergeNode in="dust"/>' : ''}</feMerge></filter>`);
   return `url(#${id})`;
 }
+// watches turned over show the procedural caseback; everything else uses the painted photo when there is one
+export const spritePickFor = (it, view = 'front', o = {}) => (o.procedural || (view === 'back' && it.cat === 'watches') ? null : pickSprite(it));
 export function renderItem(it, o = {}) {
   const ctx = mkCtx(it, o);
   const view = ctx.view;
@@ -897,7 +899,7 @@ export function renderItem(it, o = {}) {
   const native = it.cat === 'phones' && !RETRO_F.includes(ctx.a.f);
   let res = null, sprite = false;
   // watches turned over show the procedural caseback; everything else uses the painted photo when there is one
-  const pick = o.procedural || (view === 'back' && it.cat === 'watches') ? null : pickSprite(it);
+  const pick = spritePickFor(it, view, o);
   // drawers only know front/back; other angles are camera moves around those two
   ctx.view = native ? view : view === 'back' && !veh ? 'back' : 'front';
   if (pick) {
@@ -946,8 +948,9 @@ export function renderItem(it, o = {}) {
   const svg = `<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid slice"><defs>${ctx.defs.join('')}</defs>${bg}<g class="itemg" transform="${tr}">${shadow}<g id="${objId}">${body}</g>${dirtLayer}${ov}</g>${post}</svg>`;
   return { svg, box, ctx, buttons: ctx.buttons, hot: ctx.hot, screen: ctx.screen, scale, tilt: rot, sprite };
 }
+export const itemSig = (it, o = {}) => `${it.id}|${o.view || 'front'}|${o.bg !== false}|${o.inspect ? 1 : 0}|${o.lite ? 1 : 0}|${(it.defects || []).map((d) => d.c + (d.known ? 1 : 0)).join(',')}|${it.lock || ''}|${it.grade || ''}|${it.fill ?? ''}|${it.cond}|${it.cleaned ? 1 : 0}|${it.color || ''}`;
 export function itemSVG(it, o = {}) {
-  const sig = `${it.id}|${o.view || 'front'}|${o.bg !== false}|${o.inspect ? 1 : 0}|${o.lite ? 1 : 0}|${(it.defects || []).map((d) => d.c + (d.known ? 1 : 0)).join(',')}|${it.lock || ''}|${it.grade || ''}|${it.fill ?? ''}|${it.cond}|${it.cleaned ? 1 : 0}`;
+  const sig = itemSig(it, o);
   const hit = CACHE.get(sig);
   if (hit) return hit;
   const { svg } = renderItem(it, o);
