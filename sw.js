@@ -3,13 +3,14 @@
 const VERSION = '__BUILD__';
 const CACHE = 'gr-' + VERSION;
 const ART = ['./assets/sheets/sheet1.webp', './assets/sheets/sheet2.webp', './assets/sheets/sheet3.webp']
-  .concat(['char', 'warm', 'cold', 'green', 'red', 'asphalt'].map((t) => `./assets/tex/bg_${t}.webp`));
+  .concat(['wood_oak', 'wood_walnut', 'wood_pine', 'laminate', 'bedsheet', 'duvet_grey', 'blanket_knit', 'sofa', 'carpet', 'carpet_grey', 'marble', 'tiles', 'cutting_mat', 'car_seat', 'cardboard', 'concrete', 'lot_day', 'yard_snow', 'garage', 'dacha', 'street_evening', 'grain']
+    .map((t) => `./assets/photo/${t}.webp`));
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(async (c) => {
     await c.addAll(['./', './index.html', './css/app.css', './js/main.js', './manifest.webmanifest']).catch(() => {});
-    await c.addAll(ART).catch(() => {}); // painted sprite sheets + textures so item photos work offline
+    await c.addAll(ART).catch(() => {}); // sprite cut-outs + photo backgrounds so item photos work offline
   }));
 });
 

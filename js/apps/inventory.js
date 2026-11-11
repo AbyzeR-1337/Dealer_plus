@@ -7,7 +7,8 @@ import { CITY } from '../data/world.js';
 import { fmt, nicePrice } from '../core/money.js';
 import { icon } from '../ui/icons.js';
 import { go, rerender, toast, askPrice, choose, confirmBox, openApp, back } from '../ui/shell.js';
-import { img, tags, specs, defectList, empty, row, bar } from '../ui/comp.js';
+import { img, tags, specs, defectList, empty, row, bar, gallery } from '../ui/comp.js';
+import { viewsOf } from '../data/views.js';
 import { itemTitle, itemSub, itemValue, isVehicle, sizeUnits } from '../game/items.js';
 import { getItem, removeItem, capacity, used, garage, vehiclesOwned, stat } from '../game/player.js';
 import { myListing, unlist } from '../game/sell.js';
@@ -18,7 +19,7 @@ import { sellFlow, inspectFlow, legitFlow, cityName } from './common.js';
 import { sfx } from '../ui/sfx.js';
 
 const F = { cat: 'all', sort: 'new' };
-const gal = { id: null, v: 'front' };
+const gal = { id: null, i: 0, n: 1 };
 
 function mainView() {
   const s = G.s;
@@ -45,14 +46,16 @@ function itemView(p) {
   const s = G.s;
   const it = getItem(p.id);
   if (!it) return empty('archive', T('Вещи уже нет', 'Речі вже немає', 'Item is gone'));
-  if (gal.id !== it.id) { gal.id = it.id; gal.v = 'front'; }
+  if (gal.id !== it.id) { gal.id = it.id; gal.i = 0; }
+  const photos = viewsOf(it);
+  gal.n = photos.length;
   const v = itemValue(it, s.player.city, 'known');
   const l = myListing(it.id);
   const slots = slotsFor(it);
   const shops = s.biz.shops.filter((sh) => sh.city === (it.loc || s.player.city));
   const here = (it.loc || s.player.city) === s.player.city;
   const btn = (a, label, cls = 'dark', dis = false) => `<button class="btn ${cls}${dis ? ' dis' : ''}" data-a="${a}" data-v="${it.id}">${label}</button>`;
-  return `<div class="gallery"><div class="gimg">${img(it, { view: gal.v })}</div><button class="gnav l" data-a="gal" data-v="front"></button><button class="gnav r" data-a="gal" data-v="back"></button><div class="gdots"><i class="${gal.v === 'front' ? 'on' : ''}"></i><i class="${gal.v === 'back' ? 'on' : ''}"></i></div></div>
+  return `${gallery(it, photos, gal.i)}
     <div style="font-size:19px;font-weight:700">${esc(itemTitle(it))}</div><div class="small m">${esc(itemSub(it))}</div>${tags(it)}
     <div class="stats mt"><div class="stat"><small>${T('Оценка рынка', 'Оцінка ринку', 'Market value')}</small><b>${fmt(v)}</b></div><div class="stat"><small>${T('Куплено за', 'Куплено за', 'Paid')}</small><b>${fmt(it.paid || 0)}</b></div></div>
     ${l ? `<div class="card hl mt"><b>${T('В продаже', 'У продажу', 'Listed')}: ${fmt(l.price)}</b><div class="small m">👁 ${l.views} · 💬 ${l.offers} · ${l.disclose ? T('дефекты указаны', 'дефекти вказано', 'issues disclosed') : T('дефекты скрыты', 'дефекти приховано', 'issues hidden')}</div><div class="btns">${btn('reprice', T('Изменить цену', 'Змінити ціну', 'Change price'))}${btn('unlist', T('Снять', 'Зняти', 'Unlist'))}</div></div>` : ''}
@@ -97,7 +100,7 @@ export default {
   actions: {
     cat: (v) => { F.cat = v; rerender(); },
     sort: (v) => { F.sort = v; rerender(); },
-    gal: (v) => { gal.v = v; rerender(); },
+    gal: (v) => { gal.i = (gal.i + +v + gal.n) % gal.n; rerender(); },
     sell: async (id) => { if (await sellFlow(id)) rerender(); },
     reprice: async (id) => { const l = myListing(id); const p = await askPrice({ title: T('Новая цена', 'Нова ціна', 'New price'), value: l.price, min: 1, max: l.price * 3 }); if (p) { l.price = p; toast(T('Цена обновлена', 'Ціну оновлено', 'Price updated')); rerender(); } },
     unlist: (id) => { unlist(id); rerender(); },

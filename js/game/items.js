@@ -6,6 +6,7 @@ import { uid, clamp } from '../core/util.js';
 import { countryOf, COUNTRY } from '../data/world.js';
 import { priceFactor } from './economy.js';
 import { G } from '../core/state.js';
+import { viewForDefect } from '../data/views.js';
 
 export const isVehicle = (it) => VEHICLE_CATS.includes(it.cat);
 export const modelOf = (it) => MODEL[it.m];
@@ -140,8 +141,10 @@ export function makeItem(rng, o = {}) {
       const d = DEFECTS[code];
       if (!d) continue;
       if (code === 'faceid' && m.os !== 'pear' && rng.chance(0.5)) continue;
-      const view = d.view === 'any' ? (rng.chance(0.5) ? 'front' : 'back') : d.view;
-      it.defects.push({ c: code, x: +rng.float(0.2, 0.8).toFixed(3), y: +rng.float(0.18, 0.82).toFixed(3), view, known: d.vis === 'visible' });
+      const side = d.view === 'any' ? (rng.chance(0.5) ? 'front' : 'back') : d.view;
+      const view = d.viz ? viewForDefect(rng, it, side, code) : side;
+      const close = view.startsWith('close');
+      it.defects.push({ c: code, x: +rng.float(close ? 0.3 : 0.2, close ? 0.7 : 0.8).toFixed(3), y: +rng.float(close ? 0.3 : 0.18, close ? 0.7 : 0.82).toFixed(3), view, known: d.vis === 'visible' && (view === 'front' || view === 'back') });
     }
   }
   // fakes

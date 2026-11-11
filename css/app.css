@@ -283,6 +283,10 @@ input[type=range] { width: 100%; accent-color: var(--ac); height: 30px; }
 .gallery .gdots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.45); }
 .gallery .gdots i.on { background: #fff; }
 .gallery .gnav { position: absolute; top: 0; bottom: 0; width: 40%; }
+.gallery .gcount { position: absolute; right: 10px; bottom: 24px; background: rgba(0,0,0,.55); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 99px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.seg.vseg { overflow-x: auto; scrollbar-width: none; }
+.seg.vseg::-webkit-scrollbar { display: none; }
+.seg.vseg button { flex: 1 0 auto; padding: 9px 10px; font-size: 13px; }
 .gallery .gnav.l { left: 0; } .gallery .gnav.r { right: 0; }
 .price-big { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .defect { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--panel2); margin-bottom: 6px; font-size: 14px; }

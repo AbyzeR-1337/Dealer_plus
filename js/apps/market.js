@@ -6,7 +6,9 @@ import { CATS, CAT_LIST } from '../data/catalog.js';
 import { fmt, nicePrice } from '../core/money.js';
 import { icon } from '../ui/icons.js';
 import { go, rerender, toast, askPrice, choose, confirmBox, openApp, ago, UI, replace } from '../ui/shell.js';
-import { img, tile, tags, specs, defectList, empty, avatar, stars } from '../ui/comp.js';
+import { img, tile, tags, specs, defectList, empty, avatar, stars, gallery } from '../ui/comp.js';
+import { listingViews } from '../data/views.js';
+import { hashStr } from '../core/rng.js';
 import { feedFor, feedTimeLeft, findListing, isBelowMarket, marketEstimate, listingDesc, openBuyChat, sellerRespond, DISTRICTS, pickupInfo } from '../game/market.js';
 import { chatGreet, chatPersuade, chatCounter, chatAccept, chatDecline, completeSale, scamClick, scamReport, resolveClaim, myListing, unlist, PLATFORMS } from '../game/sell.js';
 import { itemTitle, itemSub, isVehicle } from '../game/items.js';
@@ -18,7 +20,7 @@ import { sfx } from '../ui/sfx.js';
 
 const F = { q: '', cat: 'all', sort: 'new' };
 const SORTS = { new: ['Сначала новые', 'Спочатку нові', 'Newest first'], cheap: ['Дешевле', 'Дешевше', 'Cheapest'], exp: ['Дороже', 'Дорожче', 'Most expensive'], deal: ['Выгодные', 'Вигідні', 'Best deals'] };
-const gal = { id: null, v: 'front' };
+const gal = { id: null, i: 0, n: 1 };
 const unreadChats = () => G.s.chats.filter((c) => c.unread && c.st !== 'closed').length;
 
 function feedView() {
@@ -45,13 +47,15 @@ function itemView(p) {
   const l = findListing(p.id);
   if (!l) return empty('box', T('Объявление снято', 'Оголошення знято', 'Listing removed'));
   const it = l.item;
-  if (gal.id !== l.id) { gal.id = l.id; gal.v = 'front'; }
+  if (gal.id !== l.id) { gal.id = l.id; gal.i = 0; }
+  const photos = listingViews(it, hashStr(String(l.id)));
+  gal.n = photos.length;
   const est = marketEstimate(it, l.city);
   const pi = pickupInfo(l);
   const sel = l.seller;
   const chat = G.s.chats.find((c) => c.kind === 'buy' && c.ref === l.id);
   const price = chat?.st === 'deal' ? chat.deal : l.price;
-  return `<div class="gallery"><div class="gimg">${img(it, { view: gal.v, tilt: false })}</div><button class="gnav l" data-a="gal" data-v="front"></button><button class="gnav r" data-a="gal" data-v="back"></button><div class="gdots"><i class="${gal.v === 'front' ? 'on' : ''}"></i><i class="${gal.v === 'back' ? 'on' : ''}"></i></div></div>
+  return `${gallery(it, photos, gal.i)}
     <div class="price-big">${fmt(price)}${price !== l.price ? ` <s class="small m">${fmt(l.price)}</s>` : ''}</div>
     <div style="font-size:18px;margin:4px 0">${esc(itemTitle(it))}</div>
     <div class="small m">${esc(itemSub(it))} · ${esc(L(DISTRICTS[l.dist]))} · ${ago(l.posted)} · 👁 ${l.views}</div>
@@ -151,7 +155,7 @@ export default {
     cat: (v) => { F.cat = v; rerender(); },
     sort: async () => { const v = await choose(T('Сортировка', 'Сортування', 'Sort'), Object.entries(SORTS).map(([k, n]) => ({ v: k, label: L(n), cls: k === F.sort ? '' : 'dark' }))); if (v) { F.sort = v; rerender(); } },
     fav: (v, el, ev) => { ev.stopPropagation(); const f = G.s.favs; const i = f.indexOf(v); if (i >= 0) f.splice(i, 1); else f.push(v); sfx('tap'); rerender(); },
-    gal: (v) => { gal.v = v; rerender(); },
+    gal: (v) => { gal.i = (gal.i + +v + gal.n) % gal.n; rerender(); },
     buy: async (v) => { const l = findListing(v); if (!l) return; const c = G.s.chats.find((x) => x.kind === 'buy' && x.ref === l.id && x.st === 'deal'); if (await buyFlow(l, c ? c.deal : l.price)) { if (c) c.st = 'closed'; rerender(); } },
     chat: (v) => { const l = findListing(v); if (!l) return; const c = openBuyChat(l); go('chat', { id: c.id }); },
     inspect: async (v) => {

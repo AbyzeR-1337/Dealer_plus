@@ -6,62 +6,102 @@ import { DEFECTS, CAT_DEFECTS, TESTS, MODEL } from '../data/catalog.js';
 import { defectName } from '../game/items.js';
 import { svgPoint, h } from './engine.js';
 import { upLevel, stat } from '../game/player.js';
+import { viewsOf, viewLabel, defectView } from '../data/views.js';
 
 // ---------------------------------------------------------------- INSPECTION
+const BTN_NAME = { volup: ['«Громкость +»', '«Гучність +»', '“Volume up”'], voldn: ['«Громкость −»', '«Гучність −»', '“Volume down”'], power: ['«Включение»', '«Увімкнення»', '“Power”'] };
+function localPoint(svg, ev) {
+  const g = svg.querySelector('.itemg') || svg;
+  const pt = svg.createSVGPoint();
+  pt.x = ev.clientX; pt.y = ev.clientY;
+  return pt.matrixTransform(g.getScreenCTM().inverse());
+}
 function inspect(api, { item, time = 30 }) {
   const extra = upLevel('eye') * 4;
-  api.setTime(time + extra, () => finish(true));
+  const views = viewsOf(item);
+  api.setTime(time + extra + Math.max(0, views.length - 2) * 4, () => finish(true));
   let attempts = 4 + Math.floor(upLevel('eye') / 2);
-  let view = 'front';
+  let view = views[0];
   const findable = item.defects.filter((d) => !d.known && DEFECTS[d.c]?.vis !== 'hidden');
   const tests = [...new Set((CAT_DEFECTS[item.cat] || []).map((c) => DEFECTS[c].test).filter((t) => t && t !== 'button'))];
   const used = new Set();
+  const seen = new Set();
   let found = 0;
-  const hasButtons = item.cat === 'phones';
+  const phone = item.cat === 'phones' && views.includes('bottom');
+  const hint = phone
+    ? T('Сбоку жмите кнопки и лоток SIM, снизу — разъём, динамик, винты.', 'Збоку тисніть кнопки й лоток SIM, знизу — розʼєм, динамік, гвинти.', 'Sides: buttons and SIM tray. Bottom: port, speaker, screws.')
+    : T('Часть дефектов видно только сбоку или вблизи — листайте ракурсы.', 'Частину дефектів видно лише збоку чи зблизька — гортайте ракурси.', 'Some flaws only show from the side or up close — check every angle.');
   api.body.innerHTML = `
-    <div class="seg"><button class="on" data-view="front">${T('Экран', 'Екран', 'Screen')}</button><button data-view="back">${T('Корпус', 'Корпус', 'Body')}</button></div>
-    <div class="mstage" style="display:flex;align-items:center;justify-content:center"><div class="ins-wrap" style="width:100%;max-width:360px;aspect-ratio:1"></div></div>
-    <div class="mhint">${T('Коснитесь подозрительного места на экране или корпусе.', 'Торкніться підозрілого місця на екрані чи корпусі.', 'Tap anything suspicious on the screen or body.')}${hasButtons ? ' ' + T('Нажмите кнопки сбоку: одна может не работать.', 'Натисніть кнопки збоку: одна може не працювати.', 'Press the side buttons: one may be dead.') : ''}<small class="att">${T('Попыток', 'Спроб', 'Attempts')}: ${attempts}</small></div>
-    <div class="tools">${tests.map((t) => `<button data-test="${t}">${TESTS[t][3]} ${esc(L(TESTS[t]))}</button>`).join('')}</div>
+    <div class="seg vseg">${views.map((v, i) => `<button class="${i ? '' : 'on'}" data-view="${v}">${esc(L(viewLabel(item, v)))}</button>`).join('')}</div>
+    <div class="mstage" style="display:flex;align-items:center;justify-content:center;overflow:hidden"><div class="ins-wrap" style="height:100%;max-height:380px;max-width:100%;aspect-ratio:1;border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.45)"></div></div>
+    <div class="mhint" style="font-size:13px;margin:6px 2px">${hint}<small class="att">${T('Попыток', 'Спроб', 'Attempts')}: ${attempts}</small></div>
+    <div class="tools" style="flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none">${tests.map((t) => `<button data-test="${t}" style="flex:none">${TESTS[t][3]} ${esc(L(TESTS[t]))}</button>`).join('')}</div>
     <button class="btn dark block done" style="margin-top:6px">${T('Всё в порядке', 'Все гаразд', 'All good')}</button>`;
   const wrap = api.body.querySelector('.ins-wrap');
   const att = api.body.querySelector('.att');
   let R;
   function draw() {
-    R = renderItem(item, { view, bg: false, tilt: false, inspect: true, zoom: 1 });
+    seen.add(view);
+    R = renderItem(item, { view, tilt: false, inspect: true, zoom: 1 });
     wrap.innerHTML = R.svg;
     const svg = wrap.querySelector('svg');
     svg.style.width = '100%'; svg.style.height = '100%';
     svg.addEventListener('pointerdown', onTap);
   }
   function ring(svg, x, y, ok) {
+    const g = svg.querySelector('.itemg') || svg;
     const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 26);
+    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 24);
     c.setAttribute('fill', 'none'); c.setAttribute('stroke', ok ? '#2ef2a0' : '#ff5468'); c.setAttribute('stroke-width', 4);
-    svg.appendChild(c);
+    c.setAttribute('vector-effect', 'non-scaling-stroke');
+    g.appendChild(c);
     setTimeout(() => c.remove(), ok ? 1500 : 600);
   }
-  function label(text, ok) { const d = h('div', 'toast ' + (ok ? 'g' : 'r'), esc(text)); d.style.cssText = 'position:absolute;left:50%;top:12%;transform:translateX(-50%);z-index:4;white-space:nowrap'; api.body.appendChild(d); setTimeout(() => d.remove(), 1400); }
+  function label(text, ok) { const d = h('div', 'toast ' + (ok ? 'g' : 'r'), esc(text)); d.style.cssText = 'position:absolute;left:50%;top:12%;transform:translateX(-50%);z-index:4;white-space:normal;max-width:88%;text-align:center'; api.body.appendChild(d); setTimeout(() => d.remove(), 1700); }
+  const reveal = (code) => { const d = item.defects.find((x) => x.c === code && !x.known); if (!d) return false; d.known = true; found++; return true; };
+  const inside = (p, r, pad = 6) => p.x >= r.x - pad && p.x <= r.x + r.w + pad && p.y >= r.y - pad && p.y <= r.y + r.h + pad;
   function onTap(ev) {
     if (api.ended) return;
     const svg = ev.currentTarget;
-    const p = svgPoint(svg, ev);
-    // side buttons
-    if (hasButtons && R.buttons) {
-      for (const b of R.buttons) {
-        if (p.x >= b.x - 8 && p.x <= b.x + b.w + 8 && p.y >= b.y && p.y <= b.y + b.h) {
-          const broken = item.defects.find((d) => d.c === 'button' && !d.known);
-          const isDead = broken && b === R.buttons[(item.seed % R.buttons.length)];
-          if (isDead) { broken.known = true; found++; label(defectName('button'), true); api.sfx('ok'); api.flash(true); ring(svg, b.x + 3, b.y + b.h / 2, true); }
-          else { api.sfx('tick'); label(T('Кнопка работает', 'Кнопка працює', 'Button works'), true); }
-          return;
-        }
+    const p = localPoint(svg, ev);
+    // buttons: press each one, one of them may be dead
+    for (const b of R.buttons || []) {
+      if (!phone && view === 'front') break;
+      if (!inside(p, b, 8)) continue;
+      const deadKey = ['volup', 'voldn', 'power'][item.seed % 3];
+      const name = L(BTN_NAME[b.k] || BTN_NAME.power);
+      if (b.k === deadKey && reveal('button')) { label(T(`Кнопка ${name} не нажимается!`, `Кнопка ${name} не натискається!`, `The ${name} button is dead!`), false); api.sfx('ok'); api.flash(true); ring(svg, b.x + b.w / 2, b.y + b.h / 2, true); }
+      else { api.sfx('tick'); label(T(`Кнопка ${name} нажимается: работает.`, `Кнопка ${name} натискається: працює.`, `The ${name} button clicks fine.`), true); ring(svg, b.x + b.w / 2, b.y + b.h / 2, true); }
+      return;
+    }
+    for (const hs of R.hot || []) {
+      if (!inside(p, hs)) continue;
+      const cx = hs.x + hs.w / 2, cy = hs.y + hs.h / 2;
+      ring(svg, cx, cy, true);
+      if (hs.k === 'sim') {
+        if (reveal('water')) { label(T('Лоток SIM: индикатор влаги красный — телефон был в воде!', 'Лоток SIM: індикатор вологи червоний — телефон був у воді!', 'SIM tray: the moisture sticker is red — it has been in water!'), false); api.sfx('err'); api.flash(false); }
+        else { label(T('Лоток SIM: индикатор влаги белый, следов коррозии нет.', 'Лоток SIM: індикатор вологи білий, слідів корозії немає.', 'SIM tray: moisture sticker is white, no corrosion.'), true); api.sfx('tick'); }
+      } else if (hs.k === 'port') {
+        if (reveal('port')) { label(T('Кабель вставлен — зарядка не идёт. Разъём неисправен.', 'Кабель вставлено — зарядка не йде. Розʼєм несправний.', 'Cable in — no charging. The port is dead.'), false); api.sfx('err'); }
+        else { label(T('⚡ Кабель вставлен — зарядка пошла.', '⚡ Кабель вставлено — зарядка пішла.', '⚡ Plugged in — charging.'), true); api.sfx('ok'); }
+      } else if (hs.k === 'speaker') {
+        if (reveal('speaker')) { label(T('Включили музыку: динамик хрипит.', 'Увімкнули музику: динамік хрипить.', 'Played some music: the speaker crackles.'), false); api.sfx('err'); }
+        else { label(T('🔊 Звук чистый, без хрипа.', '🔊 Звук чистий, без хрипу.', '🔊 Sound is clean.'), true); api.sfx('tick'); }
+      } else if (hs.k === 'mic') {
+        label(T('🎙 Записали голосовое — микрофон пишет нормально.', '🎙 Записали голосове — мікрофон пише нормально.', '🎙 Recorded a voice note — the mic works.'), true); api.sfx('tick');
+      } else if (hs.k === 'screw') {
+        const opened = item.defects.some((d) => (d.c === 'nonorig' || d.c === 'battery' || d.c === 'faceid') && !d.known);
+        if (opened && chance(0.55 + upLevel('expert') * 0.1)) {
+          const d = item.defects.find((x) => ['nonorig', 'battery', 'faceid'].includes(x.c) && !x.known);
+          d.known = true; found++;
+          label(T(`Шлицы винтов сорваны — телефон вскрывали. Похоже: ${defectName(d.c)}.`, `Шліци гвинтів зірвані — телефон розкривали. Схоже: ${defectName(d.c)}.`, `Stripped screw heads — it has been opened. Likely: ${defectName(d.c)}.`), false); api.sfx('ok'); api.flash(true);
+        } else { label(T('Винты родные, следов вскрытия нет.', 'Гвинти рідні, слідів розкриття немає.', 'Original screws, never opened.'), true); api.sfx('tick'); }
       }
+      return;
     }
     const box = R.box;
-    // undo the viewer scale/tilt (inspect renders with scale 1, no tilt)
-    const hit = findable.find((d) => !d.known && d.view === view && Math.hypot(p.x - (box.x + d.x * box.w), p.y - (box.y + d.y * box.h)) < Math.max(36, Math.min(box.w, box.h) * 0.16));
-    if (hit) { hit.known = true; found++; api.sfx('ok'); api.flash(true); ring(svg, box.x + hit.x * box.w, box.y + hit.y * box.h, true); label(defectName(hit.c), true); draw(); }
+    const hit = findable.find((d) => !d.known && defectView(item, d) === view && Math.hypot(p.x - (box.x + d.x * box.w), p.y - (box.y + d.y * box.h)) < Math.max(36, Math.min(box.w, box.h) * 0.16));
+    if (hit) { hit.known = true; found++; api.sfx('ok'); api.flash(true); ring(svg, box.x + hit.x * box.w, box.y + hit.y * box.h, true); label(defectName(hit.c), true); setTimeout(draw, 350); }
     else { attempts--; att.textContent = `${T('Попыток', 'Спроб', 'Attempts')}: ${attempts}`; api.sfx('err'); ring(svg, p.x, p.y, false); if (attempts <= 0) finish(false); }
   }
   api.body.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => { view = b.dataset.view; api.body.querySelectorAll('.seg button').forEach((x) => x.classList.toggle('on', x === b)); draw(); }));
@@ -77,9 +117,10 @@ function inspect(api, { item, time = 30 }) {
   api.body.querySelector('.done').addEventListener('click', () => finish(true));
   function finish() {
     stat('inspections');
-    const total = item.defects.length + (item.lock ? 0 : 0);
+    const total = item.defects.length;
     const left = item.defects.filter((d) => !d.known).length;
-    api.end({ score: total ? 1 - left / total : 1, found, emoji: '🔍', title: T('Осмотр завершён', 'Огляд завершено', 'Inspection done'), text: found ? T(`Найдено проблем: ${found}`, `Знайдено проблем: ${found}`, `Issues found: ${found}`) : T('Новых проблем не нашли', 'Нових проблем не знайшли', 'No new issues found') });
+    const angles = T(`Осмотрено ракурсов: ${seen.size} из ${views.length}.`, `Оглянуто ракурсів: ${seen.size} з ${views.length}.`, `Angles checked: ${seen.size} of ${views.length}.`);
+    api.end({ score: total ? 1 - left / total : 1, found, emoji: '🔍', title: T('Осмотр завершён', 'Огляд завершено', 'Inspection done'), text: (found ? T(`Найдено проблем: ${found}`, `Знайдено проблем: ${found}`, `Issues found: ${found}`) : T('Новых проблем не нашли', 'Нових проблем не знайшли', 'No new issues found')) + '. ' + angles });
   }
   draw();
 }

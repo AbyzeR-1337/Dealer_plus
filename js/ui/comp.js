@@ -8,8 +8,15 @@ import { itemTitle, itemSub, gradeOf, rarityName, traitName, knownDefects, unkno
 import { DEFECTS, LOCKS, CATS, TESTS } from '../data/catalog.js';
 import { icon } from './icons.js';
 import { CITY } from '../data/world.js';
+import { viewLabel } from '../data/views.js';
 
 export const img = (it, o = {}) => itemSVG(it, o);
+// photo carousel: views = camera angles shown (a seller posts only some of them)
+export function gallery(it, views, idx, o = {}) {
+  const i = Math.max(0, Math.min(idx || 0, views.length - 1));
+  const v = views[i];
+  return `<div class="gallery"><div class="gimg">${itemSVG(it, { view: v, ...o })}</div>${views.length > 1 ? '<button class="gnav l" data-a="gal" data-v="-1"></button><button class="gnav r" data-a="gal" data-v="1"></button>' : ''}<div class="gcount">${i + 1} / ${views.length} · ${esc(L(viewLabel(it, v)))}</div><div class="gdots">${views.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div></div>`;
+}
 export function tags(it, o = {}) {
   const t = [];
   if (o.below) t.push(`<span class="tag g">${T('Ниже рынка', 'Нижче ринку', 'Below market')}</span>`);

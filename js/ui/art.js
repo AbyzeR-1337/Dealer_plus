@@ -4,6 +4,8 @@ import { RNG } from '../core/rng.js';
 import { shade, mix, clamp, lum, esc } from '../core/util.js';
 import { DRAW2 } from './art2.js';
 import { pickSprite, spriteMarkup } from './sprite_art.js';
+import { photoSetup, photoBackground, photoPost, shadowDefs, groundShadow } from './photo.js';
+import { viewsOf, defectView } from '../data/views.js';
 
 let UID = 0;
 const CACHE = new Map();
@@ -133,6 +135,7 @@ function lens(ctx, x, y, r) {
 function phone(ctx) {
   const { a, view, it } = ctx;
   if (['retro', 'slider', 'flipold', 'qwerty'].includes(a.f)) return retroPhone(ctx);
+  if (view === 'left' || view === 'right' || view === 'bottom') return phoneEdge(ctx, view);
   const fold = a.f === 'fold';
   const w = fold ? 210 : 150, h = 320, x = 200 - w / 2, y = 40, r = a.f === 'bezel' ? 24 : 28;
   const box = { x, y, w, h };
@@ -142,7 +145,7 @@ function phone(ctx) {
   // side buttons
   const btnFill = shade(body, -0.1);
   g += rr(x - 3, y + 70, 4, 22, 2, btnFill) + rr(x - 3, y + 102, 4, 34, 2, btnFill) + rr(x - 3, y + 142, 4, 34, 2, btnFill) + rr(x + w - 1, y + 105, 4, 48, 2, btnFill);
-  ctx.buttons = [{ x: x - 3, y: y + 102, w: 6, h: 34, side: 'L' }, { x: x - 3, y: y + 142, w: 6, h: 34, side: 'L' }, { x: x + w - 3, y: y + 105, w: 6, h: 48, side: 'R' }];
+  ctx.buttons = [{ x: x - 3, y: y + 102, w: 6, h: 34, side: 'L', k: 'volup' }, { x: x - 3, y: y + 142, w: 6, h: 34, side: 'L', k: 'voldn' }, { x: x + w - 3, y: y + 105, w: 6, h: 48, side: 'R', k: 'power' }];
   g += rr(x, y, w, h, r, frame);
   if (view === 'front') {
     const bez = a.f === 'bezel' ? { t: 42, b: 46, s: 9 } : a.f === 'bezel2' ? { t: 24, b: 24, s: 7 } : { t: 6, b: 6, s: 6 };
@@ -193,6 +196,67 @@ function phone(ctx) {
     else if (a.txt) g += tx(200, y + h * 0.86, a.txt, 15, shade(body, lum(body) > 0.5 ? -0.3 : 0.3), 'font-weight="700" letter-spacing="3"');
   }
   return { g, box, clip: rr(x, y, w, h, r, '#000') };
+}
+// Phone seen edge-on (lying on the table, camera low): the long sides with buttons and SIM tray,
+// or the bottom edge with port, speaker, mic and screws. Everything tappable is reported in ctx.hot.
+function phoneEdge(ctx, view) {
+  const { a, it } = ctx;
+  const body = ctx.c;
+  const pear = a.logo === 'pear';
+  const bottom = view === 'bottom';
+  const L = bottom ? 300 : 340, T = bottom ? 46 : 34, D = bottom ? 70 : 52;
+  const x0 = 200 - L / 2, ey = bottom ? 200 : 205; // top of the edge band
+  const rad = bottom ? 22 : T / 2;
+  let g = '';
+  // top face (glass) seen at a grazing angle
+  const glass = ctx.lin([[0, '#2b2f36'], [0.45, '#0b0c0f'], [0.5, '#3a404a'], [0.56, '#0b0c0f'], [1, '#050506']], 0, 0, 1, 0);
+  g += pa(`M${S(x0 + 18)} ${S(ey - D)} L${S(x0 + L - 18)} ${S(ey - D)} Q${S(x0 + L)} ${S(ey - D)} ${S(x0 + L)} ${S(ey - D + 10)} L${S(x0 + L)} ${S(ey)} L${S(x0)} ${S(ey)} L${S(x0)} ${S(ey - D + 10)} Q${S(x0)} ${S(ey - D)} ${S(x0 + 18)} ${S(ey - D)}Z`, glass);
+  g += rr(x0 + 6, ey - D + 4, L - 12, 3, 1.5, '#fff', 'opacity=".18"');
+  // metal frame band
+  const metalBand = ctx.lin([[0, shade(body, 0.45)], [0.18, shade(body, 0.15)], [0.5, shade(body, -0.05)], [0.82, shade(body, -0.3)], [1, shade(body, -0.5)]], 0, 0, 0, 1);
+  g += rr(x0, ey, L, T, rad, metalBand);
+  g += rr(x0 + 4, ey + 2, L - 8, 2, 1, '#fff', 'opacity=".35"');
+  // antenna lines
+  for (const fx of [0.08, 0.92]) g += rr(x0 + L * fx, ey, 4, T, 0, shade(body, -0.25), 'opacity=".8"');
+  // back glass edge peeking under the frame
+  g += rr(x0 + 8, ey + T - 3, L - 16, 5, 2, shade(body, -0.15));
+  ctx.hot = [];
+  ctx.buttons = [];
+  const btn = (bx, bw, k) => {
+    const bfill = ctx.lin([[0, shade(body, 0.35)], [0.5, shade(body, 0)], [1, shade(body, -0.35)]], 0, 0, 0, 1);
+    g += rr(bx, ey - 3, bw, T * 0.62, 4, bfill, `stroke="${shade(body, -0.4)}" stroke-width=".8"`);
+    ctx.buttons.push({ x: bx, y: ey - 6, w: bw, h: T * 0.62 + 8, k, side: view === 'left' ? 'L' : 'R' });
+  };
+  const sim = (sx) => {
+    g += rr(sx, ey + T * 0.3, 74, T * 0.4, T * 0.2, shade(body, -0.12), `stroke="${shade(body, -0.45)}" stroke-width="1"`) + ci(sx + 64, ey + T * 0.5, 2.6, '#111');
+    ctx.hot.push({ x: sx - 4, y: ey, w: 82, h: T, k: 'sim' });
+  };
+  if (view === 'left') {
+    // top of the phone is on the left of the frame
+    if (pear) g += rr(x0 + 42, ey + T * 0.3, 18, T * 0.4, 3, shade(body, -0.2), 'stroke="#000" stroke-width=".6"');
+    btn(x0 + 76, 40, 'volup'); btn(x0 + 126, 40, 'voldn');
+    if (pear) sim(x0 + 196); else g += rr(x0 + 200, ey + T * 0.42, 50, 3, 1.5, '#000', 'opacity=".35"');
+  } else if (view === 'right') {
+    btn(x0 + L - 150, 58, 'power');
+    if (!pear) sim(x0 + 60);
+  } else {
+    // bottom edge: mic | screw | port | screw | speaker
+    const cy = ey + T / 2;
+    const port = pear && it.year < 2023 ? { w: 34, h: 10 } : { w: 40, h: 13 };
+    g += rr(200 - port.w / 2, cy - port.h / 2, port.w, port.h, port.h / 2, '#050505', `stroke="${shade(body, -0.5)}" stroke-width="1"`) + rr(200 - port.w * 0.32, cy - 1.5, port.w * 0.64, 3, 1.5, '#4a4f58');
+    ctx.hot.push({ x: 200 - port.w / 2 - 10, y: cy - 18, w: port.w + 20, h: 36, k: 'port' });
+    for (const sx of [200 - port.w / 2 - 22, 200 + port.w / 2 + 22]) {
+      if (pear) { g += ci(sx, cy, 4.2, shade(body, -0.3)) + pa(`M${S(sx - 2.5)} ${S(cy)} h5 M${S(sx)} ${S(cy - 2.5)} v5`, 'none', 'stroke="#111" stroke-width="1.1"'); ctx.hot.push({ x: sx - 12, y: cy - 14, w: 24, h: 28, k: 'screw' }); }
+    }
+    let holes = '';
+    for (let i = 0; i < 7; i++) holes += ci(200 + 64 + i * 11, cy, 3, '#060606');
+    g += holes; ctx.hot.push({ x: 254, y: cy - 16, w: 86, h: 32, k: 'speaker' });
+    let mic = '';
+    for (let i = 0; i < 5; i++) mic += ci(200 - 64 - i * 11, cy, 2.2, '#080808');
+    g += mic; ctx.hot.push({ x: 74, y: cy - 16, w: 70, h: 32, k: 'mic' });
+  }
+  const box = { x: x0, y: ey - D, w: L, h: D + T };
+  return { g, box, clip: rr(x0, ey - D, L, D + T, 10, '#000') };
 }
 function retroPhone(ctx) {
   const { a, view, c } = ctx;
@@ -736,15 +800,6 @@ function perfume(ctx) {
 const DRAW = { phones: phone, electronics, consoles, accessories, sneakers, clothing, bags, watches, jewelry, perfume };
 
 // ---------------------------------------------------------------- public
-const TEX = { char: 'assets/tex/bg_char.webp', warm: 'assets/tex/bg_warm.webp', cold: 'assets/tex/bg_cold.webp', green: 'assets/tex/bg_green.webp', red: 'assets/tex/bg_red.webp', asphalt: 'assets/tex/bg_asphalt.webp' };
-const TEX_BY_CAT = { cars: ['asphalt', 'char', 'cold'], bikes: ['asphalt', 'char'], jewelry: ['warm', 'red', 'char'], watches: ['char', 'warm', 'cold'], bags: ['warm', 'char', 'red'], perfume: ['warm', 'char', 'cold'], art: ['warm', 'char'], antiques: ['warm', 'char'], cards: ['cold', 'char', 'green'], comics: ['char', 'warm'] };
-function texBackground(ctx) {
-  const r = new RNG((ctx.it.seed || 1) * 7 + 3);
-  const key = r.pick(TEX_BY_CAT[ctx.it.cat] || ['char', 'cold', 'warm', 'green']);
-  const rot = r.pick([0, 90, 180, 270]);
-  const vg = ctx.rad([[0, '#000', 0], [0.7, '#000', 0.18], [1, '#000', 0.62]], 0.5, 0.45, 0.75);
-  return `<image href="${TEX[key]}" xlink:href="${TEX[key]}" x="0" y="0" width="400" height="400" preserveAspectRatio="xMidYMid slice" transform="rotate(${rot} 200 200)"/><rect width="400" height="400" fill="${vg}"/>`;
-}
 // Grit filter: follows the object's own silhouette (no rectangles). Inner bevel from the blurred alpha gives
 // volume, fractal noise adds grain, low-frequency noise adds grime patches — the same worn look as the sprites.
 function grit(ctx, box, lite) {
@@ -754,8 +809,12 @@ function grit(ctx, box, lite) {
   const seed = ((ctx.it.seed || 1) % 997) + 1;
   // dirt follows condition: mint items get almost none, junk gets visible patches
   const wear = Math.max(0, Math.min(1, (100 - (ctx.it.cond ?? 80)) / 90));
-  const ga = (0.6 + 3.2 * wear).toFixed(2), gb = (-(0.33 + 1.76 * wear)).toFixed(2);
-  const grime = lite || wear < 0.08 ? '' : `<feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="3" seed="${seed}" result="gn"/><feColorMatrix in="gn" type="matrix" values="0 0 0 0 0.16  0 0 0 0 0.11  0 0 0 0 0.06  ${ga} 0 0 0 ${gb}" result="gc"/><feComposite in="gc" in2="SourceAlpha" operator="in" result="grime"/>`;
+  // gadgets get grey finger smudges and dust, shoes/clothes get brown dirt
+  const smudge = ['phones', 'electronics', 'consoles', 'accessories'].includes(ctx.it.cat);
+  const k = smudge ? 0.5 : 1;
+  const ga = ((0.6 + 3.2 * wear) * k).toFixed(2), gb = (-(0.33 + 1.76 * wear) * k).toFixed(2);
+  const gcol = smudge ? '0.55  0 0 0 0 0.55  0 0 0 0 0.56' : '0.16  0 0 0 0 0.11  0 0 0 0 0.06';
+  const grime = lite || wear < 0.08 ? '' : `<feTurbulence type="fractalNoise" baseFrequency="${smudge ? 0.045 : 0.03}" numOctaves="3" seed="${seed}" result="gn"/><feColorMatrix in="gn" type="matrix" values="0 0 0 0 ${gcol}  ${ga} 0 0 0 ${gb}" result="gc"/><feComposite in="gc" in2="SourceAlpha" operator="in" result="grime"/>`;
   ctx.defs.push(`<filter id="${id}" filterUnits="userSpaceOnUse" x="${S(x)}" y="${S(y)}" width="${S(w)}" height="${S(h)}" color-interpolation-filters="sRGB">`
     + `<feGaussianBlur in="SourceAlpha" stdDeviation="6" result="b"/>`
     + `<feOffset in="b" dx="-6" dy="-8" result="bs"/><feComposite in="SourceAlpha" in2="bs" operator="out" result="rs"/>`
@@ -769,26 +828,49 @@ function grit(ctx, box, lite) {
     + `<feMerge><feMergeNode in="SourceGraphic"/>${grime ? '<feMergeNode in="grime"/>' : ''}<feMergeNode in="gd"/><feMergeNode in="gl"/><feMergeNode in="shade"/><feMergeNode in="hi"/></feMerge></filter>`);
   return `url(#${id})`;
 }
+const RETRO_F = ['retro', 'slider', 'flipold', 'qwerty'];
+// camera transform for an angle; everything is in object space, so overlays and taps follow it
+function viewTransform(it, view, box, veh, native) {
+  const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+  const r = new RNG((it.seed || 1) * 7 + view.length);
+  if (native) return '';
+  if (veh && view === 'back') return `translate(${S(2 * cx)} 0) scale(-1 1)`;
+  if (view === 'left') return `translate(${S(cx)} ${S(cy)}) matrix(0.8 0.13 0 1 0 0) translate(${S(-cx)} ${S(-cy)})`;
+  if (view === 'right') return `translate(${S(cx)} ${S(cy)}) matrix(0.8 -0.13 0 1 0 0) translate(${S(-cx)} ${S(-cy)})`;
+  if (view === 'close' || view === 'close2') {
+    const z = view === 'close' ? 1.85 : 2.2;
+    const fx = box.x + box.w * (view === 'close' ? r.float(0.35, 0.65) : r.float(0.25, 0.75)), fy = box.y + box.h * (view === 'close' ? r.float(0.35, 0.6) : r.float(0.3, 0.7));
+    return `translate(200 205) scale(${z}) translate(${S(-fx)} ${S(-fy)})`;
+  }
+  return '';
+}
 export function renderItem(it, o = {}) {
   const ctx = mkCtx(it, o);
+  const view = ctx.view;
   const veh = it.cat === 'cars' || it.cat === 'bikes';
+  const native = it.cat === 'phones' && !RETRO_F.includes(ctx.a.f);
   let res = null, sprite = false;
-  const pick = o.procedural ? null : pickSprite(it);
+  // watches turned over show the procedural caseback; everything else uses the painted photo when there is one
+  const pick = o.procedural || (view === 'back' && it.cat === 'watches') ? null : pickSprite(it);
+  // drawers only know front/back; other angles are camera moves around those two
+  ctx.view = native ? view : view === 'back' && !veh ? 'back' : 'front';
   if (pick) {
-    const back = ctx.view === 'back';
-    res = spriteMarkup(ctx, pick, { flip: back && veh, closeup: back && !veh ? 1.55 : 1 });
+    res = spriteMarkup(ctx, pick, {});
     sprite = true;
   } else {
     const draw = DRAW[it.cat] || DRAW2[it.cat];
     try { res = draw ? draw(ctx) : null; } catch (e) { console.error('art', it.m, e); res = null; }
     if (!res) res = { g: rr(120, 120, 160, 160, 20, ctx.c), box: { x: 120, y: 120, w: 160, h: 160 } };
   }
+  ctx.view = view;
   const { box } = res;
   ctx.vizOf = (d) => DEFECTS[d.c]?.viz;
   let ov = '';
+  const vs = viewsOf(it);
   for (const d of it.defects || []) {
     if (!DEFECTS[d.c]?.viz) continue;
-    if (d.view !== ctx.view && d.view !== 'any') continue;
+    const dv = defectView(it, d, vs);
+    if (dv !== view && dv !== 'any') continue;
     const vis = DEFECTS[d.c].vis;
     if (vis === 'hidden') continue;
     let op = vis === 'visible' ? 1 : o.inspect ? 0.45 : 0.3;
@@ -796,17 +878,28 @@ export function renderItem(it, o = {}) {
     ov += overlay(ctx, d, box, op);
   }
   if (ov) ov = `<g clip-path="${ctx.clip(res.clip || rr(box.x - 4, box.y - 4, box.w + 8, box.h + 8, 14, '#000'))}">${ov}</g>`;
-  const bg = o.bg === false ? '' : texBackground(ctx);
-  const tilt = o.tilt && !veh && !sprite ? new RNG(it.seed + 7).float(-9, 9) : o.tilt && sprite && !veh ? new RNG(it.seed + 7).float(-4, 4) : 0;
-  const shadow = o.bg === false || sprite ? '' : el(box.x + box.w / 2, Math.min(392, box.y + box.h + 10), box.w * 0.5, 13, '#000', 'opacity=".45"');
-  const scale = o.zoom || (sprite ? 1 : veh ? 1.1 : 0.92);
-  const tr = `translate(200 200) rotate(${S(tilt)}) scale(${scale}) translate(-200 -200)`;
+  const staged = o.bg !== false;
+  const ps = staged ? photoSetup(it, view) : null;
+  const jit = staged && !o.inspect ? ps.jitter : { x: 0, y: 0, rot: 0, scale: 1 };
+  const close = view.startsWith('close');
+  const base = o.zoom || (sprite ? 1 : veh ? 1.08 : native && view !== 'front' && view !== 'back' ? 1 : 0.9);
+  const scale = base * (close || veh ? 1 : jit.scale);
+  const rot = close || veh ? 0 : jit.rot;
+  const tr = `translate(${S(200 + (close ? 0 : jit.x))} ${S(200 + (close ? 0 : jit.y))}) rotate(${S(rot)}) scale(${S(scale * 100) / 100}) translate(-200 -200) ${viewTransform(it, view, box, veh, native)}`;
+  const objId = `${ctx.P}obj`;
   const body = sprite ? res.g : `<g filter="${grit(ctx, box, o.lite)}">${res.g}</g>`;
-  const svg = `<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid slice"><defs>${ctx.defs.join('')}</defs>${bg}<g transform="${tr}">${shadow}${body}${ov}</g></svg>`;
-  return { svg, box, ctx, buttons: ctx.buttons, screen: ctx.screen, scale, tilt, sprite };
+  let shadow = '';
+  if (staged) {
+    if (ps.scene && veh) shadow = groundShadow(ctx, objId, res.bottom ?? box.y + box.h, box);
+    else shadow = `<use href="#${objId}" xlink:href="#${objId}" filter="${shadowDefs(ctx, ps)}"/>`;
+  }
+  const bg = staged ? photoBackground(ctx, ps) : '';
+  const post = staged ? photoPost(ctx, ps) : '';
+  const svg = `<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid slice"><defs>${ctx.defs.join('')}</defs>${bg}<g class="itemg" transform="${tr}">${shadow}<g id="${objId}">${body}</g>${ov}</g>${post}</svg>`;
+  return { svg, box, ctx, buttons: ctx.buttons, hot: ctx.hot, screen: ctx.screen, scale, tilt: rot, sprite };
 }
 export function itemSVG(it, o = {}) {
-  const sig = `${it.id}|${o.view || 'front'}|${o.bg !== false}|${o.tilt ? 1 : 0}|${o.inspect ? 1 : 0}|${(it.defects || []).map((d) => d.c + (d.known ? 1 : 0)).join(',')}|${it.lock || ''}|${it.grade || ''}|${it.fill ?? ''}|${it.cond}`;
+  const sig = `${it.id}|${o.view || 'front'}|${o.bg !== false}|${o.inspect ? 1 : 0}|${o.lite ? 1 : 0}|${(it.defects || []).map((d) => d.c + (d.known ? 1 : 0)).join(',')}|${it.lock || ''}|${it.grade || ''}|${it.fill ?? ''}|${it.cond}`;
   const hit = CACHE.get(sig);
   if (hit) return hit;
   const { svg } = renderItem(it, o);
