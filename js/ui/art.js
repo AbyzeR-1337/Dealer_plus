@@ -458,7 +458,30 @@ function sneakers(ctx) {
   if (high) panels += pa(`M225 ${collarY} L 300 ${collarY - 2} L 305 ${collarY + 40} C 280 ${collarY + 40}, 250 ${collarY + 46}, 232 ${collarY + 52}Z`, acc);
   if (a.logo === 'jumpman') panels += pa(`M30 ${soleTop + 2} C 40 ${soleTop - 40}, 120 ${soleTop - 55}, 360 ${soleTop - 40} L 360 ${soleTop + 4}Z`, ex, 'opacity=".95"');
   if (t === 'canvas') panels += rr(30, soleTop - 22, 70, 30, 10, '#f2ead8');
+  // material: mesh for runners/knits, suede/leather grain for the rest
+  const r2 = new RNG((ctx.it.seed || 1) + 991);
+  let grain = '';
+  if (t === 'runner' || t === 'knit') grain = rr(20, 40, 360, 300, 0, ctx.pat(7, 7, ci(3.5, 3.5, 1.5, '#000', 'opacity=".22"') + ci(0, 0, 0.8, '#fff', 'opacity=".25"')));
+  else {
+    let dots = '';
+    for (let i = 0; i < 36; i++) dots += ci(r2.float(0, 26), r2.float(0, 26), r2.float(0.4, 1.1), r2.chance(0.5) ? '#000' : '#fff', `opacity="${r2.float(0.05, 0.16).toFixed(2)}"`);
+    grain = rr(20, 40, 360, 300, 0, ctx.pat(26, 26, dots));
+  }
+  panels += grain;
+  // stitching along the panels
+  const stitch = (d) => pa(d, 'none', `stroke="${lum(acc) > 0.6 ? '#000' : '#fff'}" stroke-opacity=".38" stroke-width="1.1" stroke-dasharray="4 3"`);
+  panels += stitch(`M36 ${soleTop - 8} C 40 ${soleTop - 44}, 86 ${soleTop - 66}, 136 ${soleTop - 60}`);
+  panels += stitch(`M296 ${soleTop - 4} C 300 ${soleTop - 58}, 318 ${collarY + 28}, 350 ${collarY + 18}`);
+  if (t !== 'knit') panels += stitch(`M156 ${soleTop - 60} C 180 ${soleTop - 86}, ${high ? 198 : 208} ${collarY + 44}, ${high ? 226 : 244} ${collarY + 8}`);
+  // ambient occlusion above the sole and a soft key light on the toe/top
+  panels += rr(20, soleTop - 16, 360, 18, 0, ctx.lin([[0, '#000', 0], [1, '#000', 0.28]], 0, 0, 0, 1));
+  panels += el(150, soleTop - 70, 110, 34, ctx.rad([[0, '#fff', 0.18], [1, '#fff', 0]]));
   g += `<g clip-path="${clipU}">${panels}</g>`;
+  // collar opening with padded lining, tongue and heel tab
+  const cx0 = high ? 225 : 245, cx1 = high ? 300 : 305;
+  g += el((cx0 + cx1) / 2, collarY + 3, (cx1 - cx0) / 2 + 2, 8, shade(up, -0.55)) + el((cx0 + cx1) / 2, collarY + 1, (cx1 - cx0) / 2 - 4, 4, shade(up, -0.75));
+  if (t !== 'knit' && t !== 'slide') g += pa(`M${cx0 - 6} ${collarY + 6} Q ${cx0 + 2} ${collarY - 22} ${cx0 + 26} ${collarY - 18} L ${cx0 + 30} ${collarY + 6}Z`, shade(up, -0.06), `stroke="${shade(up, -0.3)}" stroke-width="1"`) + rr(cx0 + 4, collarY - 14, 18, 9, 2, ex === up ? acc : ex, 'opacity=".9"');
+  g += rr(342, collarY + 8, 10, 30, 4, shade(acc, -0.1), `stroke="${shade(acc, -0.35)}" stroke-width=".8"`);
   // logo
   const lx = 150, ly = soleTop - 30;
   switch (a.logo) {
@@ -477,18 +500,31 @@ function sneakers(ctx) {
     default: break;
   }
   // laces
-  if (t !== 'knit' && t !== 'boot' && t !== 'skate' || t === 'skate' || t === 'boot') {
-    for (let i = 0; i < (high ? 7 : 5); i++) {
+  if (t !== 'knit') {
+    const lace = ex === up ? '#e8e8e8' : ex;
+    const n = high ? 7 : 5;
+    for (let i = 0; i < n; i++) {
       const px = 176 + i * (high ? 7 : 11), py = soleTop - 74 - i * (high ? 22 : 12);
-      g += ln(px - 4, py, px + 14, py - 6, ex === up ? '#e8e8e8' : ex, 4);
+      // eyelets, then a crossed lace with a highlight so it reads as a round cord
+      g += ci(px - 5, py + 3, 2.4, shade(acc, -0.5)) + ci(px + 15, py - 7, 2.4, shade(acc, -0.5));
+      g += ln(px - 5, py + 3, px + 15, py - 7, shade(lace, -0.35), 4.6) + ln(px - 5, py + 3, px + 15, py - 7, lace, 3.2) + ln(px - 3, py + 1.5, px + 12, py - 6, '#fff', 0.9, 'opacity=".45"');
+      if (i < n - 1) { const qx = 176 + (i + 1) * (high ? 7 : 11), qy = soleTop - 74 - (i + 1) * (high ? 22 : 12); g += ln(px + 15, py - 7, qx - 5, qy + 3, shade(lace, -0.45), 3.4, 'opacity=".75"'); }
     }
+    // loose lace ends
+    const lx2 = 176 + (n - 1) * (high ? 7 : 11), ly2 = soleTop - 74 - (n - 1) * (high ? 22 : 12);
+    g += pa(`M${lx2 + 15} ${ly2 - 7} q 18 10 6 34`, 'none', `stroke="${lace}" stroke-width="3" stroke-linecap="round"`) + pa(`M${lx2 + 15} ${ly2 - 7} q 26 2 26 28`, 'none', `stroke="${shade(lace, -0.15)}" stroke-width="3" stroke-linecap="round"`);
   }
   // midsole + outsole
   const soleFill = ctx.lin([[0, shade(sole, 0.1)], [1, shade(sole, -0.12)]], 0, 0, 0, 1);
   g += pa(`M40 ${soleTop} L 356 ${soleTop - 2} Q 364 ${soleTop + soleH / 2} 354 ${300} L 50 ${300} Q 34 ${300} 36 ${soleTop + soleH * 0.5}Z`, soleFill);
   if (t === 'runner' || t === 'chunky') g += pa(`M60 ${soleTop + soleH * 0.55} C 120 ${soleTop + soleH * 0.3}, 200 ${soleTop + soleH * 0.8}, 340 ${soleTop + soleH * 0.4}`, 'none', `stroke="${shade(sole, -0.2)}" stroke-width="2"`);
-  if (a.air) g += rr(250, soleTop + 6, 70, soleH - 14, 6, '#cfe8ff', 'opacity=".8"');
-  g += rr(42, 296, 314, 7, 3, a.t === 'court' && sole === '#b7814a' ? '#8a5a2a' : shade(sole, -0.35));
+  if (a.air) g += rr(250, soleTop + 6, 70, soleH - 14, 6, '#cfe8ff', 'opacity=".8"') + rr(254, soleTop + 9, 62, 4, 2, '#fff', 'opacity=".6"');
+  // cupsole stitching, sidewall texture and tread edge
+  if (['court', 'high', 'canvas', 'skate', 'mid'].includes(t)) g += pa(`M48 ${soleTop + soleH * 0.42} L 350 ${soleTop + soleH * 0.4}`, 'none', `stroke="${shade(sole, -0.3)}" stroke-width="1.2" stroke-dasharray="3 3" opacity=".8"`);
+  g += rr(40, soleTop + 1, 316, 3, 1.5, '#fff', 'opacity=".25"');
+  let tread = '';
+  for (let x = 50; x < 350; x += 9) tread += rr(x, 296, 4, 7, 1, shade(sole, -0.5), 'opacity=".5"');
+  g += rr(42, 296, 314, 7, 3, a.t === 'court' && sole === '#b7814a' ? '#8a5a2a' : shade(sole, -0.35)) + tread;
   return { g, box: { x: 40, y: collarY - 10, w: 320, h: 310 - collarY } };
 }
 
