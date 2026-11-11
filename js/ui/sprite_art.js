@@ -139,7 +139,9 @@ export function spriteMarkup(ctx, pick, o = {}) {
   const R = (v) => v.toFixed(1);
   const rect = `x="${R(tx)}" y="${R(ty)}" width="${R(tw)}" height="${R(th)}"`;
   // gentle lift so dark paintings read on a phone screen
-  let filt = `<feComponentTransfer in="SourceGraphic" result="lift"><feFuncR type="gamma" amplitude="1.06" exponent="0.9"/><feFuncG type="gamma" amplitude="1.06" exponent="0.9"/><feFuncB type="gamma" amplitude="1.06" exponent="0.9"/></feComponentTransfer>`;
+  // a cleaned item is brighter and more saturated: the painted grime reads as gone
+  const amp = o.clean ? 1.13 : 1.06, ex = o.clean ? 0.86 : 0.9;
+  let filt = `<feComponentTransfer in="SourceGraphic" result="lift0"><feFuncR type="gamma" amplitude="${amp}" exponent="${ex}"/><feFuncG type="gamma" amplitude="${amp}" exponent="${ex}"/><feFuncB type="gamma" amplitude="${amp}" exponent="${ex}"/></feComponentTransfer><feColorMatrix in="lift0" type="saturate" values="${o.clean ? 1.18 : 1}" result="lift"/>`;
   if (pick.tint) {
     filt += `<feColorMatrix in="lift" type="saturate" values="0" result="g"/><feFlood flood-color="${pick.tint}" result="c"/><feBlend in="c" in2="g" mode="multiply" result="m"/><feComponentTransfer in="g" result="hi"><feFuncR type="gamma" amplitude="0.75" exponent="6"/><feFuncG type="gamma" amplitude="0.75" exponent="6"/><feFuncB type="gamma" amplitude="0.75" exponent="6"/></feComponentTransfer><feComposite in="m" in2="hi" operator="arithmetic" k2="${lum(pick.tint) < 0.35 ? 1.6 : 1.3}" k3="1" result="o"/><feComposite in="o" in2="SourceGraphic" operator="in"/>`;
   }

@@ -844,7 +844,7 @@ function grit(ctx, box, lite) {
   const w = Math.min(400 - x, box.w + 80), h = Math.min(400 - y, box.h + 80);
   const seed = ((ctx.it.seed || 1) % 997) + 1;
   // dirt follows condition: mint items get almost none, junk gets visible patches
-  const wear = Math.max(0, Math.min(1, (100 - (ctx.it.cond ?? 80)) / 90));
+  const wear = Math.max(0, Math.min(1, (100 - (ctx.it.cond ?? 80)) / 90)) * (ctx.it.cleaned ? 0.25 : 1);
   // gadgets get grey finger smudges and dust, shoes/clothes get brown dirt
   const smudge = ['phones', 'electronics', 'consoles', 'accessories'].includes(ctx.it.cat);
   const k = smudge ? 0.5 : 1;
@@ -880,6 +880,16 @@ function viewTransform(it, view, box, veh, native) {
   }
   return '';
 }
+// dust and grime on items that were never cleaned; the amount follows the condition
+export const dirtOf = (it) => (it.cleaned || it.sealed ? 0 : clamp((100 - (it.cond ?? 80)) / 85, 0.12, 0.85));
+function dirtFilter(ctx, amt, lite) {
+  const id = `${ctx.P}dirt`;
+  const seed = ((ctx.it.seed || 1) % 991) + 3;
+  const a = (3.2 * amt).toFixed(2), b = (-(1.05 + 0.6 * (1 - amt))).toFixed(2);
+  const specks = lite ? '' : `<feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="1" seed="${seed + 7}" result="sn"/><feColorMatrix in="sn" type="matrix" values="0 0 0 0 0.76  0 0 0 0 0.74  0 0 0 0 0.7  ${(2.1 * amt).toFixed(2)} 0 0 0 -0.9" result="sc"/><feComposite in="sc" in2="SourceAlpha" operator="in" result="dust"/>`;
+  ctx.defs.push(`<filter id="${id}" filterUnits="userSpaceOnUse" x="0" y="0" width="400" height="400" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.028" numOctaves="${lite ? 2 : 3}" seed="${seed}" result="gn"/><feColorMatrix in="gn" type="matrix" values="0 0 0 0 0.24  0 0 0 0 0.19  0 0 0 0 0.13  ${a} 0 0 0 ${b}" result="gc"/><feComposite in="gc" in2="SourceAlpha" operator="in" result="grime"/>${specks}<feMerge><feMergeNode in="grime"/>${specks ? '<feMergeNode in="dust"/>' : ''}</feMerge></filter>`);
+  return `url(#${id})`;
+}
 export function renderItem(it, o = {}) {
   const ctx = mkCtx(it, o);
   const view = ctx.view;
@@ -891,7 +901,7 @@ export function renderItem(it, o = {}) {
   // drawers only know front/back; other angles are camera moves around those two
   ctx.view = native ? view : view === 'back' && !veh ? 'back' : 'front';
   if (pick) {
-    res = spriteMarkup(ctx, pick, {});
+    res = spriteMarkup(ctx, pick, { clean: !!it.cleaned });
     sprite = true;
   } else {
     const draw = DRAW[it.cat] || DRAW2[it.cat];
@@ -931,11 +941,13 @@ export function renderItem(it, o = {}) {
   }
   const bg = staged ? photoBackground(ctx, ps) : '';
   const post = staged ? photoPost(ctx, ps) : '';
-  const svg = `<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid slice"><defs>${ctx.defs.join('')}</defs>${bg}<g class="itemg" transform="${tr}">${shadow}<g id="${objId}">${body}</g>${ov}</g>${post}</svg>`;
+  const dirt = dirtOf(it);
+  const dirtLayer = dirt > 0 && o.bg !== false ? `<use href="#${objId}" xlink:href="#${objId}" filter="${dirtFilter(ctx, dirt, o.lite)}" style="pointer-events:none"/>` : '';
+  const svg = `<svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid slice"><defs>${ctx.defs.join('')}</defs>${bg}<g class="itemg" transform="${tr}">${shadow}<g id="${objId}">${body}</g>${dirtLayer}${ov}</g>${post}</svg>`;
   return { svg, box, ctx, buttons: ctx.buttons, hot: ctx.hot, screen: ctx.screen, scale, tilt: rot, sprite };
 }
 export function itemSVG(it, o = {}) {
-  const sig = `${it.id}|${o.view || 'front'}|${o.bg !== false}|${o.inspect ? 1 : 0}|${o.lite ? 1 : 0}|${(it.defects || []).map((d) => d.c + (d.known ? 1 : 0)).join(',')}|${it.lock || ''}|${it.grade || ''}|${it.fill ?? ''}|${it.cond}`;
+  const sig = `${it.id}|${o.view || 'front'}|${o.bg !== false}|${o.inspect ? 1 : 0}|${o.lite ? 1 : 0}|${(it.defects || []).map((d) => d.c + (d.known ? 1 : 0)).join(',')}|${it.lock || ''}|${it.grade || ''}|${it.fill ?? ''}|${it.cond}|${it.cleaned ? 1 : 0}`;
   const hit = CACHE.get(sig);
   if (hit) return hit;
   const { svg } = renderItem(it, o);

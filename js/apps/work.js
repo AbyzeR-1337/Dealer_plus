@@ -6,7 +6,7 @@ import { fmt } from '../core/money.js';
 import { icon } from '../ui/icons.js';
 import { go, rerender, toast, confirmBox, ago, openApp } from '../ui/shell.js';
 import { img, empty, bar, tags } from '../ui/comp.js';
-import { JOBS, RANKS, jobById, reqOk, shiftPay, apply, interviewResult, acceptOffer, quitJob, canShift, finishShift, GIGS, finishGig, gigReady, SHIFT_COOLDOWN, wageIdx } from '../game/jobs.js';
+import { JOBS, RANKS, jobById, reqOk, shiftPay, apply, interviewResult, acceptOffer, quitJob, canShift, finishShift, GIGS, finishGig, gigReady, SHIFT_COOLDOWN, wageIdx, DOCS, jobDocs, docState, docReady, docReadyAt, orderDoc, vacancyWindow } from '../game/jobs.js';
 import { freeFeed, claimFree, dumpsterLoot } from '../game/sources.js';
 import { itemTitle, itemSub } from '../game/items.js';
 import { addItem, canStore, stat, addXP } from '../game/player.js';
@@ -32,6 +32,19 @@ function jobMain() {
       <div class="small mt ${s.job.bad ? 'r' : 'm'}">${T('Плохих смен подряд', 'Поганих змін поспіль', 'Bad shifts in a row')}: ${s.job.bad}/3</div>
       <button class="btn dark sm mt" data-a="quit">${T('Уволиться', 'Звільнитися', 'Quit')}</button></div>`;
 }
+function docsBlock(j) {
+  const list = jobDocs(j);
+  const w = vacancyWindow(j);
+  const head = w.open ? `<div class="vwin open">⏳ ${T('Приём документов закроется через', 'Прийом документів закриється через', 'Applications close in')} <b data-cd="${w.until}"></b></div>` : `<div class="vwin">🔒 ${T('Приём документов откроется через', 'Прийом документів відкриється через', 'Applications open in')} <b data-cd="${w.at}"></b></div>`;
+  return head + `<div class="docs">${list.map((k) => { const d = DOCS[k]; const st = docState(k); return `<div class="doc ${st}"><span>${d.icon} ${esc(L(d.n))}</span>${st === 'ready' ? `<b class="g">✓</b>` : st === 'pending' ? `<b class="o">⏳ <span data-cd="${docReadyAt(k)}"></span></b>` : `<button class="btn xs dark" data-a="doc" data-v="${k}">${T('Оформить', 'Оформити', 'Get it')} · ${d.price ? fmt(d.price) : T('бесплатно', 'безкоштовно', 'free')} · ${dur(d.mins)}</button>`}</div>`; }).join('')}</div>`;
+}
+function applyBtn(j) {
+  const w = vacancyWindow(j);
+  const ready = jobDocs(j).every((k) => docReady(k));
+  if (!w.open) return `<button class="btn sm dark" disabled>${T('Приём закрыт', 'Прийом закрито', 'Closed')}</button>`;
+  if (!ready) return `<button class="btn sm dark" disabled>${T('Сначала документы', 'Спочатку документи', 'Documents first')}</button>`;
+  return `<button class="btn sm" data-a="apply" data-v="${j.id}">📨 ${T('Подать документы', 'Подати документи', 'Submit documents')}</button>`;
+}
 function vacView() {
   const s = G.s;
   return `<h2 class="sec">${T('Вакансии', 'Вакансії', 'Vacancies')}</h2>` + JOBS.map((j) => {
@@ -39,7 +52,8 @@ function vacView() {
     const app = s.job.apps.find((a) => a.job === j.id && !['closed', 'rejected', 'failed'].includes(a.st));
     const cur = s.job.cur === j.id;
     return `<div class="card"><div class="row"><div style="font-size:30px">${j.icon}</div><div class="grow"><h3>${esc(L(j.n))}</h3><div class="small m">${esc(L(j.co))} · ${esc(L(j.sched))}</div></div><b class="g">${fmt(shiftPay(j, 0))}</b></div><div class="d mt">${esc(L(j.d))}</div>${miss.length ? `<div class="small r mt">${T('Требования', 'Вимоги', 'Requires')}: ${esc(miss.join(', '))}</div>` : ''}
-      <div class="btns">${cur ? `<span class="tag g">${T('Вы здесь работаете', 'Ви тут працюєте', 'You work here')}</span>` : app ? `<span class="tag b">${T('Отклик отправлен', 'Відгук надіслано', 'Applied')}</span>` : `<button class="btn sm" data-a="apply" data-v="${j.id}">${T('Откликнуться', 'Відгукнутися', 'Apply')}</button>`}</div></div>`;
+      ${cur || app ? '' : docsBlock(j)}
+      <div class="btns">${cur ? `<span class="tag g">${T('Вы здесь работаете', 'Ви тут працюєте', 'You work here')}</span>` : app ? `<span class="tag b">${T('Документы поданы', 'Документи подано', 'Documents submitted')}</span>` : applyBtn(j)}</div></div>`;
   }).join('');
 }
 function appsView() {
@@ -71,7 +85,8 @@ export const jobsApp = {
   ],
   views: { main: jobMain, vac: vacView, apps: appsView, gigs: gigsView },
   actions: {
-    apply: (id) => { if (apply(id)) { sfx('ok'); toast(T('Отклик отправлен', 'Відгук надіслано', 'Application sent'), 'g'); rerender(); } },
+    apply: (id) => { if (apply(id)) { sfx('ok'); toast(T('Документы поданы — ждите ответа HR', 'Документи подано — чекайте відповіді HR', 'Documents submitted — wait for HR'), 'g'); rerender(); } else toast(T('Приём закрыт или не хватает документов', 'Прийом закрито або бракує документів', 'Closed or documents missing'), 'r'); },
+    doc: (k) => { const r = orderDoc(k); if (r.ok) { sfx('ok'); toast(T(`Оформляется: ${L(DOCS[k].n)}`, `Оформлюється: ${L(DOCS[k].n)}`, `In progress: ${L(DOCS[k].n)}`), 'g'); } else if (r.msg) toast(r.msg, 'r'); rerender(); },
     interview: async (id) => { const r = await playMini('interview', { title: T('Собеседование', 'Співбесіда', 'Interview'), pass: 0.55 }); if (r.quit) return; const ok = interviewResult(id, r.score); toast(ok ? T('Вам сделали оффер!', 'Вам зробили офер!', 'You got an offer!') : T('Увы, отказ', 'На жаль, відмова', 'Sorry, rejected'), ok ? 'g' : 'r'); rerender(); },
     accept: async (id) => { if (G.s.job.cur && !(await confirmBox(T('Сменить работу?', 'Змінити роботу?', 'Switch jobs?'), T('Текущая должность будет потеряна.', 'Поточна посада буде втрачена.', 'You’ll lose your current rank.')))) return; acceptOffer(id); sfx('win'); go('main'); },
     quit: async () => { if (await confirmBox(T('Уволиться?', 'Звільнитися?', 'Quit?'), '', T('Уволиться', 'Звільнитися', 'Quit'), undefined, true)) { quitJob(); rerender(); } },

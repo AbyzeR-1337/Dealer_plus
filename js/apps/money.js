@@ -14,6 +14,7 @@ import { playMini } from '../mini/engine.js';
 import { regName, regColors, region } from './common.js';
 import { sfx } from '../ui/sfx.js';
 import { bankHome, bankRates, bankSkin } from './bank_skins.js';
+import { CG, slotsView, playSlots, rouletteView, playRoulette, blackjackView, bjDeal, bjHit, bjDouble, bjFinish, diceView, playDice } from './casino_games.js';
 
 // ---------------------------------------------------------------- BANK
 function bankCards() {
@@ -137,7 +138,7 @@ export const numbersApp = {
 };
 
 // ---------------------------------------------------------------- CASINO
-const CZ = { chance: 50, bet: null, tab: 'wheel', spinning: false };
+const CZ = { chance: 50, bet: null, tab: 'slots', spinning: false };
 const payout = (p) => +(0.96 / (p / 100)).toFixed(2);
 function casinoMain() {
   const s = G.s;
@@ -145,9 +146,14 @@ function casinoMain() {
   CZ.bet = Math.min(CZ.bet, Math.max(0, s.money));
   const pay = payout(CZ.chance);
   const hist = s.casino.hist.slice(0, 12);
-  const tabs = `<div class="seg"><button class="${CZ.tab === 'wheel' ? 'on' : ''}" data-a="ct" data-v="wheel">${T('Шанс', 'Шанс', 'Chance')}</button><button class="${CZ.tab === 'crash' ? 'on' : ''}" data-a="ct" data-v="crash">🚀 ${T('Краш', 'Краш', 'Crash')}</button></div>`;
+  const TABS = [['slots', '🎰', T('Слоты', 'Слоти', 'Slots')], ['roulette', '🎡', T('Рулетка', 'Рулетка', 'Roulette')], ['bj', '🃏', T('Блэкджек', 'Блекджек', 'Blackjack')], ['dice', '🎲', T('Кости', 'Кості', 'Dice')], ['wheel', '🎯', T('Шанс', 'Шанс', 'Chance')], ['crash', '🚀', T('Краш', 'Краш', 'Crash')]];
+  const tabs = `<div class="seg vseg">${TABS.map(([k, e, n]) => `<button class="${CZ.tab === k ? 'on' : ''}" data-a="ct" data-v="${k}">${e} ${n}</button>`).join('')}</div>`;
   const ring = (deg, col) => `<circle cx="115" cy="115" r="96" fill="none" stroke="${col}" stroke-width="22" stroke-dasharray="${(deg / 360) * 603} 603" transform="rotate(-90 115 115)"/>`;
   const betBlock = `<div class="small m">${T('Ставка', 'Ставка', 'Bet')}, ${symOf()}</div><div class="center price-big" style="margin:4px 0 8px">${fmt(CZ.bet)}</div><div class="pad-grid" style="grid-template-columns:repeat(6,1fr)">${[['min', T('Мин', 'Мін', 'Min')], ['half', '½'], ['x2', '×2'], ['p10', '+10%'], ['set', '✎'], ['max', T('Макс', 'Макс', 'Max')]].map(([k, l]) => `<button data-a="cbet" data-v="${k}">${l}</button>`).join('')}</div>`;
+  if (CZ.tab === 'slots') return tabs + slotsView(betBlock);
+  if (CZ.tab === 'roulette') return tabs + rouletteView(betBlock);
+  if (CZ.tab === 'bj') return tabs + blackjackView(betBlock);
+  if (CZ.tab === 'dice') return tabs + diceView(betBlock);
   if (CZ.tab === 'crash') return tabs + `<div class="center" style="font-size:80px;margin:10px 0">🚀</div><p class="p center">${T('Множитель растёт — заберите выигрыш до взрыва!', 'Множник росте — заберіть виграш до вибуху!', 'The multiplier climbs — cash out before it blows!')}</p>${betBlock}<button class="btn green block mt" style="min-height:60px;font-size:20px" data-a="crash" ${CZ.bet > 0 ? '' : 'disabled'}>${T('Запуск', 'Запуск', 'Launch')}</button><p class="tiny m mt center">${T('В игре только игровые деньги.', 'У грі лише ігрові гроші.', 'In‑game money only.')}</p>`;
   return tabs + `<div class="wheel"><svg viewBox="0 0 230 230"><circle cx="115" cy="115" r="96" fill="none" stroke="#2a2550" stroke-width="22"/>${ring(CZ.chance * 3.6, '#2ef2a0')}<circle cx="115" cy="115" r="70" fill="#1d1838"/><g class="cz-needle" style="transform-origin:115px 115px"><path d="M115 6 l-7 -2 l7 20 l7 -20z" fill="#fff"/></g></svg><div class="lab"><b>${CZ.chance}%</b><small>${T('выплата', 'виплата', 'payout')} ×${pay}</small></div></div>
     <div class="center g bold" style="font-size:18px;min-height:26px" id="cz-res">${T('Выигрыш', 'Виграш', 'Win')} ${fmt(CZ.bet * pay)} (×${pay})</div>
@@ -169,7 +175,17 @@ export const casinoApp = {
   name: ['Казино', 'Казино', 'Casino'], colors: ['#8b5cff', '#5a2ee0'], accent: '#8b5cff', dark: true,
   views: { main: casinoMain },
   actions: {
-    ct: (v) => { CZ.tab = v; rerender(); },
+    ct: (v) => { if (CG.spinning || CZ.spinning) return; CZ.tab = v; rerender(); },
+    slots: () => playSlots(CZ.bet, settle),
+    roulette: () => playRoulette(CZ.bet, settle),
+    rlb: (v) => { CG.rlBet = v; rerender(); },
+    rln: (v) => { CG.rlNum = +v; rerender(); },
+    bjdeal: () => bjDeal(CZ.bet, settle),
+    bjhit: () => bjHit(settle),
+    bjstand: () => bjFinish(settle),
+    bjdouble: () => bjDouble(settle),
+    dice: () => playDice(CZ.bet, settle),
+    dcb: (v) => { CG.dice = v; rerender(); },
     cch: async (v) => { if (v === 'custom') { const c = await choose(T('Шанс', 'Шанс', 'Chance'), [5, 15, 25, 40, 60, 90].map((x) => ({ v: String(x), label: `${x}% → ×${payout(x)}` }))); if (c) CZ.chance = +c; } else CZ.chance = +v; rerender(); },
     cbet: async (k) => { const m = Math.max(0, G.s.money); if (k === 'min') CZ.bet = Math.min(m, 1); if (k === 'half') CZ.bet = CZ.bet / 2; if (k === 'x2') CZ.bet = CZ.bet * 2; if (k === 'p10') CZ.bet = CZ.bet * 1.1; if (k === 'max') CZ.bet = m; if (k === 'set') { const v = await askPrice({ title: T('Ставка', 'Ставка', 'Bet'), value: CZ.bet || 1, min: 0.01, max: Math.max(m, 0.01) }); if (v) CZ.bet = v; } CZ.bet = Math.min(Math.max(0, CZ.bet), m); rerender(); },
     spin: () => {
