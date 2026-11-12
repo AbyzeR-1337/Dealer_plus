@@ -27,7 +27,7 @@ const BRAND = {
   'The Beatlz': 'The Beatles', 'Pink Floid': 'Pink Floyd', 'Michael Jaxon': 'Michael Jackson', Nirvanna: 'Nirvana', 'Daft Punkk': 'Daft Punk', 'Фаберджи': 'Faberge', 'Баташов': 'Batashev', 'ЛФЗ': 'Lomonosov porcelain', 'Андервуд': 'Underwood', "His Master's Vois": "His Master's Voice", 'Павел Бурэ': 'Pavel Buhre', 'Тонет': 'Thonet', 'Монетный двор': '', 'US Mint': 'US', 'Банк России': 'Russian', 'НБУ': 'Ukrainian', 'US Treasury': 'US', 'Royal Post': 'British', 'US Post': 'US', 'Почта СССР': 'Soviet',
   'Tasmanian Tigr': 'Tasmanian Tiger', 'Mil‑Tek': 'Mil-Tec', Eastpack: 'Eastpak', Fjallraven: 'Fjallraven', Samsonaite: 'Samsonite', Rimova: 'Rimowa', Filsen: 'Filson', Shoeii: 'Shoei', 'AGV‑X': 'AGV', Araii: 'Arai', Bel: 'Bell', 'Opz‑Kor': 'Ops-Core', Zippa: 'Zippo', BIK: 'BIC', Victorinoks: 'Victorinox',
 };
-const FIX = [[/iPud/g, 'iPod'], [/DataTravelar/g, 'DataTraveler'], [/Cruzar/g, 'Cruzer'], [/JetFlesh/g, 'JetFlash'], [/AliExpres/g, 'AliExpress'], [/iFone/g, 'iPhone'], [/Galaxi/g, 'Galaxy'], [/Pixl/g, 'Pixel'], [/Redmo/g, 'Redmi'], [/Poko/g, 'Poco'], [/MacBuk/g, 'MacBook'], [/AirBuds/g, 'AirPods'], [/PlayStatien/g, 'PlayStation'], [/Jordon/g, 'Jordan'], [/Yeezo/g, 'Yeezy'], [/Birkan/g, 'Birkin'], [/Submarine\b/g, 'Submariner'], [/Stratocastor/g, 'Stratocaster'], [/Charizzard/g, 'Charizard'], [/Lotos/g, 'Lotus'], [/Batmann/g, 'Batman'], [/Star Warz/g, 'Star Wars'], [/Millennium Hawk/g, 'Millennium Falcon'], [/Daytone/g, 'Daytona'], [/Speedmaster/g, 'Speedmaster'], [/Forse/g, 'Force'], [/Dunck/g, 'Dunk'], [/Yeezi/g, 'Yeezy'], [/Gameboy|GameBoi/g, 'Game Boy'], [/\bDank\b/g, 'Dunk'], [/Gyaradoss/g, 'Gyarados'], [/Piace/g, 'Piece'], [/Fyrby/g, 'Furby'], [/Blastoisse/g, 'Blastoise'], [/Pikachoo/g, 'Pikachu'], [/Mewtwoo/g, 'Mewtwo'], [/Statien/g, 'Station']];
+const FIX = [[/iPud/g, 'iPod'], [/DataTravelar/g, 'DataTraveler'], [/Cruzar/g, 'Cruzer'], [/JetFlesh/g, 'JetFlash'], [/AliExpres/g, 'AliExpress'], [/iFone/g, 'iPhone'], [/Galaxi/g, 'Galaxy'], [/Pixl/g, 'Pixel'], [/Xiaomo /g, ''], [/Redmo/g, 'Redmi'], [/Poko/g, 'Poco'], [/MacBuk/g, 'MacBook'], [/AirBuds/g, 'AirPods'], [/PlayStatien/g, 'PlayStation'], [/Jordon/g, 'Jordan'], [/Yeezo/g, 'Yeezy'], [/Birkan/g, 'Birkin'], [/Submarine\b/g, 'Submariner'], [/Stratocastor/g, 'Stratocaster'], [/Charizzard/g, 'Charizard'], [/Lotos/g, 'Lotus'], [/Batmann/g, 'Batman'], [/Star Warz/g, 'Star Wars'], [/Millennium Hawk/g, 'Millennium Falcon'], [/Daytone/g, 'Daytona'], [/Speedmaster/g, 'Speedmaster'], [/Forse/g, 'Force'], [/Dunck/g, 'Dunk'], [/Yeezi/g, 'Yeezy'], [/Gameboy|GameBoi/g, 'Game Boy'], [/\bDank\b/g, 'Dunk'], [/Gyaradoss/g, 'Gyarados'], [/Piace/g, 'Piece'], [/Fyrby/g, 'Furby'], [/Blastoisse/g, 'Blastoise'], [/Pikachoo/g, 'Pikachu'], [/Mewtwoo/g, 'Mewtwo'], [/Statien/g, 'Station']];
 const NOUN = {
   pcparts: (a) => ({ cpu: 'desktop CPU processor chip, top view of the heat spreader', mb: 'computer motherboard', ram: 'pair of DDR desktop RAM memory sticks', psu: 'ATX computer power supply unit with cables', case: 'empty PC tower case with a glass side panel', cooler: 'CPU cooler' }[a.t] || 'computer part'),
   storage: (a) => ({ usb: 'USB flash drive', secure: 'encrypted USB flash drive with a numeric keypad', sd: 'SD memory card', microsd: 'microSD memory card with an SD adapter', dashcam: 'microSD memory card from a dashcam',
@@ -126,18 +126,37 @@ const ANGLE = {
     pcparts: 'seen from the side at a low angle', storage: 'seen from the side, showing the connector and the edge', toys: 'seen from the side', collectibles: 'seen from the side at a low angle', default: 'seen from the side at a low angle',
   },
 };
+// what a model looks like when the image model can't know it (too new, or easy to confuse)
+const FOLD = 'a book-style foldable smartphone shown half-open like a small book, a thin crease down the middle of the inner screen';
+const LOOK = {
+  'Nofing:phones': 'a Nothing phone with a transparent see-through back showing the internal screws and parts, thin white LED glyph light strips on the back',
+  phones_nofing_cmf_phone_1: 'a CMF by Nothing budget phone with a matte coloured back plate held by four visible corner screws and a round screw-on dial in the corner',
+  phones_nofing_cmf_phone_2_pro: 'a CMF by Nothing budget phone with a two-tone back, a visible screw in the corner and a round accessory dial',
+  phones_xiaomo_xiaomo_18_fold: `${FOLD}, a large round camera module on the back of the outer half, Xiaomi logo`,
+  phones_xiaomo_mix_fold_2: `${FOLD}, a long vertical camera module on the back`, phones_xiaomo_mix_fold_3: `${FOLD}, a rectangular camera island on the back`, phones_xiaomo_mix_fold_4: `${FOLD}, a rectangular camera island on the back`,
+  phones_xiaomo_mix_flip: 'a clamshell flip phone with a big outer screen around two cameras',
+  phones_xiaomo_xiaomo_18_ultra: 'a flagship phone with a huge round camera module with four lenses on the back',
+  phones_gugle_pixl_fold: `${FOLD}, a wide short shape, a horizontal black camera bar across the back`,
+  phones_gugle_pixl_9_pro_fold: `${FOLD}, a rounded rectangular camera island on the back`, phones_gugle_pixl_11_pro_fold: `${FOLD}, a horizontal camera bar on the back`,
+  phones_gugle_pixl: 'the first Google Pixel from 2016 with a glossy glass window panel on the top third of the back and thick bezels', phones_gugle_pixl_xl: 'the first Google Pixel XL from 2016 with a glossy glass window panel on the top third of the back and thick bezels',
+  phones_gugle_pixl_2: 'Google Pixel 2 from 2017 with a small glass window panel on the top of the back', phones_gugle_pixl_2_xl: 'Google Pixel 2 XL from 2017 with a black glass panel on the top of the back',
+  phones_gugle_pixl_3_pro: 'Google Pixel 3 XL from 2018 with a notch and a glass panel on the top of the back', phones_gugle_pixl_4_pro: 'Google Pixel 4 XL from 2019 with a square camera module on the back',
+  phones_gugle_pixl_5_pro: 'Google Pixel 4a 5G from 2020 with a square camera module on the back',
+  phones_pear_ifone_18: 'an iPhone with a two-lens vertical camera module', phones_pear_ifone_air_2: 'an ultra-thin iPhone Air with a single camera in a horizontal plateau bar across the top of the back',
+};
 export function promptFor(m, variant = 'clean') {
   const angle = ANGLE[variant] ? variant : null;
   const r = new RNG('ph|' + m.id + '|' + (angle ? 'clean' : variant));
   const a = m.art || {};
-  let name = m.name.replace(/(\d{3,4})[‑-]х/g, '$1s').replace(/\(([^)]*)\)/g, (x, y) => (/[a-z]/i.test(y) ? x : ''));
+  let name = m.name.replace(/(\d{3,4})[‑-]х/g, '$1s').replace(/\(([^)]*)\)/g, (x, y) => (/[a-z]/i.test(y) || m.brand === 'Nofing' ? x : ''));
   for (const [re, to] of FIX) name = name.replace(re, to);
   const real = BRAND[m.brand] ?? m.brand;
   const nm = latin(name);
   const noun = (NOUN[m.cat] || (() => 'item'))(a);
   const col = m.cat === 'cars' ? colorEn(m.colors?.[0]) : ['sneakers', 'cards', 'comics', 'toys', 'antiques', 'art', 'collectibles', 'perfume', 'jewelry', 'gear', 'misc', 'storage', 'pcparts'].includes(m.cat) ? '' : colorEn(m.colors?.[0]);
   const year = m.cat === 'cars' || m.cat === 'bikes' ? (m.year || '') : '';
-  const subj = [col, year, latin(real), nm && nm.length > 1 ? nm : '', noun].filter(Boolean).join(' ').replace(/\s+/g, ' ');
+  let subj = [col, year, latin(real), nm && nm.length > 1 ? nm : '', noun].filter(Boolean).join(' ').replace(/\s+/g, ' ');
+  if (LOOK[m.id] || LOOK[m.brand + ':' + m.cat]) subj += ` (${LOOK[m.id] || LOOK[m.brand + ':' + m.cat]})`;
   const scene = r.pick(SCENE[m.cat] || SCENE.misc);
   const cond = variant === 'worn' ? (WORN[m.cat] || WORN.default) : variant === 'broken' ? (BROKEN[m.cat] || BROKEN.default) : 'used but in good condition';
   const hand = /hand|fingers|wrist/.test(scene);

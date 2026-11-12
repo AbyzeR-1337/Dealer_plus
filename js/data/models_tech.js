@@ -79,7 +79,9 @@ export function buildTech(add) {
   [3, 4, 5, 6, 7, 8, 9, 10].forEach((v, i) => {
     const y = 2018 + i;
     add('phones', 'Gugle', `Pixl ${v}`, 699 + (v > 6 ? 100 : 0), y, { f: 'punch', cam: 'bar', logo: 'g' }, { colors: ['black', 'white', 'mint', 'sky', 'pink', 'lilac'], vars: GB(storFor(y)), os: 'droid' });
-    add('phones', 'Gugle', `Pixl ${v} Pro`, 899 + (v > 6 ? 100 : 0), y, { f: 'punch', cam: 'bar', logo: 'g' }, { colors: ['black', 'white', 'sky', 'cream', 'graphite'], vars: GB(storFor(y, true)), os: 'droid' });
+    // the big model was "XL" until the 4, there was no 5 Pro (that slot is the 4a 5G); ids stay as in old saves
+    const big = v <= 4 ? `Pixl ${v} XL` : v === 5 ? 'Pixl 4a 5G' : `Pixl ${v} Pro`;
+    add('phones', 'Gugle', big, v === 5 ? 499 : 899 + (v > 6 ? 100 : 0), y, { f: 'punch', cam: 'bar', logo: 'g' }, { colors: ['black', 'white', 'sky', 'cream', 'graphite'], vars: GB(storFor(y, v !== 5)), os: 'droid', ...(v <= 5 ? { id: `phones_gugle_pixl_${v}_pro` } : {}) });
     if (v >= 4) add('phones', 'Gugle', `Pixl ${v}a`, 449, y + 1 > 2026 ? 2026 : y + 1, { f: 'punch', cam: 'bar', logo: 'g' }, { colors: ['black', 'white', 'sky', 'mint'], vars: GB([128, 256]), os: 'droid' });
   });
   [['P30 Pro', 2019, 999], ['P40 Pro', 2020, 999], ['P50 Pro', 2021, 1199], ['P60 Pro', 2023, 1199], ['P70 Pro', 2024, 999], ['Mate 20 Pro', 2018, 1049], ['Mate 40 Pro', 2020, 1199], ['Mate 60 Pro', 2023, 999], ['Mate 70 Pro', 2024, 1099], ['Mate X5', 2023, 1799], ['Nova 12', 2024, 449], ['Pura 80 Ultra', 2025, 1399]]

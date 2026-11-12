@@ -8,6 +8,7 @@ import { buildExtra } from './models_extra.js';
 import { buildStorage } from './models_storage.js';
 import { buildPC } from './models_pc.js';
 import { buildNew } from './models_new.js';
+import { buildLines } from './models_lines.js';
 
 export const YEAR = 2026;
 
@@ -346,7 +347,7 @@ export const MODEL = {};
 export const BY_CAT = {};
 function slug(s) { return String(s).toLowerCase().replace(/[^a-z0-9а-яёіїєґ]+/gi, '_').replace(/^_|_$/g, ''); }
 export function addModel(cat, brand, name, price, year, art = {}, o = {}) {
-  let id = slug(`${cat}_${brand}_${name}`);
+  let id = o.id || slug(`${cat}_${brand}_${name}`); // o.id keeps an old id when a model is renamed
   if (MODEL[id]) { let i = 2; while (MODEL[id + '_' + i]) i++; id = id + '_' + i; }
   const m = { id, cat, brand, name, price, year, art, ...o };
   MODELS.push(m); MODEL[id] = m; (BY_CAT[cat] ||= []).push(m);
@@ -361,6 +362,7 @@ buildExtra(addModel);
 buildStorage(addModel);
 buildPC(addModel);
 buildNew(addModel);
+buildLines(addModel);
 
 // Typical market value for an original item in excellent used condition (USD, before regional effects)
 export function modelValue(m) {
