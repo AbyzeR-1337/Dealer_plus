@@ -164,69 +164,129 @@ export function lots() {
     return lot;
   }).filter((l) => l.at <= s.t);
 }
-// ---------------------------------------------------------------- mixed lots ("микс"): any phone at all
-// Three new mixes every 5 minutes (300 game minutes). A mix can hold literally any phone in the catalogue —
-// a 2007 iFone next to a Xiaomo 18 Fold and a 99‑dollar Redmo. The manifest lists what is inside; sizes,
-// wholesale discount and the rare problems work like single‑model lots. A haggled mix stays yours for a day.
-export const MIX_WIN = 300;
-export const MIX_KINDS = {
-  all: { n: ['Микс: любые телефоны', 'Мікс: будь-які телефони', 'Mix: any phones'], e: '🎲', f: () => true },
-  flag: { n: ['Микс флагманов', 'Мікс флагманів', 'Flagship mix'], e: '💎', f: (m) => m.price >= 900 },
-  budget: { n: ['Бюджетный микс', 'Бюджетний мікс', 'Budget mix'], e: '🪙', f: (m) => m.price <= 350 },
-  retro: { n: ['Ретро‑микс (до 2016)', 'Ретро‑мікс (до 2016)', 'Retro mix (before 2016)'], e: '📼', f: (m) => m.year <= 2015 },
-  fold: { n: ['Микс складных', 'Мікс складаних', 'Foldables mix'], e: '📖', f: (m) => m.art?.f === 'fold' || m.art?.f === 'flip' },
-  brand: { n: ['Микс бренда', 'Мікс бренду', 'Brand mix'], e: '🏷', f: null },
+// ---------------------------------------------------------------- wholesale boxes ("опт‑бокс")
+// A sealed box from a Shenzhen trader. You see its price, its theme, how many phones it may hold and what can
+// drop (rarity tiers with chances and example models) — never what is actually inside. Order it for yuan
+// (no trip needed), it comes by express cargo with customs included, you open it and see what fell out and
+// how many. Four new boxes every 5 minutes; an "anything" box can hold literally any phone in the game.
+export const BOX_WIN = 300;
+export const BOX_DELIVERY = 720; // 12 game hours
+export const BOX_THEMES = {
+  all: { n: ['Всё подряд', 'Усе підряд', 'Anything goes'], e: '🎲', f: () => true },
+  flag: { n: ['Флагманы', 'Флагмани', 'Flagships'], e: '💎', f: (m) => m.price >= 900 },
+  budget: { n: ['Бюджетники', 'Бюджетники', 'Budget'], e: '🪙', f: (m) => m.price <= 350 },
+  retro: { n: ['Ретро до 2016', 'Ретро до 2016', 'Retro before 2016'], e: '📼', f: (m) => m.year <= 2015 },
+  fold: { n: ['Складные', 'Складані', 'Foldables'], e: '📖', f: (m) => m.art?.f === 'fold' || m.art?.f === 'flip' },
+  brand: { n: ['Бренд', 'Бренд', 'Brand'], e: '🔖', f: null },
 };
-export const mixWindow = () => Math.floor(G.s.t / MIX_WIN);
-export const mixRefreshAt = () => (mixWindow() + 1) * MIX_WIN;
-const mixCache = new Map();
-function mixLot(win, i) {
-  const s = G.s, st = supState(), id = `mix_${win}_${i}`, ref = homeCity();
-  const key = `${s.id}|${id}|${ref}`;
-  let base = mixCache.get(key);
-  if (!base) {
-    const r = new RNG(`mix|${s.id}|${win}|${i}`);
-    const kind = i === 0 ? 'all' : r.pick(['all', 'all', 'flag', 'budget', 'retro', 'fold', 'brand']);
-    let pool = BY_CAT.phones || [], brand = null;
-    if (kind === 'brand') { brand = r.pick([...new Set(pool.map((m) => m.brand))].filter((b) => pool.filter((m) => m.brand === b).length >= 6)); pool = pool.filter((m) => m.brand === brand); }
-    else pool = pool.filter(MIX_KINDS[kind].f);
-    const units = [];
-    for (let k = 0; k < 200; k++) {
-      const m = r.pick(pool);
-      // phones older than 2019 come used (nobody has sealed boxes of those), newer ones sealed
-      const used = m.year < 2019;
-      const it = makeItem(new RNG(`mixi|${s.id}|${id}|${k}`), { model: m.id, quality: used ? 'good' : 'new', fakeMult: 0, lockRate: 0 });
-      if (!used) { it.sealed = true; it.cond = 100; it.defects = []; }
-      it.fake = 0; it.rar = 0; it.lock = null;
-      units.push({ m: m.id, used, val: itemValue(it, ref, 'true'), it });
-    }
-    const stock = r.pick([30, 50, 100, 100, 200, 200]);
-    base = { id, mix: kind, brand, units, win, off: r.int(12, 24), seller: r.pick(SUPPLIERS), rating: +(r.float(3.5, 4.9)).toFixed(1), at: win * MIX_WIN, until: (win + 1) * MIX_WIN, stock, sizes: LOT_SIZES.filter((n) => n <= stock), it: units[0].it, qty: 10 };
-    mixCache.set(key, base);
-    if (mixCache.size > 40) mixCache.delete(mixCache.keys().next().value);
+export const MIX_KINDS = BOX_THEMES; // reports of older mixed lots
+export const BOX_SIZES = { S: { n: [4, 10], k: ['малый', 'малий', 'small'] }, M: { n: [10, 25], k: ['средний', 'середній', 'medium'] }, L: { n: [25, 60], k: ['большой', 'великий', 'large'] } };
+export const BOX_TIERS = [
+  { k: 'common', n: ['Обычные', 'Звичайні', 'Common'], p: 0.62, col: '#9aa3ad', lo: 0, hi: 0.55 },
+  { k: 'good', n: ['Хорошие', 'Хороші', 'Good'], p: 0.27, col: '#4da3ff', lo: 0.55, hi: 0.85 },
+  { k: 'top', n: ['Топовые', 'Топові', 'Top'], p: 0.09, col: '#b46bff', lo: 0.85, hi: 0.97 },
+  { k: 'jack', n: ['Джекпот', 'Джекпот', 'Jackpot'], p: 0.02, col: '#ffb800', lo: 0.97, hi: 1 },
+];
+export const boxWindow = () => Math.floor(G.s.t / BOX_WIN);
+export const boxRefreshAt = () => (boxWindow() + 1) * BOX_WIN;
+const boxUsed = (m) => m.year < 2019; // nobody has sealed boxes of old phones: those come used
+function boxItem(rng, m) {
+  const used = boxUsed(m);
+  const it = makeItem(rng, { model: m.id, quality: used ? 'good' : 'new', fakeMult: 0, lockRate: 0 });
+  if (!used) { it.sealed = true; it.cond = 100; it.defects = []; } else { it.sealed = false; delete it.grade; }
+  it.fake = 0; it.rar = 0; it.lock = null;
+  return it;
+}
+// what a typical phone of this model is worth at home (sealed if 2019+, used if older)
+const valCache = new Map();
+function modelVal(m, ref) {
+  const k = `${m.id}|${ref}`;
+  if (!valCache.has(k)) { const n = boxUsed(m) ? 8 : 1; let v = 0; for (let i = 0; i < n; i++) v += itemValue(boxItem(new RNG(`bv|${m.id}|${i}`), m), ref, 'known'); valCache.set(k, v / n); } // valued as you'll see and sell it
+  return valCache.get(k);
+}
+const boxCache = new Map();
+function boxOf(win, i) {
+  const s = G.s, id = `box_${win}_${i}`, ref = homeCity(), key = `${s.id}|${id}|${ref}`;
+  if (boxCache.has(key)) return boxCache.get(key);
+  const r = new RNG(`box|${s.id}|${win}|${i}`);
+  const theme = i === 0 || i === 3 ? 'all' : r.pick(['all', 'flag', 'budget', 'retro', 'fold', 'brand']);
+  const size = i === 0 ? 'S' : i === 3 ? 'L' : r.pick(['S', 'M', 'M', 'L']);
+  let pool = BY_CAT.phones || [], brand = null;
+  if (theme === 'brand') { brand = r.pick([...new Set(pool.map((m) => m.brand))].filter((b) => pool.filter((m) => m.brand === b).length >= 8)); pool = pool.filter((m) => m.brand === brand); }
+  else pool = pool.filter(BOX_THEMES[theme].f);
+  const vals = pool.map((m) => ({ m, v: modelVal(m, ref) })).sort((a, b) => a.v - b.v);
+  const N = vals.length;
+  let prev = 0;
+  const tiers = [];
+  for (const [k, t] of BOX_TIERS.entries()) {
+    const from = prev, to = k === BOX_TIERS.length - 1 ? N : Math.min(N, Math.max(from + 1, Math.round(t.hi * N)));
+    const list = vals.slice(from, to);
+    prev = Math.max(prev, to);
+    if (!list.length) { if (tiers.length) tiers[tiers.length - 1].p += t.p; continue; }
+    tiers.push({ ...t, models: list.map((x) => x.m.id), mean: list.reduce((a, x) => a + x.v, 0) / list.length });
   }
-  return { ...base, deal: st.deals[id] || null };
+  const evUnit = tiers.reduce((a, t) => a + t.p * t.mean, 0);
+  const [a, b] = BOX_SIZES[size].n;
+  // the trader's markup varies: some boxes are a better deal than others, nobody tells you which
+  const price = Math.max(100, Math.round(((a + b) / 2) * evUnit * r.float(0.82, 0.97) * cnyRate() / 100) * 100);
+  const box = { id, win, i, theme, brand, size, nMin: a, nMax: b, price, tiers, seller: r.pick(SUPPLIERS), until: (win + 1) * BOX_WIN };
+  boxCache.set(key, box);
+  if (boxCache.size > 40) boxCache.delete(boxCache.keys().next().value);
+  return box;
 }
-// this window's three mixes + the ones you haggled for that are still held for you
-export function mixLots() {
-  const s = G.s, st = supState(), w = mixWindow();
-  const out = [0, 1, 2].map((i) => mixLot(w, i));
-  for (const [id, d] of Object.entries(st.deals)) {
-    const m = /^mix_(\d+)_(\d)$/.exec(id);
-    if (!m || +m[1] === w || d.paid || !(d.until > s.t)) continue;
-    out.push(mixLot(+m[1], +m[2]));
+export const boxes = () => [0, 1, 2, 3].map((i) => boxOf(boxWindow(), i));
+export const findBox = (id) => { const m = /^box_(\d+)_(\d)$/.exec(id || ''); return m ? boxOf(+m[1], +m[2]) : null; };
+export const boxTitle = (b) => `${BOX_THEMES[b.theme].e} ${L(BOX_THEMES[b.theme].n)}${b.brand ? ` ${b.brand}` : ''} · ${L(BOX_SIZES[b.size].k)}`;
+export const myBoxes = () => (supState().boxes ||= []);
+export function orderBox(id) {
+  const s = G.s, st = supState(), b = findBox(id);
+  if (!b || b.win !== boxWindow()) return { ok: false, msg: T('Этот бокс уже разобрали', 'Цей бокс уже розібрали', 'This box is gone') };
+  if (myBoxes().some((x) => x.box === id)) return { ok: false, msg: T('Вы уже заказали этот бокс', 'Ви вже замовили цей бокс', 'You already ordered this box') };
+  if (st.cny < b.price) return { ok: false, need: b.price - st.cny, msg: T(`Нужно ${b.price.toLocaleString('ru')} ¥, у вас ${st.cny.toLocaleString('ru')} ¥`, `Потрібно ${b.price.toLocaleString('ru')} ¥, у вас ${st.cny.toLocaleString('ru')} ¥`, `Need ${b.price.toLocaleString('ru')} ¥, you have ${st.cny.toLocaleString('ru')} ¥`) };
+  st.cny -= b.price;
+  const o = { id: uid('ob'), box: id, theme: b.theme, brand: b.brand, size: b.size, price: b.price, usd: b.price / cnyRate(), at: s.t, eta: s.t + BOX_DELIVERY, to: homeCity(), opened: false };
+  const list = myBoxes();
+  list.unshift(o);
+  while (list.length > 12) { const k = list.map((x) => x.opened).lastIndexOf(true); if (k < 0) break; list.splice(k, 1); }
+  stat('boxesOrdered');
+  emit('sup');
+  return { ok: true, o };
+}
+// opening: how many and which phones is decided right here
+export function openBox(oid) {
+  const s = G.s, o = myBoxes().find((x) => x.id === oid);
+  if (!o || o.opened || s.t < o.eta) return null;
+  const b = findBox(o.box);
+  if (!b) return null;
+  const R = new RNG(`boxopen|${s.id}|${o.id}`);
+  const n = R.int(b.nMin, b.nMax);
+  const got = [];
+  for (let k = 0; k < n; k++) {
+    let x = R.next(), t = b.tiers[0];
+    for (const tt of b.tiers) { if (x < tt.p) { t = tt; break; } x -= tt.p; }
+    const m = MODEL[R.pick(t.models)];
+    const it = boxItem(new RNG(`boxi|${o.id}|${k}`), m);
+    // the usual surprises of cheap wholesale, rarely
+    if (R.chance(0.05)) { it.sealed = false; it.cond = Math.min(it.cond, R.int(82, 92)); it.defects.push({ c: R.pick(PHONE_FIX), x: 0.5, y: 0.5, view: 'front', known: false }); }
+    if (R.chance(0.012)) it.fake = 2;
+    if (m.brand !== 'Pear' && R.chance(0.03)) it.defects.push({ c: 'cnrom', x: 0.5, y: 0.5, view: 'front', known: false });
+    got.push({ it, t: t.k, val: itemValue({ ...it, fake: 0 }, o.to, 'true') });
   }
-  return out;
+  const sum = got.reduce((a, x) => a + x.val, 0) || 1;
+  for (const g of got) {
+    g.it.paid = o.usd * g.val / sum; g.it.loc = o.to; g.it.lot = o.id;
+    addItem(g.it, g.it.paid, 'box');
+  }
+  o.opened = true; o.openedAt = s.t; o.n = n;
+  o.value = Math.round(got.reduce((a, g) => a + itemValue(g.it, o.to, 'known'), 0));
+  // what the reveal screen shows (light copies, enough to draw the photos)
+  o.items = got.map((g) => ({ m: g.it.m, cat: 'phones', seed: g.it.seed, color: g.it.color, v: g.it.v, cond: g.it.cond, sealed: g.it.sealed, defects: [], t: g.t, val: Math.round(itemValue(g.it, o.to, 'known')) }));
+  stat('boxesOpened'); addXP(Math.round(10 + n));
+  emit('sup'); emit('inv');
+  return o;
 }
-export const findLot = (id) => (id.startsWith('mix_') ? mixLots() : lots()).find((x) => x.id === id);
-export const lotTitle = (lot) => (lot.mix ? `${MIX_KINDS[lot.mix].e} ${L(MIX_KINDS[lot.mix].n)}${lot.brand ? ` ${lot.brand}` : ''}` : itemTitle(lot.it));
-// the manifest for a size: models with counts, most valuable first
-export function mixManifest(lot, qty = lotQty(lot)) {
-  const g = new Map();
-  for (const u of lot.units.slice(0, qty)) { const x = g.get(u.m) || { m: u.m, n: 0, val: 0, it: u.it, used: u.used }; x.n++; x.val += u.val; g.set(u.m, x); }
-  return [...g.values()].sort((a, b) => b.val / b.n - a.val / a.n);
-}
-export const mixValue = (lot, qty = lotQty(lot)) => lot.units.slice(0, qty).reduce((a, u) => a + u.val, 0);
+export const findLot = (id) => lots().find((x) => x.id === id);
+export const lotTitle = (lot) => (lot.mix ? `${BOX_THEMES[lot.mix].e} ${L(BOX_THEMES[lot.mix].n)}${lot.brand ? ` ${lot.brand}` : ''}` : itemTitle(lot.it));
 export function buyYuan(usd) {
   const st = supState();
   if (!spend(usd, 'bank', T('Покупка юаней', 'Купівля юанів', 'Buying yuan'))) return { ok: false, msg: T('Не хватает денег', 'Не вистачає грошей', 'Not enough money') };
@@ -235,13 +295,11 @@ export function buyYuan(usd) {
   return { ok: true, cny };
 }
 export function sellYuan(cny) { const st = supState(); cny = Math.min(cny, st.cny); st.cny -= cny; const usd = cny / cnyRate() * 0.985; earn(usd, 'bank', T('Продажа юаней', 'Продаж юанів', 'Selling yuan')); emit('sup'); return usd; }
-export function setDeal(lot, disc) { const st = supState(); st.deals[lot.id] = { disc, paid: false, qty: lotQty(lot), ...(lot.mix ? { until: G.s.t + 1440 } : {}) }; emit('sup'); }
+export function setDeal(lot, disc) { const st = supState(); st.deals[lot.id] = { disc, paid: false, qty: lotQty(lot) }; emit('sup'); }
 // the size you picked (10 by default); after paying, the size you bought
 export const lotQty = (lot) => { const st = supState(); return st.deals[lot.id]?.paid ? st.deals[lot.id].qty || lot.qty : st.picks[lot.id] || (lot.sizes?.includes(10) ? 10 : lot.sizes?.[0] || lot.qty); };
 export function pickQty(lot, n) { const st = supState(); if (st.deals[lot.id]?.paid || !lot.sizes.includes(n)) return; st.picks[lot.id] = n; if (st.deals[lot.id]) st.deals[lot.id].qty = n; emit('sup'); }
-// a mix is priced by what is inside: the average value of its phones, minus the seller's discount
-const baseUnit = (lot, qty) => (lot.mix ? mixValue(lot, qty) / qty * (1 - lot.off / 100) * cnyRate() : lot.unit);
-export const unitFor = (lot, qty = lotQty(lot)) => Math.max(10, Math.round(baseUnit(lot, qty) * (1 - (VOL[qty] || 0)) / 10) * 10);
+export const unitFor = (lot, qty = lotQty(lot)) => Math.max(10, Math.round(lot.unit * (1 - (VOL[qty] || 0)) / 10) * 10);
 export const lotTotal = (lot, qty = lotQty(lot)) => Math.round(unitFor(lot, qty) * qty * (1 - (lot.deal?.disc || 0) / 100));
 // rough odds that something goes wrong with this lot (for the card): grows with size, falls with the rating
 export function lotOdds(lot, qty = lotQty(lot)) {
@@ -264,7 +322,7 @@ export function payLot(lot) {
   // what can go wrong — rare, more likely with big lots and low‑rated sellers
   const R = new RNG(`${lot.id}|risk|${qty}|${s.id}`);
   const o = lotOdds(lot, qty);
-  const rep = { id: lot.id, at: s.t, m: lot.m || null, mix: lot.mix || null, brand: lot.brand || null, seller: lot.seller, qty, total, got: qty, short: 0, refund: 0, resort: 0, opened: 0, clones: 0, cn: false };
+  const rep = { id: lot.id, at: s.t, m: lot.m, seller: lot.seller, qty, total, got: qty, short: 0, refund: 0, resort: 0, opened: 0, clones: 0, cn: false };
   if (R.chance(o.short)) {
     rep.short = Math.max(1, Math.round(qty * R.float(0.02, 0.06))); rep.got -= rep.short;
     if (lot.rating >= 4.3) { rep.refund = Math.round(total / qty * rep.short); st.cny += rep.refund; } // honest sellers give the money back
@@ -280,34 +338,22 @@ export function payLot(lot) {
   order.slice(rep.resort, rep.resort + rep.clones).forEach((i) => role.set(i, 'clone'));
   order.slice(rep.resort + rep.clones, rep.resort + rep.clones + rep.opened).forEach((i) => role.set(i, 'opened'));
   const M = MODEL[lot.m];
-  // a mix-up: an older model of the same brand; in a mix the manifest doesn't match — cheap phones instead
-  const older = lot.mix ? (BY_CAT.phones || []).filter((x) => x.price <= 200 && x.year >= 2019) : (BY_CAT.phones || []).filter((x) => x.brand === M.brand && x.id !== M.id && x.year < M.year && x.year >= M.year - 4 && x.price < M.price);
-  const paidUsd = (total - rep.refund) / cnyRate();
-  const shares = lot.mix ? lot.units.slice(0, rep.got).map((u) => u.val) : null;
-  const shareSum = shares ? shares.reduce((a, b) => a + b, 0) : 0;
-  const each = paidUsd / rep.got;
+  // a mix-up: an older model of the same brand
+  const older = (BY_CAT.phones || []).filter((x) => x.brand === M.brand && x.id !== M.id && x.year < M.year && x.year >= M.year - 4 && x.price < M.price);
+  const each = (total - rep.refund) / cnyRate() / rep.got;
   const pin = (it, c) => it.defects.push({ c, x: +R.float(0.3, 0.7).toFixed(3), y: +R.float(0.3, 0.7).toFixed(3), view: 'front', known: false });
   for (let i = 0; i < rep.got; i++) {
     const kind = role.get(i);
-    const want = lot.mix ? lot.units[i].m : lot.m;
-    const model = kind === 'resort' && older.length ? R.pick(older).id : want;
-    let it;
-    // a mix delivers exactly the phone from the manifest (colour, memory, condition)
-    if (lot.mix && model === want) { it = JSON.parse(JSON.stringify(lot.units[i].it)); it.id = uid('i'); it.tests = {}; }
-    else {
-      it = makeItem(new RNG(`${lot.id}|${i}|${s.id}`), { model, quality: 'new', fakeMult: 0, lockRate: 0 });
-      if (model === want && !lot.mix) it.v = lot.it.v;
-      it.sealed = true; it.cond = 100; it.defects = [];
-    }
-    // in a mix every phone carries its share of the price by value
-    const cost = lot.mix ? paidUsd * shares[i] / shareSum : each;
-    it.fake = 0; it.rar = 0; it.paid = cost; it.loc = SZX; it.lot = lot.id;
+    const model = kind === 'resort' && older.length ? R.pick(older).id : lot.m;
+    const it = makeItem(new RNG(`${lot.id}|${i}|${s.id}`), { model, quality: 'new', fakeMult: 0, lockRate: 0 });
+    if (model === lot.m) it.v = lot.it.v;
+    it.sealed = true; it.cond = 100; it.defects = []; it.fake = 0; it.rar = 0; it.paid = each; it.loc = SZX; it.lot = lot.id;
     if (kind === 'clone') it.fake = 2; // a 1:1 replica in an original-looking box
     if (kind === 'opened') { it.sealed = false; it.cond = R.int(84, 93); pin(it, R.pick(PHONE_FIX)); }
     // a few units in any lot are duds or locked
     else if (new RNG(`${lot.id}|q|${i}`).chance(o.dud)) { it.sealed = false; it.cond = 88; if (R.chance(0.5)) it.lock = 'passcode'; else pin(it, R.pick(PHONE_FIX)); }
     if (rep.cn && MODEL[model]?.brand !== 'Pear') pin(it, 'cnrom'); // Chinese firmware: only Android phones
-    addItem(it, cost, 'supplier');
+    addItem(it, each, 'supplier');
   }
   st.deals[lot.id] = { ...(st.deals[lot.id] || {}), paid: true, qty };
   st.reports.unshift(rep); if (st.reports.length > 12) st.reports.length = 12;
@@ -367,21 +413,19 @@ export function cargoArrived(id) {
 export function supTick() {
   const s = G.s, st = supState();
   if (s.t % 30) return;
-  if (s.t % MIX_WIN === 0) {
-    // a new set of mixes: say so only when one holds something special
-    const inst = (s.installed || []).includes('supplier');
-    if (inst) {
-      let best = null;
-      for (const l of mixLots().filter((x) => x.win === mixWindow())) for (const u of l.units.slice(0, 50)) if (!best || u.val > best.u.val) best = { l, u };
-      if (best && best.u.val >= 1300) notify('supplier', T('Микс‑партия', 'Мікс‑партія', 'Mixed lot'), T(`В микс попался ${itemTitle(best.u.it)}! Обновление через 5 минут.`, `У мікс потрапив ${itemTitle(best.u.it)}! Оновлення через 5 хвилин.`, `A mix has a ${itemTitle(best.u.it)} in it! Refreshes in 5 minutes.`), { go: ['supplier', 'lot', { id: best.l.id }] });
-    }
-    const day = Math.floor(s.t / 1440), w = mixWindow();
+  // boxes that arrived: one message each
+  for (const o of myBoxes()) if (!o.notified && s.t >= o.eta) {
+    o.notified = true;
+    notify('supplier', T('Опт‑бокс доставлен', 'Опт‑бокс доставлено', 'Wholesale box delivered'), T(`${boxTitle(o)} — откройте и посмотрите, что выпало!`, `${boxTitle(o)} — відкрийте й подивіться, що випало!`, `${boxTitle(o)} — open it and see what you got!`), { go: ['supplier', 'obox', { id: o.id }] });
+    emit('sup');
+  }
+  if (s.t % BOX_WIN === 0) {
+    const day = Math.floor(s.t / 1440);
     for (const id of Object.keys(st.deals)) {
       const m = /^(lot|mix)_(\d+)_/.exec(id); if (!m) continue;
-      const old = m[1] === 'lot' ? +m[2] < day - 2 : +m[2] < w - 1 && !(st.deals[id].until > s.t && !st.deals[id].paid);
-      if (old) { delete st.deals[id]; delete st.picks[id]; }
+      if (m[1] === 'mix' || +m[2] < day - 2) { delete st.deals[id]; delete st.picks[id]; }
     }
-    for (const id of Object.keys(st.picks)) { const m = /^mix_(\d+)_/.exec(id); if (m && +m[1] < w - 1 && !st.deals[id]) delete st.picks[id]; }
+    for (const id of Object.keys(st.picks)) if (id.startsWith('mix_')) delete st.picks[id];
     emit('sup');
   }
   const ls = lots();
