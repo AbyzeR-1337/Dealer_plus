@@ -12,6 +12,7 @@ import { UI, registerApps, initShell, renderHome, renderStatus, liveUpdate, rere
 import { ensurePhone, PHONE } from './game/phone.js';
 import { readInvite, sendPendingFriend, errText, startOnline } from './game/online.js';
 import { risk, jailed, payBail, crimeName } from './game/crime.js';
+import { ensureHousing } from './game/housing.js';
 import { initHome } from './ui/home.js';
 import { initGalleries } from './ui/comp.js';
 import { initWorld, startSim, isPaused } from './game/sim.js';
@@ -79,6 +80,7 @@ function wire() {
 function startGame() {
   setLang(G.s.player.lang);
   initWorld();
+  ensureHousing();
   ensurePhone(APPS);
   const inv = readInvite();
   if (inv?.friend) {

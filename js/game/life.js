@@ -80,7 +80,7 @@ export function buyHouse(id) {
   const p = housePrice(h);
   if (!spend(p, 'realty', L(h.n))) return { ok: false, msg: T('Не хватает денег', 'Не вистачає грошей', 'Not enough money') };
   if (s.house.own) sellHouseSilently();
-  s.house = { type: id, own: true, city: s.player.city, since: s.t, paid: p };
+  s.house = { v: 2, type: id, own: true, city: s.player.city, since: s.t, paid: p };
   stat('housesBought'); addXP(40);
   emit('house');
   return { ok: true };
@@ -94,7 +94,7 @@ function sellHouseSilently() {
 export function leaveHouse() {
   const s = G.s;
   if (s.house.own) sellHouseSilently();
-  s.house = { type: 'none', own: false, city: s.player.city };
+  s.house = { v: 2, type: 'none', own: false, city: s.player.city };
   emit('house');
 }
 
@@ -103,7 +103,7 @@ export function sleepGain(hours = 8) {
   const s = G.s;
   const h = houseDef();
   const home = s.house.type !== 'none' && s.house.city === s.player.city;
-  const k = home ? h.energy : awayFromHome() || s.house.type === 'none' ? (s.hotelNight ? 0.85 : 0.45) : 0.45;
+  const k = home ? h.energy + (s.house.tier === 'lux' ? 0.05 : s.house.tier === 'cheap' ? -0.05 : 0) : awayFromHome() || s.house.type === 'none' ? (s.hotelNight ? 0.85 : 0.45) : 0.45;
   return clamp(hours * 12 * k, 10, 100);
 }
 export function afterSleep(hours) {
@@ -182,16 +182,7 @@ export function dailyLife(prevDay) {
   }
   s.tax.lastIncome = s.tax.income;
   s.tax.income = 0; s.tax.paid = 0; s.tax.day = day();
-  // rent / hotel
-  if (s.house.type !== 'none' && !s.house.own) {
-    const r = rentFor();
-    if (s.money >= r) { charge(r, 'rent', L(houseDef().n)); s.house.late = 0; }
-    else {
-      s.house.late = (s.house.late || 0) + 1;
-      notify('realty', T('Просрочка аренды', 'Прострочка оренди', 'Rent overdue'), fmt(r));
-      if (s.house.late >= 2) { s.house = { type: 'none', own: false, city: s.player.city }; notify('realty', T('Вас выселили', 'Вас виселили', 'Evicted'), T('Нечем платить аренду', 'Нічим платити оренду', 'Couldn’t pay rent')); }
-    }
-  }
+  // rent is paid up front by the day / week / month (game/housing.js)
   s.daily = {};
   snapshotWorth();
   return out;

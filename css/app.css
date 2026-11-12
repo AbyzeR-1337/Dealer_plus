@@ -1115,3 +1115,8 @@ img.bm.ready { opacity: 1; }
 .jl-row { display: flex; justify-content: space-between; padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,.1); font-size: 14px; }
 .jl-box .tiny { opacity: .55; font-size: 12px; margin-top: 6px; }
 .st-sick { font-size: 13px; margin-right: 4px; }
+
+/* rentals */
+.rt-paid { margin-top: 8px; font-size: 15px; } .rt-paid b { color: #2ec27e; } .rt-paid.late { color: #ff5468; font-weight: 700; }
+.rt-prices { display: flex; gap: 6px; margin-top: 8px; } .rt-prices span { flex: 1; border-radius: 12px; padding: 7px 8px; background: rgba(127,127,127,.1); display: flex; flex-direction: column; gap: 1px; } .rt-prices small { opacity: .6; font-size: 11.5px; } .rt-prices b { font-size: 14px; }
+.rt-card h3 { font-size: 16px; }
