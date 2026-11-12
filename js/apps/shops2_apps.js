@@ -16,7 +16,7 @@ import { sfx } from '../ui/sfx.js';
 import {
   CAR_CLASSES, carClass, autoFeed, vinReport, VIN_PRICE, buyoutPrice, dealerBuyout,
   YM_BRANDS, ymState, ymFeed, splitDebt, splitLimit, ymBuy,
-  supState, cnyRate, lots, buyYuan, sellYuan, setDeal, lotTotal, payLot, inShenzhen, cargoHome, SZX, lotQty, pickQty, unitFor, lotRisk, VOL,
+  supState, cnyRate, lots, buyYuan, sellYuan, setDeal, lotTotal, payLot, inShenzhen, cargoHome, SZX, lotQty, pickQty, unitFor, lotRisk, VOL, mixLots, findLot, lotTitle, mixManifest, mixValue, mixRefreshAt, mixWindow,
 } from '../game/shops2.js';
 
 // ---------------------------------------------------------------- car market
@@ -119,7 +119,10 @@ function supMain() {
     <div class="sup-hero"><b>${T('Опт из Шэньчжэня', 'Опт із Шеньчжені', 'Wholesale from Shenzhen')}</b><small>${T('Договоритесь о цене, привезите юани и заберите партию лично', 'Домовтеся про ціну, привезіть юані й заберіть партію особисто', 'Agree a price, bring yuan and collect the lot in person')}</small><div class="sup-steps"><span><i>1</i>${T('Торг', 'Торг', 'Haggle')}</span><span><i>2</i>${T('Юани', 'Юані', 'Yuan')}</span><span><i>3</i>${T('Вылет', 'Виліт', 'Fly')}</span><span><i>4</i>${T('Оплата', 'Оплата', 'Pay')}</span></div><small>1 $ = ${cnyRate().toFixed(2)} ¥</small></div>
     ${wait.length ? `<div class="card hl"><b>📦 ${T(`Ваш товар в Шэньчжэне: ${wait.length} шт`, `Ваш товар у Шеньчжені: ${wait.length} шт`, `Your goods in Shenzhen: ${wait.length} pcs`)}</b><div class="small m">${T('Отправьте карго «под ключ» (12% от стоимости, 2 дня, таможня включена) или везите в багаже через «Путешествия» — с риском на таможне.', 'Надішліть карго «під ключ» (12% вартості, 2 дні, митниця включена) або везіть у багажі через «Подорожі» — з ризиком на митниці.', 'Send door‑to‑door cargo (12% of value, 2 days, customs included) or carry it via Travel — with a customs risk.')}</div><div class="btns"><button class="btn sm" data-a="supcargo">${T('Карго домой', 'Карго додому', 'Cargo home')}</button><button class="btn sm dark" data-a="open" data-v="travel">✈️ ${T('Лететь с багажом', 'Летіти з багажем', 'Fly with luggage')}</button></div></div>` : ''}
     <div class="chips wrap"><button class="chip${!SV.brand ? ' on' : ''}" data-a="supbrand" data-v="">${T('Все', 'Усі', 'All')}</button>${brands.map((b) => `<button class="chip${SV.brand === b ? ' on' : ''}" data-a="supbrand" data-v="${esc(b)}">${esc(b)}</button>`).join('')}</div>
-    <h3 class="sub">${T('Партии сегодня', 'Партії сьогодні', 'Lots today')}</h3><div class="sup-grid">`;
+    <div class="row between sup-mixhead"><h3 class="sub">🎲 ${T('Микс‑партии', 'Мікс‑партії', 'Mixed lots')}</h3><span class="small m">${T('новые через', 'нові через', 'new in')} <b data-cd="${mixRefreshAt()}" data-fmt="long"></b></span></div>
+    <p class="small m" style="margin:0 0 6px">${T('Разные телефоны в одной партии — попасться может вообще любой: от iFone 2G до складных 2026 года. Состав виден в манифесте.', 'Різні телефони в одній партії — може трапитися взагалі будь-який: від iFone 2G до складаних 2026 року. Склад видно в маніфесті.', 'Different phones in one lot — literally any can turn up, from an iFone 2G to 2026 foldables. See the manifest.')}</p>
+    <div class="sup-grid">${mixLots().map(mixCard).join('')}</div>
+    <h3 class="sub">${T('Партии одной модели', 'Партії однієї моделі', 'Single‑model lots')}</h3><div class="sup-grid">`;
   h += ls.map((l) => {
     const d = l.deal, paid = d?.paid;
     const q = lotQty(l), u = unitFor(l, q);
@@ -129,18 +132,25 @@ function supMain() {
   if (st.reports.length) h += `<h3 class="sub">${T('Мои партии', 'Мої партії', 'My lots')}</h3>` + st.reports.map(repCard).join('');
   return h;
 }
+// a mix in the grid: four phones from the manifest as a collage
+const collage = (l, size = 140) => { const seen = new Set(), pics = []; for (const u of l.units) { if (seen.has(u.m)) continue; seen.add(u.m); pics.push(u.it); if (pics.length === 4) break; } return `<div class="sup-collage">${pics.map((it) => `<div>${img(it, { size })}</div>`).join('')}</div>`; };
+function mixCard(l) {
+  const q = lotQty(l), u = unitFor(l, q), d = l.deal, paid = d?.paid, models = mixManifest(l, q).length;
+  const held = d && !paid && l.win !== mixWindow();
+  return `<div class="sup-card sup-mix" data-a="go" data-v="lot" data-id="${l.id}"><div class="sup-img">${collage(l)}<span>−${l.off}% ${T('к рынку', 'до ринку', 'vs market')}</span></div><b class="sup-price">≈ ${u.toLocaleString('ru')} ¥ <small>/ ${T('шт', 'шт', 'pc')}</small></b><small><b>${esc(lotTitle(l))}</b></small><small class="m">${models} ${T('моделей в', 'моделей у', 'models in')} ${q} ${T('шт', 'шт', 'pcs')}</small><span class="sup-qty">${q} ${T('шт', 'шт', 'pcs')} · ${lotTotal(l, q).toLocaleString('ru')} ¥${d?.disc ? ` · −${d.disc}%` : ''}</span><small class="m">${esc(l.seller)} · ★ ${l.rating}${held ? ` · 🔒 ${T('держат за вами', 'тримають за вами', 'held for you')}` : ''}</small>${paid ? `<span class="g small">✅ ${T('Куплено', 'Куплено', 'Bought')}</span>` : `<button class="btn xs">🎲 ${T('Смотреть состав', 'Дивитися склад', 'See the manifest')}</button>`}</div>`;
+}
 // what you saw when you picked the lot up (clones and Chinese firmware only show up on inspection)
 function repCard(r) {
-  const m = MODEL[r.m];
+  const m = r.m ? MODEL[r.m] : null;
   const issues = [];
   if (r.short) issues.push(`📉 ${T('недовложение', 'недовкладення', 'short count')} −${r.short} ${T('шт', 'шт', 'pcs')}${r.refund ? T(` (вернули ${r.refund.toLocaleString('ru')} ¥)`, ` (повернули ${r.refund.toLocaleString('ru')} ¥)`, ` (refunded ${r.refund.toLocaleString('ru')} ¥)`) : T(' (денег не вернули)', ' (грошей не повернули)', ' (no refund)')}`);
-  if (r.resort) issues.push(`🔀 ${T('пересорт', 'пересорт', 'mixed‑up models')}: ${r.resort} ${T('шт другой модели', 'шт іншої моделі', 'pcs of another model')}`);
+  if (r.resort) issues.push(r.mix ? `🔀 ${T('манифест не совпал', 'маніфест не збігся', 'manifest mismatch')}: ${r.resort} ${T('шт заменили дешёвыми', 'шт замінили дешевими', 'pcs swapped for cheap ones')}` : `🔀 ${T('пересорт', 'пересорт', 'mixed‑up models')}: ${r.resort} ${T('шт другой модели', 'шт іншої моделі', 'pcs of another model')}`);
   if (r.opened) issues.push(`📦 ${T('вскрытые коробки', 'розкриті коробки', 'opened boxes')}: ${r.opened} ${T('шт (возвраты)', 'шт (повернення)', 'pcs (returns)')}`);
-  return `<div class="card sup-rep"><div class="row between"><b>${esc(m ? (m.name.startsWith(m.brand + ' ') ? m.name : `${m.brand} ${m.name}`) : r.m)}</b><span class="small m">${r.got}/${r.qty} ${T('шт', 'шт', 'pcs')}</span></div><div class="small m">${esc(r.seller)} · ${r.total.toLocaleString('ru')} ¥</div>${issues.length ? issues.map((x) => `<div class="small o">${x}</div>`).join('') : `<div class="small g">✅ ${T('При приёмке всё сошлось', 'Під час приймання все зійшлося', 'Everything checked out at pickup')}</div>`}<div class="tiny m">${T('Клоны и прошивку видно только при проверке телефона.', 'Клони й прошивку видно лише під час перевірки телефона.', 'Clones and firmware only show when you check a phone.')}</div></div>`;
+  return `<div class="card sup-rep"><div class="row between"><b>${esc(r.mix ? lotTitle({ mix: r.mix, brand: r.brand }) : m ? (m.name.startsWith(m.brand + ' ') ? m.name : `${m.brand} ${m.name}`) : '?')}</b><span class="small m">${r.got}/${r.qty} ${T('шт', 'шт', 'pcs')}</span></div><div class="small m">${esc(r.seller)} · ${r.total.toLocaleString('ru')} ¥</div>${issues.length ? issues.map((x) => `<div class="small o">${x}</div>`).join('') : `<div class="small g">✅ ${T('При приёмке всё сошлось', 'Під час приймання все зійшлося', 'Everything checked out at pickup')}</div>`}<div class="tiny m">${T('Клоны и прошивку видно только при проверке телефона.', 'Клони й прошивку видно лише під час перевірки телефона.', 'Clones and firmware only show when you check a phone.')}</div></div>`;
 }
 // one lot: pick the size, see the price per phone, the total and the risks, then haggle → yuan → fly → pay
 function supLot(p) {
-  const l = lots().find((x) => x.id === p.id);
+  const l = findLot(p.id);
   if (!l) return empty('box', T('Партия уже ушла', 'Партія вже пішла', 'The lot is gone'));
   const st = supState(), s = G.s, here = s.player.city === SZX, d = l.deal, paid = d?.paid;
   const q = lotQty(l), u = unitFor(l, q), total = lotTotal(l, q), risk = lotRisk(l, q);
@@ -148,9 +158,11 @@ function supLot(p) {
   const sizes = l.sizes.map((n) => `<button class="${n === q ? 'on' : ''}" data-a="supqty" data-v="${l.id}" data-n="${n}" ${paid ? 'disabled' : ''}><b>${n} ${T('шт', 'шт', 'pcs')}</b><small>${unitFor(l, n).toLocaleString('ru')} ¥/${T('шт', 'шт', 'pc')}</small>${VOL[n] ? `<i>−${Math.round(VOL[n] * 100)}%</i>` : ''}<small class="m">${lotTotal(l, n).toLocaleString('ru')} ¥</small></button>`).join('');
   const RL = [[T('низкий', 'низький', 'low'), 'g'], [T('средний', 'середній', 'medium'), 'y'], [T('повышенный', 'підвищений', 'elevated'), 'r']][risk.level];
   const btn = paid ? `<div class="card center g">✅ ${T(`Куплено ${q} шт`, `Куплено ${q} шт`, `Bought ${q} pcs`)}</div>` : step === 1 ? `<button class="btn block" data-a="supdeal" data-v="${l.id}">🤝 ${T('Торговаться за партию', 'Торгуватися за партію', 'Haggle for the lot')}</button>` : step === 2 ? `<button class="btn block" data-a="supcny" data-v="${total - st.cny}">¥ ${T(`Докупить ${(total - st.cny).toLocaleString('ru')} ¥`, `Докупити ${(total - st.cny).toLocaleString('ru')} ¥`, `Top up ${(total - st.cny).toLocaleString('ru')} ¥`)}</button>` : step === 3 ? `<button class="btn block" data-a="open" data-v="travel">✈️ ${T('Лететь в Шэньчжэнь — платить лично', 'Летіти в Шеньчжень — платити особисто', 'Fly to Shenzhen — pay in person')}</button>` : `<button class="btn block green" data-a="suppay" data-v="${l.id}">💴 ${T('Оплатить', 'Оплатити', 'Pay')} ${total.toLocaleString('ru')} ¥</button>`;
-  return `<div class="sup-lothead">${img(l.it, { size: 460 })}</div>
-    <h2 style="margin:8px 0 2px">${esc(itemTitle(l.it))}</h2><div class="small m">${esc(l.seller)} · ★ ${l.rating} · ${T('на складе до', 'на складі до', 'in stock up to')} ${l.stock} ${T('шт', 'шт', 'pcs')} · −${l.off}% ${T('к рынку', 'до ринку', 'vs market')}</div>
-    <h3 class="sub">${T('Размер партии', 'Розмір партії', 'Lot size')}</h3><div class="sup-sizes">${sizes}</div>
+  const man = l.mix ? mixManifest(l, q) : null;
+  const manHTML = man ? `<div class="card sup-man"><div class="row between"><b>📋 ${T('Манифест', 'Маніфест', 'Manifest')} · ${q} ${T('шт', 'шт', 'pcs')}, ${man.length} ${T('моделей', 'моделей', 'models')}</b><span class="small m">${T('рынок', 'ринок', 'market')} ≈ ${fmt(mixValue(l, q))}</span></div>${man.slice(0, SV.manAll ? 999 : 12).map((x) => `<div class="sup-manrow"><span class="sup-manimg">${img(x.it, { size: 120 })}</span><span class="grow">${esc(itemTitle(x.it, false))}<small class="m"> · ${MODEL[x.m].year}${x.used ? ` · ${T('б/у', 'б/в', 'used')}` : ''}</small></span><b>×${x.n}</b><small class="m">${fmt(x.val / x.n)}</small></div>`).join('')}${man.length > 12 && !SV.manAll ? `<button class="btn xs dark block mt" data-a="supman">${T(`Показать все ${man.length}`, `Показати всі ${man.length}`, `Show all ${man.length}`)}</button>` : ''}</div>` : '';
+  return `<div class="sup-lothead">${l.mix ? collage(l, 240) : img(l.it, { size: 460 })}</div>
+    <h2 style="margin:8px 0 2px">${esc(lotTitle(l))}</h2>${l.mix ? `<div class="small m">${l.win === mixWindow() ? `${T('Микс исчезнет через', 'Мікс зникне через', 'Gone in')} <b data-cd="${l.until}" data-fmt="long"></b> · ${T('после торга его придержат на сутки', 'після торгу його притримають на добу', 'haggle and it’s held for a day')}` : d?.until ? `🔒 ${T('Держат за вами до', 'Тримають за вами до', 'Held for you until')} <b data-cd="${d.until}" data-fmt="long"></b>` : ''}</div>` : ''}<div class="small m">${esc(l.seller)} · ★ ${l.rating} · ${T('на складе до', 'на складі до', 'in stock up to')} ${l.stock} ${T('шт', 'шт', 'pcs')} · −${l.off}% ${T('к рынку', 'до ринку', 'vs market')}</div>
+    <h3 class="sub">${T('Размер партии', 'Розмір партії', 'Lot size')}</h3><div class="sup-sizes">${sizes}</div>${manHTML}
     <div class="card"><div class="kv"><span>${T('Цена за штуку', 'Ціна за штуку', 'Per phone')}</span><b>${u.toLocaleString('ru')} ¥ · ≈ ${fmt(u / cnyRate())}</b></div>${d?.disc ? `<div class="kv"><span>${T('Скидка после торга', 'Знижка після торгу', 'Haggled discount')}</span><b class="g">−${d.disc}%</b></div>` : ''}<div class="kv"><span>${T('Итого за партию', 'Разом за партію', 'Lot total')}</span><b>${total.toLocaleString('ru')} ¥ · ≈ ${fmt(total / cnyRate())}</b></div><div class="kv"><span>${T('Ваши юани', 'Ваші юані', 'Your yuan')}</span><b>${st.cny.toLocaleString('ru')} ¥</b></div><div class="kv"><span>${T('Место дома после доставки', 'Місце вдома після доставки', 'Room at home after delivery')}</span><b class="${freeSpace() >= q ? '' : 'r'}">${freeSpace()} / ${q}</b></div></div>
     <div class="card sup-risk"><div class="row between"><b>⚠️ ${T('Риски партии', 'Ризики партії', 'Lot risks')}</b><span class="tag ${RL[1]}">${RL[0]} · ≈${Math.round(risk.p * 100)}%</span></div><div class="small m">${T('Редко, но бывает — и тем чаще, чем больше партия и ниже рейтинг продавца:', 'Рідко, але буває — і тим частіше, чим більша партія й нижчий рейтинг продавця:', 'Rare, but it happens — more often with bigger lots and lower‑rated sellers:')}</div>
       <ul class="sup-rl"><li>📉 ${T('недовложение — пара коробок «потерялась» (честные продавцы с ★4.3+ вернут юани)', 'недовкладення — пара коробок «загубилася» (чесні продавці з ★4.3+ повернуть юані)', 'short count — a couple of boxes “went missing” (honest ★4.3+ sellers refund the yuan)')}</li><li>🔀 ${T('пересорт — часть партии старой моделью', 'пересорт — частина партії старою моделлю', 'mixed‑up models — some boxes hold an older model')}</li><li>📦 ${T('вскрытые возвраты с дефектами', 'розкриті повернення з дефектами', 'opened returns with defects')}</li><li>🎭 ${T('клоны 1:1 в оригинальных коробках — таможня может изъять и оштрафовать', 'клони 1:1 в оригінальних коробках — митниця може вилучити й оштрафувати', '1:1 clones in original boxes — customs may seize them and fine you')}</li><li>🇨🇳 ${T('китайская прошивка без Google — перепрошивка в мастерской', 'китайська прошивка без Google — перепрошивка в майстерні', 'Chinese ROM without Google — reflash in the workshop')}</li><li>🛃 ${T('в карго: задержка на таможне с доначислением, помятая коробка', 'у карго: затримка на митниці з донарахуванням, помʼята коробка', 'in cargo: a customs hold with extra duty, a crushed box')}</li></ul></div>
@@ -162,7 +174,8 @@ export const supplierApp = {
   views: { main: supMain, lot: supLot },
   actions: {
     supbrand: (b) => { SV.brand = b || null; rerender(); },
-    supqty: (id, el) => { const l = lots().find((x) => x.id === id); if (l) pickQty(l, +el.dataset.n); rerender(); },
+    supman: () => { SV.manAll = !SV.manAll; rerender(); },
+    supqty: (id, el) => { const l = findLot(id); if (l) pickQty(l, +el.dataset.n); rerender(); },
     supcny: async (need) => {
       const st = supState();
       const want = need ? +need / cnyRate() / 0.985 + 1 : 100;
@@ -172,7 +185,7 @@ export const supplierApp = {
     },
     supcnysell: async () => { const st = supState(); if (!(await confirmBox(T('Продать все юани?', 'Продати всі юані?', 'Sell all yuan?'), `${st.cny} ¥ → ${fmt(st.cny / cnyRate() * 0.985)}`, T('Продать', 'Продати', 'Sell')))) return; sellYuan(st.cny); rerender(); },
     supdeal: async (id) => {
-      const l = lots().find((x) => x.id === id); if (!l) return;
+      const l = findLot(id); if (!l) return;
       const r = await playMini('haggle', { title: T(`Торг: ${l.seller}`, `Торг: ${l.seller}`, `Haggling: ${l.seller}`), item: l.it, pass: 0 });
       if (r.quit) return;
       setDeal(l, r.disc || 0);
@@ -180,9 +193,9 @@ export const supplierApp = {
       rerender();
     },
     suppay: async (id) => {
-      const l = lots().find((x) => x.id === id); if (!l) return;
+      const l = findLot(id); if (!l) return;
       const q = lotQty(l);
-      if (!(await confirmBox(T(`Оплатить партию ${q} шт?`, `Оплатити партію ${q} шт?`, `Pay for ${q} pcs?`), `${lotTotal(l, q).toLocaleString('ru')} ¥ · ${esc(itemTitle(l.it))}`, T('Оплатить', 'Оплатити', 'Pay')))) return;
+      if (!(await confirmBox(T(`Оплатить партию ${q} шт?`, `Оплатити партію ${q} шт?`, `Pay for ${q} pcs?`), `${lotTotal(l, q).toLocaleString('ru')} ¥ · ${esc(lotTitle(l))}`, T('Оплатить', 'Оплатити', 'Pay')))) return;
       const r = payLot(l);
       if (r.ok) {
         const x = r.rep;
