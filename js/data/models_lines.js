@@ -3,7 +3,7 @@
 // Redmo and Poko), Nofing Phone (1)…(4a) with CMF, and the Pear iFones that were missing (3G, 4s, 5, 5c,
 // the Plus models, iFone 18 and Air 2). The iFone Duo, Xiaomo 17/18 and Pixl 10/11 live in models_new.js.
 const GB = (arr) => arr.map((g, i) => [g >= 1024 ? `${g / 1024} ТБ` : `${g} ГБ`, 1 + i * 0.11]);
-const stor = (y, p) => (y <= 2009 ? [8, 16, 32] : y <= 2013 ? [16, 32, 64] : y <= 2016 ? [16, 64, 128] : y <= 2019 ? [64, 128, 256] : p >= 900 ? [256, 512, 1024] : p >= 400 ? [128, 256, 512] : [64, 128, 256]);
+const stor = (y, p) => (y <= 2009 ? [8, 16, 32] : y <= 2013 ? [16, 32, 64] : y <= 2016 ? [16, 64, 128] : y <= 2019 ? [64, 128, 256] : y <= 2022 && p < 400 ? [64, 128, 256] : p >= 900 ? [256, 512, 1024] : p >= 400 ? [128, 256, 512] : [128, 256]);
 export function buildLines(add) {
   // Pear
   const pear = (name, y, p, f, cam, colors, o = {}) => add('phones', 'Pear', `iFone ${name}`, p, y, { f, cam, logo: 'pear' }, { colors, vars: GB(o.gb || stor(y, p)), os: 'pear', ...o });

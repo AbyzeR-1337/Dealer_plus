@@ -169,7 +169,7 @@ export function itemTitle(it, withVar = true) {
   const m = modelOf(it);
   if (!m) return '???';
   if (it.build) return `${T('ПК', 'ПК', 'PC')} · ${it.build.cpu}${it.build.gpu ? ' / ' + it.build.gpu : ''} / ${it.build.ram} ${T('ГБ', 'ГБ', 'GB')}`;
-  let t = [m.brand, m.name].filter(Boolean).join(' ');
+  let t = m.brand && m.name.startsWith(m.brand + ' ') ? m.name : [m.brand, m.name].filter(Boolean).join(' '); // “Xiaomo 18”, not “Xiaomo Xiaomo 18”
   if (it.cat === 'cars') return `${t}, ${it.year}`;
   const vl = withVar ? varLabel(it) : '';
   if (vl) t += `, ${vl}`;
