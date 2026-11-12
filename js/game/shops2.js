@@ -1,6 +1,9 @@
 // Car market (own feed of cars and bikes, VIN reports, instant dealer buyout), Yo.Market (new phones with
 // "Split" — pay in 4 parts — and an anti-fraud suspicion meter), Supplier (wholesale lots from Shenzhen in
 // yuan: haggle → buy yuan → fly there → pay → ship the lot home by cargo or carry it through customs).
+// Lots come in sizes from 5 to 200 phones: the bigger the lot, the cheaper each phone, but the more can go
+// wrong — rarely: a short count, mixed-up models, opened returns, 1:1 clones, Chinese firmware, a customs
+// hold, a crushed box in the cargo. Clones get seized by customs with a fine.
 import { G, emit } from '../core/state.js';
 import { T, L } from '../core/i18n.js';
 import { RNG } from '../core/rng.js';
@@ -136,21 +139,29 @@ export function ymTick() {
 // ---------------------------------------------------------------- Supplier (Shenzhen wholesale in yuan)
 export const SZX = 'szx';
 const SUPPLIERS = ['MobileLink Гуанчжоу', 'Huaqiang Trade', 'ShenPhone Ltd', 'SZ Unicom Opt', 'Longgang Mobile', 'GreatWall Gadgets'];
-export function supState() { const s = G.s; s.sup ||= { cny: 0, deals: {}, notified: 0 }; return s.sup; }
+export function supState() { const s = G.s; s.sup ||= { cny: 0, deals: {}, notified: 0 }; s.sup.picks ||= {}; s.sup.reports ||= []; s.sup.batches ||= {}; return s.sup; }
+// lot sizes and the wholesale discount per phone
+export const LOT_SIZES = [5, 10, 20, 50, 100, 200];
+export const VOL = { 5: 0, 10: 0.02, 20: 0.04, 50: 0.07, 100: 0.1, 200: 0.12 };
 export const cnyRate = () => rate('CNY');
 export function lots() {
   const s = G.s, day = Math.floor(s.t / 1440), st = supState();
   const r = new RNG(`sup|${s.id}|${day}`);
   const phones = (BY_CAT.phones || []).filter((m) => m.year >= 2021);
+  const ref = homeCity();
   return Array.from({ length: 8 }, (_, i) => {
     const m = r.pick(phones);
     const it = makeItem(new RNG(`supi|${s.id}|${day}|${i}`), { model: m.id, quality: 'new', fakeMult: 0, lockRate: 0 });
     it.sealed = true; it.cond = 100; it.defects = []; it.fake = 0; it.rar = 0;
-    const v = itemValue(it, s.player.city, 'true');
+    const v = itemValue(it, ref, 'true');
     const off = r.int(20, 40);
     const unit = Math.round(v * (1 - off / 100) * cnyRate() / 10) * 10; // yuan per phone
     const id = `lot_${day}_${i}`;
-    return { id, it, m: m.id, qty: r.int(4, 24), unit, off, seller: r.pick(SUPPLIERS), rating: +(r.float(3.6, 4.9)).toFixed(1), at: day * 1440 + r.int(0, 1300), deal: st.deals[id] || null };
+    const lot = { id, it, m: m.id, qty: r.int(4, 24), unit, off, seller: r.pick(SUPPLIERS), rating: +(r.float(3.6, 4.9)).toFixed(1), at: day * 1440 + r.int(0, 1300), deal: st.deals[id] || null };
+    // how many the seller has in stock: small traders 30–50, big warehouses up to 300
+    lot.stock = new RNG(`supx|${s.id}|${id}`).pick([30, 50, 50, 100, 100, 200, 300]);
+    lot.sizes = LOT_SIZES.filter((n) => n <= lot.stock);
+    return lot;
   }).filter((l) => l.at <= s.t);
 }
 export function buyYuan(usd) {
@@ -161,39 +172,118 @@ export function buyYuan(usd) {
   return { ok: true, cny };
 }
 export function sellYuan(cny) { const st = supState(); cny = Math.min(cny, st.cny); st.cny -= cny; const usd = cny / cnyRate() * 0.985; earn(usd, 'bank', T('Продажа юаней', 'Продаж юанів', 'Selling yuan')); emit('sup'); return usd; }
-export function setDeal(lot, disc) { supState().deals[lot.id] = { disc, paid: false }; emit('sup'); }
-export const lotTotal = (lot) => Math.round(lot.unit * lot.qty * (1 - (lot.deal?.disc || 0) / 100));
+export function setDeal(lot, disc) { const st = supState(); st.deals[lot.id] = { disc, paid: false, qty: lotQty(lot) }; emit('sup'); }
+// the size you picked (10 by default); after paying, the size you bought
+export const lotQty = (lot) => { const st = supState(); return st.deals[lot.id]?.paid ? st.deals[lot.id].qty || lot.qty : st.picks[lot.id] || (lot.sizes?.includes(10) ? 10 : lot.sizes?.[0] || lot.qty); };
+export function pickQty(lot, n) { const st = supState(); if (st.deals[lot.id]?.paid || !lot.sizes.includes(n)) return; st.picks[lot.id] = n; if (st.deals[lot.id]) st.deals[lot.id].qty = n; emit('sup'); }
+export const unitFor = (lot, qty = lotQty(lot)) => Math.max(10, Math.round(lot.unit * (1 - (VOL[qty] || 0)) / 10) * 10);
+export const lotTotal = (lot, qty = lotQty(lot)) => Math.round(unitFor(lot, qty) * qty * (1 - (lot.deal?.disc || 0) / 100));
+// rough odds that something goes wrong with this lot (for the card): grows with size, falls with the rating
+export function lotOdds(lot, qty = lotQty(lot)) {
+  const f = qty / 100, bad = clamp((4.9 - lot.rating) / 1.3, 0, 1);
+  return { short: 0.015 + 0.02 * f + 0.02 * bad, resort: 0.01 + 0.02 * f + 0.015 * bad, opened: 0.01 + 0.015 * f + 0.01 * bad, clones: 0.008 + 0.012 * f + 0.03 * bad, cn: 0.01 + 0.012 * f + 0.01 * bad, dud: 0.03 + 0.03 * bad };
+}
+export function lotRisk(lot, qty = lotQty(lot)) {
+  const o = lotOdds(lot, qty);
+  const p = 1 - ['short', 'resort', 'opened', 'clones', 'cn'].reduce((a, k) => a * (1 - o[k]), 1);
+  return { p, level: p < 0.1 ? 0 : p < 0.18 ? 1 : 2 };
+}
+const PHONE_FIX = ['battery', 'deadpix', 'speaker', 'port', 'button', 'faceid'];
 export function payLot(lot) {
   const s = G.s, st = supState();
   if (s.player.city !== SZX) return { ok: false, msg: T('Платить нужно лично — летите в Шэньчжэнь', 'Платити треба особисто — летіть у Шеньчжень', 'Pay in person — fly to Shenzhen') };
-  const total = lotTotal(lot);
+  if (st.deals[lot.id]?.paid) return { ok: false, msg: T('Эта партия уже ваша', 'Ця партія вже ваша', 'This lot is already yours') };
+  const qty = lotQty(lot), total = lotTotal(lot, qty);
   if (st.cny < total) return { ok: false, msg: T(`Нужно ${total} ¥, у вас ${st.cny} ¥`, `Потрібно ${total} ¥, у вас ${st.cny} ¥`, `Need ${total} ¥, you have ${st.cny} ¥`) };
   st.cny -= total;
-  const each = total / cnyRate() / lot.qty;
-  for (let i = 0; i < lot.qty; i++) {
-    const it = makeItem(new RNG(`${lot.id}|${i}|${s.id}`), { model: lot.m, quality: 'new', fakeMult: 0, lockRate: 0 });
-    it.v = lot.it.v; it.sealed = true; it.cond = 100; it.defects = []; it.fake = 0; it.paid = each; it.loc = SZX; it.lot = lot.id;
-    // a few units in every lot turn out refurbished or locked
-    if (new RNG(`${lot.id}|q|${i}`).chance(0.08)) { it.sealed = false; it.cond = 88; it.lock = 'passcode'; }
+  // what can go wrong — rare, more likely with big lots and low‑rated sellers
+  const R = new RNG(`${lot.id}|risk|${qty}|${s.id}`);
+  const o = lotOdds(lot, qty);
+  const rep = { id: lot.id, at: s.t, m: lot.m, seller: lot.seller, qty, total, got: qty, short: 0, refund: 0, resort: 0, opened: 0, clones: 0, cn: false };
+  if (R.chance(o.short)) {
+    rep.short = Math.max(1, Math.round(qty * R.float(0.02, 0.06))); rep.got -= rep.short;
+    if (lot.rating >= 4.3) { rep.refund = Math.round(total / qty * rep.short); st.cny += rep.refund; } // honest sellers give the money back
+  }
+  if (R.chance(o.resort)) rep.resort = Math.max(1, Math.round(rep.got * R.float(0.05, 0.15)));
+  if (R.chance(o.opened)) rep.opened = Math.max(1, Math.round(rep.got * R.float(0.15, 0.35)));
+  if (R.chance(o.clones)) rep.clones = Math.max(1, Math.round(rep.got * R.float(0.03, 0.1)));
+  rep.cn = R.chance(o.cn);
+  // which boxes are which
+  const order = R.shuffle([...Array(rep.got).keys()]);
+  const role = new Map();
+  order.slice(0, rep.resort).forEach((i) => role.set(i, 'resort'));
+  order.slice(rep.resort, rep.resort + rep.clones).forEach((i) => role.set(i, 'clone'));
+  order.slice(rep.resort + rep.clones, rep.resort + rep.clones + rep.opened).forEach((i) => role.set(i, 'opened'));
+  const M = MODEL[lot.m];
+  const older = (BY_CAT.phones || []).filter((x) => x.brand === M.brand && x.id !== M.id && x.year < M.year && x.year >= M.year - 4 && x.price < M.price);
+  const each = (total - rep.refund) / cnyRate() / rep.got;
+  const pin = (it, c) => it.defects.push({ c, x: +R.float(0.3, 0.7).toFixed(3), y: +R.float(0.3, 0.7).toFixed(3), view: 'front', known: false });
+  for (let i = 0; i < rep.got; i++) {
+    const kind = role.get(i);
+    const model = kind === 'resort' && older.length ? R.pick(older).id : lot.m;
+    const it = makeItem(new RNG(`${lot.id}|${i}|${s.id}`), { model, quality: 'new', fakeMult: 0, lockRate: 0 });
+    if (model === lot.m) it.v = lot.it.v;
+    it.sealed = true; it.cond = 100; it.defects = []; it.fake = 0; it.paid = each; it.loc = SZX; it.lot = lot.id;
+    if (kind === 'clone') it.fake = 2; // a 1:1 replica in an original-looking box
+    if (kind === 'opened') { it.sealed = false; it.cond = R.int(84, 93); pin(it, R.pick(PHONE_FIX)); }
+    // a few units in any lot are duds or locked
+    else if (new RNG(`${lot.id}|q|${i}`).chance(o.dud)) { it.sealed = false; it.cond = 88; if (R.chance(0.5)) it.lock = 'passcode'; else pin(it, R.pick(PHONE_FIX)); }
+    if (rep.cn) pin(it, 'cnrom');
     addItem(it, each, 'supplier');
   }
-  st.deals[lot.id] = { ...(st.deals[lot.id] || {}), paid: true };
-  stat('lotsBought'); addXP(25);
+  st.deals[lot.id] = { ...(st.deals[lot.id] || {}), paid: true, qty };
+  st.reports.unshift(rep); if (st.reports.length > 12) st.reports.length = 12;
+  stat('lotsBought'); addXP(Math.round(15 + 10 * Math.sqrt(qty / 10)));
   emit('sup'); emit('inv');
-  return { ok: true, total };
+  return { ok: true, total, rep };
 }
 export const inShenzhen = () => G.s.inv.filter((it) => it.loc === SZX);
+// where the goods go and whose market prices count: the city you live in (not Shenzhen)
+export function homeCity() {
+  const s = G.s;
+  return s.player.city !== SZX ? s.player.city : s.house?.city && s.house.city !== SZX ? s.house.city : (COUNTRIES.find((c) => c.id === s.player.country)?.cities[0].id || 'msk');
+}
 // cargo "door to door": slower, customs included
 export function cargoHome() {
   const s = G.s, items = inShenzhen();
   if (!items.length) return { ok: false };
-  const home = s.player.city !== SZX ? s.player.city : s.house?.city && s.house.city !== SZX ? s.house.city : (COUNTRIES.find((c) => c.id === s.player.country)?.cities[0].id || 'msk');
+  const home = homeCity();
   const value = items.reduce((a, it) => a + itemValue(it, home, 'true'), 0);
   const fee = Math.round(value * 0.12 + 15);
   if (!spend(fee, 'customs', T('Карго «под ключ» из Шэньчжэня', 'Карго «під ключ» із Шеньчжені', 'Door‑to‑door cargo from Shenzhen'))) return { ok: false, msg: T(`Нужно ${fmt(fee)}`, `Потрібно ${fmt(fee)}`, `Need ${fmt(fee)}`) };
-  for (const it of items) { removeItem(it.id); s.deliveries.push({ id: uid('d'), kind: 'in', item: it, from: SZX, to: home, start: s.t, eta: s.t + 2 * 1440, price: it.paid, who: 'Cargo SZX' }); }
+  // the road home: rarely a customs hold (extra duty, a few days), clones seized with a fine, a crushed box
+  const n = items.length, f = n / 100, R = new RNG(`cargo|${s.id}|${s.t}`);
+  const b = { id: uid('cg'), n, at: s.t, eta: s.t + 2 * 1440, to: home, hold: 0, duty: 0, seized: 0, fine: 0, crushed: 0 };
+  if (R.chance(0.015 + 0.03 * f)) { b.hold = R.int(2, 5); b.eta += b.hold * 1440; b.duty = Math.round(value * R.float(0.05, 0.1)); }
+  let ship = items;
+  const clones = items.filter((it) => it.fake);
+  if (clones.length && R.chance(Math.min(0.8, 0.3 + 0.1 * f + clones.length * 0.02))) {
+    b.seized = clones.length; b.fine = Math.round(clones.reduce((a, it) => a + itemValue({ ...it, fake: 0 }, home, 'true'), 0) * 0.3 + 30);
+    for (const it of clones) removeItem(it.id);
+    ship = items.filter((it) => !it.fake);
+  }
+  if (ship.length && R.chance(0.015 + 0.025 * f)) {
+    b.crushed = Math.max(1, Math.round(ship.length * R.float(0.05, 0.12)));
+    for (const it of R.sample(ship, b.crushed)) { it.sealed = false; it.cond = Math.min(it.cond, R.int(60, 75)); it.defects.push({ c: 'crack', x: 0.5, y: 0.42, view: 'front', known: true }); }
+  }
+  for (const it of ship) { removeItem(it.id); s.deliveries.push({ id: uid('d'), kind: 'in', item: it, from: SZX, to: home, start: s.t, eta: b.eta, price: it.paid, who: 'Cargo SZX', batch: b.id }); }
+  b.n = ship.length;
+  supState().batches[b.id] = b;
   emit('inv'); emit('deliveries');
-  return { ok: true, fee, n: items.length };
+  return { ok: true, fee, n: items.length, hold: b.hold, eta: b.eta };
+}
+// a cargo shipment arrived (called once per batch by the delivery clock): one message, the surprises paid
+export function cargoArrived(id) {
+  const st = supState(), b = st.batches[id];
+  if (!b || b.done) return;
+  b.done = true;
+  const lines = [T(`Доставлено ${b.n} шт.`, `Доставлено ${b.n} шт.`, `${b.n} pcs delivered.`)];
+  if (b.hold) { charge(b.duty, 'customs', T('Доначисление таможни за крупную партию', 'Донарахування митниці за велику партію', 'Extra customs duty on a large lot')); lines.push(T(`Таможня задержала груз на ${b.hold} дн. и доначислила ${fmt(b.duty)}.`, `Митниця затримала вантаж на ${b.hold} дн. і донарахувала ${fmt(b.duty)}.`, `Customs held it ${b.hold} days and charged ${fmt(b.duty)} more.`)); }
+  if (b.seized) { charge(b.fine, 'customs', T('Штраф: контрафакт в партии', 'Штраф: контрафакт у партії', 'Fine: counterfeits in the lot')); stat('seized', b.seized); lines.push(T(`Изъято ${b.seized} шт как контрафакт (клоны в партии), штраф ${fmt(b.fine)}.`, `Вилучено ${b.seized} шт як контрафакт (клони в партії), штраф ${fmt(b.fine)}.`, `${b.seized} pcs seized as counterfeit (clones in the lot), fine ${fmt(b.fine)}.`)); }
+  if (b.crushed) lines.push(T(`Одну коробку помяли: ${b.crushed} шт с разбитым экраном.`, `Одну коробку помʼяли: ${b.crushed} шт з розбитим екраном.`, `A box got crushed: ${b.crushed} pcs with cracked screens.`));
+  notify('supplier', b.hold || b.seized || b.crushed ? T('Карго прибыло — с сюрпризами', 'Карго прибуло — із сюрпризами', 'Cargo arrived — with surprises') : T('Карго прибыло', 'Карго прибуло', 'Cargo arrived'), lines.join(' '), { go: ['inventory'] });
+  for (const k of Object.keys(st.batches)) if (st.batches[k].done && G.s.t - st.batches[k].at > 20 * 1440) delete st.batches[k];
+  emit('sup');
 }
 // "a wholesale deal for N phones" notifications
 export function supTick() {
@@ -203,7 +293,7 @@ export function supTick() {
   const fresh = ls.filter((l) => l.at > st.notified);
   if (fresh.length && (s.installed || []).includes('supplier')) {
     const l = fresh[fresh.length - 1];
-    notify('supplier', T('Опт', 'Опт', 'Wholesale'), T(`Появилась оптовая сделка на ${l.qty} телефонов!`, `Зʼявилася оптова угода на ${l.qty} телефонів!`, `A wholesale deal for ${l.qty} phones just dropped!`), { go: ['supplier'] });
+    notify('supplier', T('Опт', 'Опт', 'Wholesale'), T(`Новая оптовая партия: ${itemTitle(l.it)}, до ${l.stock} шт`, `Нова оптова партія: ${itemTitle(l.it)}, до ${l.stock} шт`, `New wholesale lot: ${itemTitle(l.it)}, up to ${l.stock} pcs`), { go: ['supplier'] });
     st.notified = Math.max(...fresh.map((x) => x.at));
   }
 }

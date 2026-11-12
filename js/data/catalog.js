@@ -129,6 +129,7 @@ export const DEFECTS = {
   bent: D('Погнут корпус', 'Погнутий корпус', 'Bent frame', 0.15, 'subtle', 'bend', 'back', null, ['align', 0.05, 60]),
   speaker: D('Хрипит динамик', 'Хрипить динамік', 'Crackling speaker', 0.05, 'hidden', null, 'any', 'sound', ['screws', 0.02, 30]),
   port: D('Не заряжается', 'Не заряджається', 'Charging port dead', 0.07, 'hidden', null, 'any', 'charge', ['solder', 0.02, 40]),
+  cnrom: D('Китайская прошивка (без Google, только CN)', 'Китайська прошивка (без Google, лише CN)', 'Chinese ROM (no Google, CN only)', 0.12, 'hidden', null, 'any', 'display', ['wires', 0.03, 45]),
   nonorig: D('Неоригинальный дисплей', 'Неоригінальний дисплей', 'Aftermarket screen', 0.1, 'hidden', null, 'any', 'display', ['screen', 0.14, 90]),
   // electronics
   e_crack: D('Разбит экран', 'Розбитий екран', 'Cracked screen', 0.25, 'visible', 'crack', 'front', null, ['screen', 0.12, 90]),

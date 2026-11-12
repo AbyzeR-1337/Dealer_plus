@@ -136,7 +136,7 @@ export function capacity() {
   for (const p of s.props) if (p.kind === 'warehouse') c += p.cap || 150;
   return c;
 }
-export function used() { return sum(G.s.inv.filter((i) => !i.shop && !isVehicle(i)), sizeUnits); }
+export function used() { return sum(G.s.inv.filter((i) => !i.shop && !isVehicle(i) && i.loc !== 'szx'), sizeUnits); } // the supplier's warehouse in Shenzhen holds paid lots
 export const freeSpace = () => capacity() - used();
 export function garage() {
   const s = G.s;

@@ -18,7 +18,7 @@ import { rentTick } from './housing.js';
 import { reChatTick } from './realty_chat.js';
 import { dv } from './difficulty.js';
 import { tgTick } from './tg.js';
-import { ymTick, supTick } from './shops2.js';
+import { ymTick, supTick, cargoArrived } from './shops2.js';
 import { bizHourly, bizDaily } from './business.js';
 import { storyTick, ensureDaily } from './quests.js';
 import { dailyEconomy, initEconomy } from './economy.js';
@@ -55,12 +55,14 @@ function deliveriesTick() {
   if (!due.length) return;
   s.deliveries = s.deliveries.filter((d) => d.eta > s.t);
   s.delivered ||= [];
+  const batches = new Set();
   for (const d of due) {
     if (d.kind === 'in') {
       const it = d.item;
       it.loc = d.to || s.player.city;
       addItem(it, it.paid ?? d.price, d.ret ? 'return' : 'delivery');
-      notify('delivery', T('Посылка доставлена', 'Посилку доставлено', 'Parcel delivered'), itemTitle(it), { go: ['inventory'] });
+      if (d.batch) batches.add(d.batch);
+      else notify('delivery', T('Посылка доставлена', 'Посилку доставлено', 'Parcel delivered'), itemTitle(it), { go: ['inventory'] });
     } else if (d.kind === 'out') {
       if (chance(0.06 * (1 - (d.sale.packed ?? 0.5)))) d.sale.claimP = Math.max(d.sale.claimP, 0.75);
       finishSale(d.sale);
@@ -68,6 +70,7 @@ function deliveriesTick() {
     s.delivered.unshift({ ...d, item: undefined, img: d.item ? { ...d.item } : null, doneAt: s.t });
     if (s.delivered.length > 30) s.delivered.length = 30;
   }
+  for (const b of batches) cargoArrived(b);
   emit('deliveries');
 }
 
