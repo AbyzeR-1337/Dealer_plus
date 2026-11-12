@@ -7,7 +7,7 @@ import { fmt, nicePrice } from '../core/money.js';
 import { sheet, choose, askPrice, toast, confirmBox, rerender, resolveSheet, openApp, go } from '../ui/shell.js';
 import { playMini } from '../mini/engine.js';
 import { buyListing, pickupInfo, deliveryFee, deliveryTime, marketEstimate } from '../game/market.js';
-import { listItem, PLATFORMS, pawnSell } from '../game/sell.js';
+import { listItem, PLATFORMS, pawnSell, glut } from '../game/sell.js';
 import { startOwnAuction } from '../game/sources.js';
 import { itemValue, itemTitle, isVehicle, knownDefects } from '../game/items.js';
 import { getItem, canStore, stat, upLevel } from '../game/player.js';
@@ -69,9 +69,12 @@ export async function sellFlow(itemId) {
     stat('listed');
     return true;
   }
-  const rec = nicePrice(val * (p === 'lux' ? 1.12 : 1.05));
+  // the city is flooded with this model: buyers come slower and pay less
+  const gl = glut(it);
+  const rec = nicePrice(val * gl.valK * (p === 'lux' ? 1.12 : 1.05));
+  const glNote = gl.valK < 0.97 ? ` · ⚠️ ${T(`рынок завален: ${gl.same} таких объявлений${gl.flood ? `, недавно продано ${gl.flood}` : ''} — платят на ${Math.round((1 - gl.valK) * 100)}% меньше`, `ринок завалений: ${gl.same} таких оголошень${gl.flood ? `, нещодавно продано ${gl.flood}` : ''} — платять на ${Math.round((1 - gl.valK) * 100)}% менше`, `market flooded: ${gl.same} such ads${gl.flood ? `, ${gl.flood} sold lately` : ''} — buyers pay ${Math.round((1 - gl.valK) * 100)}% less`)}` : '';
   const hasKnown = knownDefects(it).length || it.lock || (it.fake && it.fakeKnown);
-  const price = await askPrice({ title: T('Цена продажи', 'Ціна продажу', 'Asking price'), sub: T(`Рекомендуем ≈ ${fmt(rec)}`, `Рекомендуємо ≈ ${fmt(rec)}`, `Suggested ≈ ${fmt(rec)}`), value: rec, min: 1, max: Math.max(rec * 3, 10), hint: T('Чем выше цена — тем реже пишут и сильнее торгуются.', 'Що вища ціна — то рідше пишуть і сильніше торгуються.', 'Higher price = fewer buyers and harder haggling.') });
+  const price = await askPrice({ title: T('Цена продажи', 'Ціна продажу', 'Asking price'), sub: T(`Рекомендуем ≈ ${fmt(rec)}`, `Рекомендуємо ≈ ${fmt(rec)}`, `Suggested ≈ ${fmt(rec)}`) + glNote, value: rec, min: 1, max: Math.max(rec * 3, 10), hint: T('Чем выше цена — тем реже пишут и сильнее торгуются.', 'Що вища ціна — то рідше пишуть і сильніше торгуються.', 'Higher price = fewer buyers and harder haggling.') });
   if (!price) return false;
   let disclose = true;
   if (hasKnown || it.defects.some((d) => !d.known)) {

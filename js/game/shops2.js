@@ -142,7 +142,7 @@ const SUPPLIERS = ['MobileLink Гуанчжоу', 'Huaqiang Trade', 'ShenPhone L
 export function supState() { const s = G.s; s.sup ||= { cny: 0, deals: {}, notified: 0 }; s.sup.picks ||= {}; s.sup.reports ||= []; s.sup.batches ||= {}; return s.sup; }
 // lot sizes and the wholesale discount per phone
 export const LOT_SIZES = [5, 10, 20, 50, 100, 200];
-export const VOL = { 5: 0, 10: 0.02, 20: 0.04, 50: 0.07, 100: 0.1, 200: 0.12 };
+export const VOL = { 5: 0, 10: 0.01, 20: 0.02, 50: 0.035, 100: 0.05, 200: 0.065 };
 export const cnyRate = () => rate('CNY');
 export function lots() {
   const s = G.s, day = Math.floor(s.t / 1440), st = supState();
@@ -154,7 +154,7 @@ export function lots() {
     const it = makeItem(new RNG(`supi|${s.id}|${day}|${i}`), { model: m.id, quality: 'new', fakeMult: 0, lockRate: 0 });
     it.sealed = true; it.cond = 100; it.defects = []; it.fake = 0; it.rar = 0;
     const v = itemValue(it, ref, 'true');
-    const off = r.int(20, 40);
+    const off = r.int(14, 28);
     const unit = Math.round(v * (1 - off / 100) * cnyRate() / 10) * 10; // yuan per phone
     const id = `lot_${day}_${i}`;
     const lot = { id, it, m: m.id, qty: r.int(4, 24), unit, off, seller: r.pick(SUPPLIERS), rating: +(r.float(3.6, 4.9)).toFixed(1), at: day * 1440 + r.int(0, 1300), deal: st.deals[id] || null };
@@ -201,7 +201,7 @@ function mixLot(win, i) {
       units.push({ m: m.id, used, val: itemValue(it, ref, 'true'), it });
     }
     const stock = r.pick([30, 50, 100, 100, 200, 200]);
-    base = { id, mix: kind, brand, units, win, off: r.int(25, 45), seller: r.pick(SUPPLIERS), rating: +(r.float(3.5, 4.9)).toFixed(1), at: win * MIX_WIN, until: (win + 1) * MIX_WIN, stock, sizes: LOT_SIZES.filter((n) => n <= stock), it: units[0].it, qty: 10 };
+    base = { id, mix: kind, brand, units, win, off: r.int(12, 24), seller: r.pick(SUPPLIERS), rating: +(r.float(3.5, 4.9)).toFixed(1), at: win * MIX_WIN, until: (win + 1) * MIX_WIN, stock, sizes: LOT_SIZES.filter((n) => n <= stock), it: units[0].it, qty: 10 };
     mixCache.set(key, base);
     if (mixCache.size > 40) mixCache.delete(mixCache.keys().next().value);
   }

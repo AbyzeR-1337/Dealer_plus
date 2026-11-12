@@ -55,18 +55,44 @@ export function unlist(itemId) {
   emit('listings');
 }
 
+// ---------------------------------------------------------------- market saturation
+// A city only wants so many identical phones. Many of your ads for the same model split the buyers between
+// them and make each one look less special; every recent sale of that model in the city ("everyone already
+// bought one from you") lowers what the next buyer will pay. It wears off over a few days.
+const floodKey = (city, m) => `${city}|${m}`;
+export const floodOf = (city, m) => G.s.econ?.flood?.[floodKey(city, m)] || 0;
+export function glutK(same, flood) {
+  return { valK: 1 - Math.min(0.18, 0.006 * Math.max(0, same - 1)) - Math.min(0.15, 0.006 * flood), rateK: Math.pow(Math.max(1, same), -0.8) };
+}
+// for the sell screen: how flooded this model is in your city right now
+export function glut(it, city = G.s.player.city) {
+  const same = G.s.listings.filter((l) => l.city === city && l.itemId !== it.id && getItem(l.itemId)?.m === it.m).length + 1;
+  const flood = floodOf(city, it.m);
+  return { same, flood: Math.round(flood), ...glutK(same, flood) };
+}
+function addFlood(city, m) { const s = G.s; s.econ.flood ||= {}; const k = floodKey(city, m); s.econ.flood[k] = (s.econ.flood[k] || 0) + 1; }
+function floodDecay() { const f = G.s.econ?.flood; if (!f) return; for (const k in f) { f[k] *= 0.972; if (f[k] < 0.3) delete f[k]; } } // about −50% a day
+
 // ---------------------------------------------------------------- buyer generation
 export function sellTick() {
   const s = G.s;
+  if (s.t % 60 === 0) floodDecay();
+  // how many ads each model has in each city
+  const items = new Map(s.inv.map((i) => [i.id, i]));
+  const count = new Map(), perCat = new Map();
+  for (const l of s.listings) { const it = items.get(l.itemId); if (it) { const k = floodKey(l.city, it.m); count.set(k, (count.get(k) || 0) + 1); const kc = `${l.city}|${it.cat}`; perCat.set(kc, (perCat.get(kc) || 0) + 1); } }
   for (const l of s.listings) {
-    const it = getItem(l.itemId);
+    const it = items.get(l.itemId);
     if (!it || l.frozen) continue;
     const city = s.player.city;
     const pf = PLATFORMS[l.platform] || PLATFORMS.classifieds;
-    const val = buyerView(it, l, city) * (pf.bonus || 1) * (1 + upLevel('photo') * 0.03) * (0.94 + (l.photoQ ?? 0.35) * 0.18);
+    const g = glutK(count.get(floodKey(l.city, it.m)) || 1, floodOf(l.city, it.m));
+    // a city has only so many buyers for one category: past ~10 of your ads they share them
+    g.rateK *= Math.min(1, Math.pow(10 / (perCat.get(`${l.city}|${it.cat}`) || 1), 0.9));
+    const val = buyerView(it, l, city) * g.valK * (pf.bonus || 1) * (1 + upLevel('photo') * 0.03) * (0.94 + (l.photoQ ?? 0.35) * 0.18);
     const ratio = val / Math.max(0.01, l.price);
     const attract = clamp(Math.pow(ratio, 3.2), 0.02, 4);
-    const rate = (1 / 95) * demand(it.cat, city) * repFactor() * (1 + upLevel('clients') * 0.22) * attract * pf.rate * (l.city === city ? 1 : 0.8) * ((G.s.boostUntil || 0) > G.s.t ? 2 : 1);
+    const rate = (1 / 95) * g.rateK * demand(it.cat, city) * repFactor() * (1 + upLevel('clients') * 0.22) * attract * pf.rate * (l.city === city ? 1 : 0.8) * ((G.s.boostUntil || 0) > G.s.t ? 2 : 1);
     if (chance(rate * 0.5)) l.views += 1 + Math.floor(Math.random() * 4);
     const open = s.chats.filter((c) => c.kind === 'sell' && c.itemId === it.id && c.st === 'open').length;
     if (open < 2 && chance(rate)) newBuyerChat(it, l, val);
@@ -225,6 +251,7 @@ export function completeSale(c, mode = 'ship', packed = 0.5) {
   const disclose = l ? l.disclose : true;
   unlist(it.id);
   removeItem(it.id);
+  addFlood(s.player.city, it.m);
   if (it.split && G.s.t - (it.at || 0) < 2880) ymOnSale(it);
   c.st = 'deal';
   const city = s.player.city;
