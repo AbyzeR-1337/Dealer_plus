@@ -13,7 +13,7 @@ import { img, empty, bar, tags, row, kv, stars } from '../ui/comp.js';
 import { itemTitle, itemSub, itemValue, makeItem, isVehicle, sizeUnits } from '../game/items.js';
 import { HOUSING, houseDef, capacity, used, xpNeed, repScore, getItem, spend, addItem, canStore, stat, addXP, luggageCap, garage, vehiclesOwned, netWorth } from '../game/player.js';
 import { FOOD, foodPrice, eat, rentFor, housePrice, rentHouse, buyHouse, leaveHouse, afterSleep, awayFromHome, hotelPrice, isSick } from '../game/life.js';
-import { listings, priceFor, moveInCost, rentListing, moveOut, prepay, setPeriod, renting, PERIODS, tierTag, sleepOf, homeName } from '../game/housing.js';
+import { listings, findListing, priceFor, perDayOf, moveInCost, rentListing, moveOut, prepay, setPeriod, renting, PERIODS, TIERS, KINDS, tierName, kindName, titleOf, sleepOf, homeName, photoUrl, homes, myHome, homeValue, marketRent, buyListing, liveIn, rentOut, stopRent, renoQuote, renovate, sellHome } from '../game/housing.js';
 import { PROPS, propPrice, propRent, acquireProp, releaseProp } from '../game/business.js';
 import { tripOptions, startTrip, inTransit } from '../game/travel.js';
 import { regionMult } from '../game/economy.js';
@@ -80,56 +80,110 @@ export const profileApp = {
 };
 
 // ---------------------------------------------------------------- REAL ESTATE
-const R = { tab: 'home', per: '' };
+// rent / buy listings with photos, your homes (live, rent out, renovate, sell), commercial property
+const R = { tab: 'rent', per: '', type: '' };
+const gal = (photos, cls = '') => `<div class="re-gal ${cls}">${(photos || []).map((k) => `<img src="${photoUrl(k)}" loading="lazy" alt="">`).join('') || '<div class="re-noph">🏠</div>'}</div>`;
+const tierBadge = (t) => `<span class="re-tier" style="--c:${TIERS[t]?.col || '#888'}">${esc(tierName(t))}</span>`;
+function curCard() {
+  const s = G.s, H = s.house, cur = houseDef();
+  let h = `<div class="card hl re-cur">${H.photos?.length ? `<img class="re-curimg" src="${photoUrl(H.photos[0])}" alt="">` : ''}<div class="grow"><div class="small m">${T('Вы живёте', 'Ви живете', 'You live in')}</div><b>${esc(homeName())}</b>`;
+  if (H.type === 'none') return h + `<div class="small m">${T('Без жилья: сон хуже, ночью могут стащить вещь, склад маленький.', 'Без житла: сон гірший, уночі можуть поцупити річ, склад маленький.', 'Homeless: poor sleep, things get stolen at night, tiny storage.')}</div></div></div>`;
+  h += `<div class="small m">${H.tier ? tierBadge(H.tier) + ' ' : ''}${esc(L(CITY[H.city]?.name || ''))}${H.district ? ' · ' + esc(L(H.district)) : ''} · 📦 ${cur.store} · 🚗 ${cur.garage}</div>`;
+  if (H.own) h += `<div class="small g">${T('своё жильё', 'власне житло', 'your own home')}</div>`;
+  else h += `<div class="rt-paid ${H.late ? 'late' : ''}">${H.late ? `⚠️ ${T('Просрочка! Выселение через', 'Прострочка! Виселення через', 'Overdue! Eviction in')} <span data-cd="${H.graceUntil}" data-fmt="long"></span>` : `${T('Оплачено до', 'Оплачено до', 'Paid until')} <b>${esc(fmtDate(gameDate(H.paidUntil)))}</b> <small class="m">· ${T('ещё', 'ще', 'in')} <span data-cd="${H.paidUntil}" data-fmt="long"></span></small>`}</div>
+      <div class="small m">${fmt(H.price)} / ${L(PERIODS[H.period].per)}${H.deposit ? ` · ${T('залог', 'застава', 'deposit')} ${fmt(H.deposit)}` : ''}${H.starter ? ' · ' + T('первая неделя в подарок', 'перший тиждень у подарунок', 'first week on the house') : ''}</div>
+      <div class="btns"><button class="btn xs" data-a="hpay">${T('Продлить', 'Продовжити', 'Renew')} · ${fmt(H.price)}</button><button class="btn xs dark" data-a="hperiod">${L(PERIODS[H.period].n)}</button><button class="btn xs dark" data-a="hauto">${H.auto ? '✅' : '⬜'} ${T('авто', 'авто', 'auto')}</button></div>`;
+  return h + `<button class="btn xs dark mt" data-a="leave">${H.own ? T('Переехать отсюда', 'Переїхати звідси', 'Move out') : T('Съехать', 'Зʼїхати', 'Move out')}</button></div></div>`;
+}
+const typeChips = (kind) => `<div class="chips wrap">${[['', T('Все', 'Усі', 'All')], ...Object.keys(KINDS).filter((k) => kind === 'rent' || KINDS[k].m2Sale).map((k) => [k, kindName(k)])].map(([k, n]) => `<button class="chip${R.type === k ? ' on' : ''}" data-a="htype" data-v="${k}">${esc(n)}</button>`).join('')}</div>`;
+function listCard(x) {
+  const price = x.kind === 'rent' ? `${fmt(priceFor(x, x.periods.includes('month') ? 'month' : 'week'))}<small>/${L(PERIODS[x.periods.includes('month') ? 'month' : 'week'].per)}</small>` : `${fmt(x.price, { short: true })}`;
+  return `<div class="re-card" data-a="hopen" data-v="${x.id}"><div class="re-hero">${x.photos?.length ? `<img src="${photoUrl(x.photos[0])}" loading="lazy" alt="">` : '<div class="re-noph">🏠</div>'}${tierBadge(x.tier)}<span class="re-cnt">📷 ${x.photos?.length || 0}</span></div>
+    <div class="re-body"><b class="re-price">${price}</b><span>${esc(titleOf(x))}</span><small>${esc(L(x.district))} · 🚇 ${x.metro} ${T('мин', 'хв', 'min')} · ${x.agency ? T('агентство', 'агентство', 'agency') : T('собственник', 'власник', 'owner')}</small></div></div>`;
+}
+function homeCard(h) {
+  const st = h.reno ? `🛠 ${T('ремонт до', 'ремонт до', 'renovating until')} ${esc(fmtDate(gameDate(h.reno.until)))}` : h.mode === 'live' ? `🏠 ${T('вы здесь живёте', 'ви тут живете', 'you live here')}` : h.mode === 'rent' ? (h.tenant ? `🔑 ${esc(L(h.tenant.who))} · ${fmt(h.tenant.perDay * 30)}/${T('мес', 'міс', 'mo')}` : `🔎 ${T('ищем жильцов', 'шукаємо мешканців', 'looking for tenants')}`) : `💤 ${T('пустует', 'порожня', 'empty')}`;
+  return `<div class="re-card" data-a="hmine" data-v="${h.id}"><div class="re-hero">${h.photos?.length ? `<img src="${photoUrl(h.photos[0])}" loading="lazy" alt="">` : '<div class="re-noph">🏠</div>'}${tierBadge(h.tier)}</div><div class="re-body"><b class="re-price">${fmt(homeValue(h), { short: true })}</b><span>${esc(titleOf(h))}</span><small>${esc(L(CITY[h.city]?.name || ''))} · ${st}</small></div></div>`;
+}
 function realtyMain() {
   const s = G.s;
-  const tabs = `<div class="seg"><button class="${R.tab === 'home' ? 'on' : ''}" data-a="rt" data-v="home">${T('Жильё', 'Житло', 'Homes')}</button><button class="${R.tab === 'biz' ? 'on' : ''}" data-a="rt" data-v="biz">${T('Коммерция', 'Комерція', 'Commercial')}</button><button class="${R.tab === 'mine' ? 'on' : ''}" data-a="rt" data-v="mine">${T('Моё', 'Моє', 'Mine')} (${s.props.length})</button></div>`;
-  if (R.tab === 'home') {
-    const cur = houseDef(), H = s.house;
-    let top = `<div class="card hl"><div class="small m">${T('Сейчас', 'Зараз', 'Current')}</div><b>${esc(H.type === 'none' ? L(cur.n) : homeName())}</b>`;
-    if (H.type === 'none') top += `<div class="small m mt">${T('Вы без жилья: спите где придётся, сон хуже, ночью могут стащить вещь, склад маленький.', 'Ви без житла: спите де доведеться, сон гірший, уночі можуть поцупити річ, склад маленький.', 'Homeless: you sleep anywhere, rest badly, things can get stolen at night, tiny storage.')}</div>`;
-    else {
-      top += `<div class="small m">${esc(L(CITY[H.city]?.name || ''))}${H.district ? ' · ' + esc(L(H.district)) : ''}${H.m2 ? ` · ${H.m2} м²` : ''} · 📦 ${cur.store} · 🚗 ${cur.garage} · 💤 ×${(cur.energy + (H.tier === 'lux' ? 0.05 : H.tier === 'cheap' ? -0.05 : 0)).toFixed(2)}</div>`;
-      if (H.own) top += `<div class="small m">${T('в собственности', 'у власності', 'owned')}</div><button class="btn dark sm mt" data-a="leave">${T('Продать', 'Продати', 'Sell')}</button>`;
-      else top += `<div class="rt-paid ${H.late ? 'late' : ''}">${H.late ? `⚠️ ${T('Просрочка! Выселение через', 'Прострочка! Виселення через', 'Overdue! Eviction in')} <span data-cd="${H.graceUntil}" data-fmt="long"></span>` : `${T('Оплачено до', 'Оплачено до', 'Paid until')} <b>${esc(fmtDate(gameDate(H.paidUntil)))}</b> <small class="m">· ${T('ещё', 'ще', 'in')} <span data-cd="${H.paidUntil}" data-fmt="long"></span></small>`}</div>
-        <div class="small m">${fmt(H.price)} / ${L(PERIODS[H.period].per)}${H.deposit ? ` · ${T('залог', 'застава', 'deposit')} ${fmt(H.deposit)}` : ''}${H.starter ? ' · ' + T('первая неделя была в подарок', 'перший тиждень був у подарунок', 'the first week was on the house') : ''}</div>
-        <div class="btns"><button class="btn sm" data-a="hpay">${T('Продлить', 'Продовжити', 'Renew')} · ${fmt(H.price)}</button><button class="btn sm dark" data-a="hperiod">${T('Период', 'Період', 'Period')}: ${L(PERIODS[H.period].n)}</button></div>
-        <div class="btns"><button class="btn sm dark" data-a="hauto">${H.auto ? '✅' : '⬜'} ${T('Автопродление', 'Автопродовження', 'Auto‑renew')}</button><button class="btn sm dark" data-a="leave">${T('Съехать', 'Зʼїхати', 'Move out')}</button></div>`;
-    }
-    top += `</div>`;
-    const ls = listings(s.player.city).filter((l) => !R.per || l.periods.includes(R.per)).sort((a, b) => a.perDay - b.perDay);
-    const chips = `<div class="chips wrap">${[['', T('Все', 'Усі', 'All')], ['day', T('Посуточно', 'Подобово', 'Daily')], ['week', T('На неделю', 'На тиждень', 'Weekly')], ['month', T('На месяц', 'На місяць', 'Monthly')]].map(([k, n]) => `<button class="chip${(R.per || '') === k ? ' on' : ''}" data-a="hper" data-v="${k}">${n}</button>`).join('')}</div>`;
-    const cards = ls.map((l) => { const h = houseDef(l.type); return `<div class="card rt-card"><div class="row between"><h3>${esc(L(l.name))}</h3><span class="tag ${l.tier === 'lux' ? 'y' : l.tier === 'cheap' ? '' : 'b'}">${esc(tierTag(l))}</span></div>
-      <div class="small m">${l.m2} м²${l.floor ? ` · ${l.floor} ${T('эт.', 'пов.', 'fl.')}` : ''} · 🚇 ${l.metro} ${T('мин', 'хв', 'min')} · ${esc(L(l.district))} · ${l.agency ? T('агентство', 'агентство', 'agency') : T('от собственника', 'від власника', 'by owner')}</div>
-      <div class="small m">📦 ${h.store} · 🚗 ${h.garage} · 💤 ×${sleepOf(l)}${h.rep ? ` · ⭐ +${Math.round(h.rep * 100)}%` : ''}</div>
-      <div class="rt-prices">${l.periods.map((p) => `<span><small>${L(PERIODS[p].n)}</small><b>${fmt(priceFor(l, p))}</b></span>`).join('')}</div>
-      <button class="btn sm block mt" data-a="hrent" data-v="${l.id}">${T('Снять', 'Зняти', 'Rent it')}</button></div>`; }).join('');
-    const buy = HOUSING.filter((h) => h.price).map((h) => `<div class="kv"><span>${esc(L(h.n))}<small class="m"> · 📦 ${h.store} · 🚗 ${h.garage}</small></span><button class="btn xs dark" data-a="buyh" data-v="${h.id}">${fmt(housePrice(h), { short: true })}</button></div>`).join('');
-    return tabs + top + `<p class="p">${T(`Аренда в ${esc(cityName())}: платите вперёд за сутки, неделю или месяц. Месяц дешевле в пересчёте на день, но нужен залог, а агентство берёт половину месячной платы. Объявления обновляются каждую неделю.`, `Оренда в ${esc(cityName())}: платите наперед за добу, тиждень або місяць. Місяць дешевший у перерахунку на день, але потрібна застава, а агентство бере половину місячної плати. Оголошення оновлюються щотижня.`, `Renting in ${esc(cityName())}: pay up front for a day, week or month. A month is cheapest per day but needs a deposit, and agencies charge half a month. Listings refresh weekly.`)}</p>` + chips + cards + `<h3 class="sub">${T('Купить жильё', 'Купити житло', 'Buy a home')}</h3><div class="card">${buy}</div>`;
+  const tabs = `<div class="chips wrap re-tabs">${[['rent', T('Снять', 'Зняти', 'Rent')], ['buy', T('Купить', 'Купити', 'Buy')], ['homes', `${T('Мои дома', 'Мої будинки', 'My homes')} (${homes().length})`], ['biz', T('Коммерция', 'Комерція', 'Commercial')], ['mine', `${T('Моя коммерция', 'Моя комерція', 'My commercial')} (${s.props.length})`]].map(([k, n]) => `<button class="chip${R.tab === k ? ' on' : ''}" data-a="rt" data-v="${k}">${n}</button>`).join('')}</div>`;
+  if (R.tab === 'rent' || R.tab === 'buy') {
+    const kind = R.tab === 'rent' ? 'rent' : 'sale';
+    let ls = listings(s.player.city, kind).filter((x) => !R.type || x.type === R.type);
+    ls = kind === 'rent' ? ls.sort((a, b) => a.perDay - b.perDay) : ls.sort((a, b) => a.price - b.price);
+    const intro = kind === 'rent' ? T('Платите вперёд за сутки, неделю или месяц. Месяц дешевле в пересчёте на день, но нужен залог, а агентство берёт половину месяца.', 'Платите наперед за добу, тиждень або місяць. Місяць дешевший у перерахунку на день, але потрібна застава, а агентство бере половину місяця.', 'Pay up front for a day, week or month. A month is cheaper per day but needs a deposit; agencies take half a month.') : T('Купленное жильё можно занять самому, сдавать жильцам, отремонтировать (дороже продать и сдать) или перепродать. Объявления обновляются каждую неделю.', 'Куплене житло можна зайняти самому, здавати мешканцям, відремонтувати (дорожче продати й здати) або перепродати. Оголошення оновлюються щотижня.', 'A home you buy can be lived in, rented out, renovated (worth and rents more) or resold. Listings refresh weekly.');
+    return tabs + (kind === 'rent' ? curCard() : '') + `<p class="p">${intro}</p>` + typeChips(kind) + `<div class="re-grid">${ls.map(listCard).join('')}</div>`;
+  }
+  if (R.tab === 'homes') {
+    const hs = homes();
+    const income = hs.reduce((a, h) => a + (h.tenant ? h.tenant.perDay * 30 : 0), 0);
+    return tabs + curCard() + (hs.length ? `<div class="card"><div class="kv"><span>${T('Стоимость', 'Вартість', 'Value')}</span><b>${fmt(hs.reduce((a, h) => a + homeValue(h), 0), { short: true })}</b></div><div class="kv"><span>${T('Аренда от жильцов', 'Оренда від мешканців', 'Rent from tenants')}</span><b class="g">${fmt(income)}/${T('мес', 'міс', 'mo')}</b></div></div><div class="re-grid">${hs.map(homeCard).join('')}</div>` : `<div class="pc-empty">🏠 ${T('Своего жилья пока нет. Загляните во вкладку «Купить».', 'Власного житла поки немає. Зазирніть у вкладку «Купити».', 'No homes yet. Check the Buy tab.')}</div>`);
   }
   if (R.tab === 'biz') return tabs + `<p class="p">${T('Точки продаж, склады и квартиры под сдачу в городе', 'Точки продажу, склади й квартири під здачу в місті', 'Stores, warehouses and rentals in')} ${esc(cityName())}. ${T('Аренда — первые 3 дня сразу.', 'Оренда — перші 3 дні одразу.', 'Rent: first 3 days up front.')}</p>` + PROPS.map((p) => `<div class="card"><div class="row"><div style="font-size:30px">${p.icon}</div><div class="grow"><h3>${esc(L(p.n))}</h3><div class="small m">${p.slots ? `${T('полок', 'полиць', 'slots')}: ${p.slots} · ${T('трафик', 'трафік', 'traffic')} ${p.traffic}` : p.cap ? `${T('вместимость', 'місткість', 'capacity')} +${p.cap}` : `${T('доход', 'дохід', 'income')} ≈ ${fmt(propPrice(p) * p.income)}/${T('день', 'день', 'day')}`}</div></div></div><div class="btns">${p.rent ? `<button class="btn sm" data-a="prent" data-v="${p.id}">${T('Аренда', 'Оренда', 'Rent')} ${fmt(propRent(p))}/${T('д', 'д', 'd')}</button>` : ''}<button class="btn sm dark" data-a="pbuy" data-v="${p.id}">${T('Купить', 'Купити', 'Buy')} ${fmt(propPrice(p), { short: true })}</button></div></div>`).join('');
   return tabs + (s.props.length ? s.props.map((p) => { const d = PROPS.find((x) => x.id === p.def); const shop = s.biz.shops.find((x) => x.propId === p.id); return `<div class="card"><div class="row between"><h3>${d.icon} ${esc(L(d.n))}</h3><span class="tag ${p.own ? 'g' : 'b'}">${p.own ? T('собственность', 'власність', 'owned') : T('аренда', 'оренда', 'rented')}</span></div><div class="small m">${esc(L(CITY[p.city].name))}${shop ? ` · 🏪 ${esc(shop.name)}` : ''}${!p.own ? ` · ${fmt(p.rent)}/${T('день', 'день', 'day')}` : ` · ${T('стоимость', 'вартість', 'value')} ${fmt(p.value)}`}</div><div class="btns">${d.kind === 'shop' || d.kind === 'showroom' ? `<button class="btn sm" data-a="open" data-v="business">${shop ? T('Управлять', 'Керувати', 'Manage') : T('Открыть магазин', 'Відкрити магазин', 'Open a store')}</button>` : ''}<button class="btn sm dark" data-a="release" data-v="${p.id}">${p.own ? T('Продать', 'Продати', 'Sell') : T('Расторгнуть', 'Розірвати', 'End lease')}</button></div></div>`; }).join('') : empty('home', T('Нет недвижимости', 'Немає нерухомості', 'No property')));
 }
+function flatView(p) {
+  const x = findListing(p.id);
+  if (!x) return empty('home', T('Объявление снято', 'Оголошення знято', 'Listing removed'));
+  const h = houseDef(KINDS[x.type].def);
+  const facts = [[T('Площадь', 'Площа', 'Area'), x.type === 'hostel' ? T('койка', 'ліжко', 'a bed') : `${x.m2} м²`], ...(x.floor ? [[T('Этаж', 'Поверх', 'Floor'), `${x.floor} / ${x.floors}`]] : []), [T('До метро', 'До метро', 'Metro'), `${x.metro} ${T('мин', 'хв', 'min')}`], [T('Район', 'Район', 'District'), L(x.district)], [T('Склад', 'Склад', 'Storage'), `📦 ${h.store}`], [T('Гараж', 'Гараж', 'Garage'), `🚗 ${h.garage}`], [T('Сон', 'Сон', 'Sleep'), `💤 ×${sleepOf(x)}`], [T('Сдаёт', 'Здає', 'Listed by'), x.agency ? T('агентство', 'агентство', 'agency') : T('собственник', 'власник', 'owner')]];
+  let body = `${gal(x.photos)}<div class="re-dhead">${tierBadge(x.tier)}<h2>${esc(titleOf(x))}</h2><small class="m">${esc(L(CITY[x.city].name))} · ${esc(L(x.district))}</small></div><p class="p">${esc(L(TIERS[x.tier].d))}</p><div class="re-facts">${facts.map(([k, v]) => `<div><small>${esc(k)}</small><b>${esc(v)}</b></div>`).join('')}</div>`;
+  if (x.kind === 'rent') body += `<div class="rt-prices">${x.periods.map((per) => `<span><small>${L(PERIODS[per].n)}</small><b>${fmt(priceFor(x, per))}</b></span>`).join('')}</div><button class="btn block mt" data-a="hrent" data-v="${x.id}">${T('Снять', 'Зняти', 'Rent it')}</button>`;
+  else {
+    const rentMo = perDayOf(x) * 30;
+    body += `<div class="card mt"><div class="kv"><span>${T('Цена', 'Ціна', 'Price')}</span><b>${fmt(x.price)}</b></div><div class="kv"><span>${T('Сдавать можно за', 'Здавати можна за', 'Could rent for')}</span><b class="g">≈ ${fmt(rentMo)}/${T('мес', 'міс', 'mo')}</b></div><div class="kv"><span>${T('Окупаемость', 'Окупність', 'Payback')}</span><b>≈ ${Math.round(x.price / Math.max(1, rentMo))} ${T('мес', 'міс', 'mo')}</b></div>${renoQuote({ ...x }) ? `<div class="kv"><span>${T('Ремонт до', 'Ремонт до', 'Renovate to')} «${esc(tierName(renoQuote(x).next))}»</span><b>${fmt(renoQuote(x).cost)}</b></div>` : ''}</div><button class="btn block mt" data-a="hbuy" data-v="${x.id}">${T('Купить', 'Купити', 'Buy')} · ${fmt(x.price)}</button>`;
+  }
+  return body;
+}
+function homeView(p) {
+  const h = myHome(p.id);
+  if (!h) return empty('home', T('Уже продано', 'Вже продано', 'Already sold'));
+  const q = renoQuote(h), v = homeValue(h);
+  const st = h.reno ? `🛠 ${T('Ремонт: будет', 'Ремонт: буде', 'Renovating to')} «${esc(tierName(h.reno.to))}» · <span data-cd="${h.reno.until}" data-fmt="long"></span>` : h.mode === 'live' ? `🏠 ${T('Вы здесь живёте', 'Ви тут живете', 'You live here')}` : h.mode === 'rent' ? (h.tenant ? `🔑 ${esc(L(h.tenant.who))} · ${fmt(h.tenant.perDay * 30)}/${T('мес', 'міс', 'mo')} · ${T('съедут', 'зʼїдуть', 'leave')} ${esc(fmtDate(gameDate(h.tenant.until)))}` : `🔎 ${T('Ищем жильцов', 'Шукаємо мешканців', 'Looking for tenants')} · ${T('цена', 'ціна', 'price')} ${fmt(marketRent(h) * h.rentK * 30)}/${T('мес', 'міс', 'mo')}`) : `💤 ${T('Пустует', 'Порожня', 'Empty')}`;
+  return `${gal(h.photos)}<div class="re-dhead">${tierBadge(h.tier)}<h2>${esc(titleOf(h))}</h2><small class="m">${esc(L(CITY[h.city]?.name || ''))} · ${esc(L(h.district || ['', '', '']))}</small></div>
+    <div class="card"><div class="kv"><span>${T('Статус', 'Статус', 'Status')}</span><b>${st}</b></div><div class="kv"><span>${T('Стоимость сейчас', 'Вартість зараз', 'Worth now')}</span><b>${fmt(v)}</b></div><div class="kv"><span>${T('Куплено за', 'Куплено за', 'Bought for')}</span><b>${fmt(h.paid || 0)}${h.spent ? ` + ${T('ремонт', 'ремонт', 'reno')} ${fmt(h.spent)}` : ''}</b></div><div class="kv"><span>${T('Заработано на аренде', 'Зароблено на оренді', 'Earned from rent')}</span><b class="g">${fmt(h.earned || 0)}</b></div>${h.wear ? `<div class="kv"><span>${T('Износ после жильцов', 'Знос після мешканців', 'Wear from tenants')}</span><b class="r">−${Math.round(h.wear * 100)}%</b></div>` : ''}</div>
+    ${h.reno ? '' : `<div class="btns"><button class="btn" data-a="hlive" data-v="${h.id}" ${h.mode === 'live' ? 'disabled' : ''}>🏠 ${T('Жить здесь', 'Жити тут', 'Live here')}</button>${h.mode === 'rent' ? `<button class="btn dark" data-a="hstop" data-v="${h.id}">${T('Перестать сдавать', 'Перестати здавати', 'Stop renting')}</button>` : `<button class="btn dark" data-a="hlet" data-v="${h.id}">🔑 ${T('Сдавать', 'Здавати', 'Rent out')}</button>`}</div>
+    ${q ? `<button class="btn dark block mt" data-a="hreno" data-v="${h.id}">🛠 ${T('Ремонт до', 'Ремонт до', 'Renovate to')} «${esc(tierName(q.next))}» · ${fmt(q.cost)} · ${q.days} ${T('дн.', 'дн.', 'days')}</button>` : ''}`}
+    <button class="btn red block mt" data-a="hsell" data-v="${h.id}">${T('Продать', 'Продати', 'Sell')} · ${fmt(v * 0.95)}</button><p class="tiny m">${T('Агентство берёт 5% при продаже.', 'Агентство бере 5% при продажу.', 'The agency takes 5% on a sale.')}</p>`;
+}
 export const realtyApp = {
   id: 'realty', glyph: 'home', lvl: 1,
   name: ['Недвижимость', 'Нерухомість', 'Real estate'], colors: ['#ff9a5c', '#e2622a'],
-  views: { main: realtyMain },
+  views: { main: realtyMain, flat: flatView, home: homeView },
   actions: {
-    rt: (v) => { R.tab = v; rerender(); },
-    hper: (v) => { R.per = v; rerender(); },
+    rt: (v) => { R.tab = v; R.type = ''; rerender(); },
+    htype: (v) => { R.type = v; rerender(); },
+    hopen: (id) => go('flat', { id }),
+    hmine: (id) => go('home', { id }),
     hrent: async (id) => {
-      const l = listings(G.s.player.city).find((x) => x.id === id); if (!l) return;
-      const p = await choose(L(l.name), l.periods.map((per) => { const c = moveInCost(l, per); return { v: per, label: `${L(PERIODS[per].n)} · ${fmt(c.price)}`, sub: [c.deposit ? T(`залог ${fmt(c.deposit)}`, `застава ${fmt(c.deposit)}`, `deposit ${fmt(c.deposit)}`) : '', c.fee ? T(`комиссия ${fmt(c.fee)}`, `комісія ${fmt(c.fee)}`, `fee ${fmt(c.fee)}`) : '', T(`сразу ${fmt(c.total)}`, `одразу ${fmt(c.total)}`, `now ${fmt(c.total)}`)].filter(Boolean).join(' · ') }; }), renting() ? T('Старое жильё освободится: залог вернут, оплаченные дни — нет.', 'Старе житло звільниться: заставу повернуть, оплачені дні — ні.', 'Your old place is released: the deposit comes back, prepaid days don’t.') : '');
+      const l = findListing(id); if (!l) return;
+      const p = await choose(titleOf(l), l.periods.map((per) => { const c = moveInCost(l, per); return { v: per, label: `${L(PERIODS[per].n)} · ${fmt(c.price)}`, sub: [c.deposit ? T(`залог ${fmt(c.deposit)}`, `застава ${fmt(c.deposit)}`, `deposit ${fmt(c.deposit)}`) : '', c.fee ? T(`комиссия ${fmt(c.fee)}`, `комісія ${fmt(c.fee)}`, `fee ${fmt(c.fee)}`) : '', T(`сразу ${fmt(c.total)}`, `одразу ${fmt(c.total)}`, `now ${fmt(c.total)}`)].filter(Boolean).join(' · ') }; }), renting() ? T('Старое жильё освободится: залог вернут, оплаченные дни — нет.', 'Старе житло звільниться: заставу повернуть, оплачені дні — ні.', 'Your old place is released: the deposit comes back, prepaid days don’t.') : '');
       if (!p) return;
       const r = rentListing(l, p);
-      if (r.ok) { sfx('win'); toast(T(`Переезд! ${L(l.name)}`, `Переїзд! ${L(l.name)}`, `Moved in: ${L(l.name)}`) + (r.back ? T(` · залог вернули ${fmt(r.back)}`, ` · заставу повернули ${fmt(r.back)}`, ` · deposit back ${fmt(r.back)}`) : ''), 'g'); } else toast(r.msg, 'r');
-      rerender();
+      if (r.ok) { sfx('win'); toast(T('Переезд!', 'Переїзд!', 'Moved in!') + (r.back ? T(` Залог вернули: ${fmt(r.back)}`, ` Заставу повернули: ${fmt(r.back)}`, ` Deposit back: ${fmt(r.back)}`) : ''), 'g'); R.tab = 'rent'; go('main'); } else toast(r.msg, 'r');
     },
+    hbuy: async (id) => {
+      const l = findListing(id); if (!l) return;
+      if (!(await confirmBox(titleOf(l), T(`${fmt(l.price)} + госпошлина 1%. Жильё станет вашим: живите, сдавайте, ремонтируйте или перепродайте.`, `${fmt(l.price)} + держмито 1%. Житло стане вашим: живіть, здавайте, ремонтуйте або перепродайте.`, `${fmt(l.price)} + 1% fee. It’s yours: live in, rent out, renovate or resell.`), T('Купить', 'Купити', 'Buy')))) return;
+      const r = buyListing(l);
+      if (r.ok) { sfx('win'); toast(T('Поздравляем с покупкой!', 'Вітаємо з покупкою!', 'Congratulations!'), 'g'); R.tab = 'homes'; go('home', { id: r.h.id }); } else toast(r.msg, 'r');
+    },
+    hlive: async (id) => { const r = liveIn(id); if (r.ok) { sfx('ok'); toast(T('Переехали в своё жильё', 'Переїхали у власне житло', 'Moved into your home'), 'g'); } else toast(r.msg, 'r'); rerender(); },
+    hlet: async (id) => {
+      const h = myHome(id); if (!h) return;
+      const m = marketRent(h) * 30;
+      const v = await choose(T('Цена аренды', 'Ціна оренди', 'Rent price'), [[0.8, T('Ниже рынка — найдут за день', 'Нижче ринку — знайдуть за день', 'Below market — found in a day')], [1, T('По рынку', 'За ринком', 'Market price')], [1.2, T('Выше рынка — искать дольше', 'Вище ринку — шукати довше', 'Above market — takes longer')], [1.45, T('Сильно выше — могут искать неделями', 'Значно вище — можуть шукати тижнями', 'Way above — could take weeks')]].map(([k, sub]) => ({ v: String(k), label: `${fmt(m * k)}/${T('мес', 'міс', 'mo')}`, sub })));
+      if (!v) return;
+      const r = rentOut(id, +v); if (r.ok) { sfx('ok'); toast(T('Объявление о сдаче размещено', 'Оголошення про здачу розміщено', 'Listed for rent'), 'g'); } else toast(r.msg, 'r'); rerender();
+    },
+    hstop: async (id) => { if (await confirmBox(T('Перестать сдавать?', 'Перестати здавати?', 'Stop renting?'), T('Жильцы съедут.', 'Мешканці зʼїдуть.', 'The tenants will leave.'), T('Да', 'Так', 'Yes'))) { stopRent(id); rerender(); } },
+    hreno: async (id) => { const h = myHome(id); const q = h && renoQuote(h); if (!q) return; if (!(await confirmBox(T(`Ремонт до «${tierName(q.next)}»`, `Ремонт до «${tierName(q.next)}»`, `Renovate to “${tierName(q.next)}”`), T(`${fmt(q.cost)}, ${q.days} дн. Пока идёт ремонт, жить и сдавать нельзя. Стоимость и аренда вырастут.`, `${fmt(q.cost)}, ${q.days} дн. Поки триває ремонт, жити й здавати не можна. Вартість і оренда зростуть.`, `${fmt(q.cost)}, ${q.days} days. No living or renting while it runs. Value and rent go up.`), T('Начать', 'Почати', 'Start')))) return; const r = renovate(id); if (r.ok) { h.spent = (h.spent || 0) + q.cost; sfx('ok'); toast(T('Бригада приступила', 'Бригада почала', 'The crew started'), 'g'); } else toast(r.msg, 'r'); rerender(); },
+    hsell: async (id) => { const h = myHome(id); if (!h) return; if (!(await confirmBox(T('Продать?', 'Продати?', 'Sell?'), `${titleOf(h)} · ${fmt(homeValue(h) * 0.95)}`, T('Продать', 'Продати', 'Sell'), undefined, true))) return; const r = sellHome(id); if (r.ok) { sfx('cash'); toast(T(`Продано: ${fmt(r.v)} (${r.profit >= 0 ? '+' : ''}${fmt(r.profit)})`, `Продано: ${fmt(r.v)} (${r.profit >= 0 ? '+' : ''}${fmt(r.profit)})`, `Sold: ${fmt(r.v)} (${r.profit >= 0 ? '+' : ''}${fmt(r.profit)})`), 'g'); go('main'); } },
     hpay: async () => { const r = prepay(1); if (r.ok) { sfx('cash'); toast(T('Аренда продлена', 'Оренду продовжено', 'Rent extended'), 'g'); } else toast(r.msg, 'r'); rerender(); },
     hperiod: async () => { const H = G.s.house; const v = await choose(T('Платить за', 'Платити за', 'Pay per'), Object.keys(PERIODS).map((k) => ({ v: k, label: `${L(PERIODS[k].n)} · ${fmt(Math.round((H.perDay || 0) * PERIODS[k].days * PERIODS[k].k))}`, sub: T('со следующего платежа', 'з наступного платежу', 'from the next payment') }))); if (v) { setPeriod(v); rerender(); } },
     hauto: () => { G.s.house.auto = !G.s.house.auto; rerender(); },
-    buyh: async (id) => { const h = HOUSING.find((x) => x.id === id); if (!(await confirmBox(L(h.n), fmt(housePrice(h)), T('Купить', 'Купити', 'Buy')))) return; const r = buyHouse(id); toast(r.ok ? T('Поздравляем с покупкой!', 'Вітаємо з покупкою!', 'Congrats on the purchase!') : r.msg, r.ok ? 'g' : 'r'); if (r.ok) sfx('win'); rerender(); },
-    leave: async () => { if (await confirmBox(T('Освободить жильё?', 'Звільнити житло?', 'Leave your home?'), G.s.house.own ? T('Продадите за 90% стоимости.', 'Продасте за 90% вартості.', 'Sells for 90% of value.') : T('Залог вернут, оплаченные дни сгорят.', 'Заставу повернуть, оплачені дні згорять.', 'The deposit comes back, prepaid days are lost.'), T('Да', 'Так', 'Yes'), undefined, true)) { if (G.s.house.own) leaveHouse(); else { const b = moveOut(); if (b) toast(T(`Залог вернули: ${fmt(b)}`, `Заставу повернули: ${fmt(b)}`, `Deposit back: ${fmt(b)}`), 'g'); } rerender(); } },
+    leave: async () => { if (await confirmBox(T('Съехать?', 'Зʼїхати?', 'Move out?'), G.s.house.own ? T('Жильё останется вашим, просто будет пустовать.', 'Житло залишиться вашим, просто буде порожнім.', 'It stays yours, just empty.') : T('Залог вернут, оплаченные дни сгорят.', 'Заставу повернуть, оплачені дні згорять.', 'The deposit comes back, prepaid days are lost.'), T('Да', 'Так', 'Yes'), undefined, true)) { const b = moveOut(); if (b) toast(T(`Залог вернули: ${fmt(b)}`, `Заставу повернули: ${fmt(b)}`, `Deposit back: ${fmt(b)}`), 'g'); rerender(); } },
     prent: async (id) => { const r = acquireProp(id, false); toast(r.ok ? T('Помещение арендовано', 'Приміщення орендовано', 'Leased') : r.msg, r.ok ? 'g' : 'r'); rerender(); },
     pbuy: async (id) => { const p = PROPS.find((x) => x.id === id); if (!(await confirmBox(L(p.n), fmt(propPrice(p)), T('Купить', 'Купити', 'Buy')))) return; const r = acquireProp(id, true); toast(r.ok ? T('Куплено!', 'Куплено!', 'Purchased!') : r.msg, r.ok ? 'g' : 'r'); rerender(); },
     release: async (id) => { if (await confirmBox(T('Вы уверены?', 'Ви впевнені?', 'Are you sure?'), T('Магазин на этой точке закроется.', 'Магазин на цій точці закриється.', 'Any store here will close.'), T('Да', 'Так', 'Yes'), undefined, true)) { releaseProp(id); rerender(); } },

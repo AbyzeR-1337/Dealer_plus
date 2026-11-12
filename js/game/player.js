@@ -1,5 +1,6 @@
 // Player-level helpers: money, XP, reputation, inventory capacity, notifications, upgrades.
 import { G, emit } from '../core/state.js';
+import { homeValue } from './housing.js';
 import { dv, MINI_EARN } from './difficulty.js';
 import { recordMult } from './crime.js';
 import { T, L } from '../core/i18n.js';
@@ -120,6 +121,9 @@ export const HOUSING = [
   { id: 'room', n: ['Комната', 'Кімната', 'Room'], rent: 18, price: 14000, store: 16, garage: 0, energy: 0.9, rep: 0.02 },
   { id: 'studio', n: ['Студия', 'Студія', 'Studio flat'], rent: 32, price: 42000, store: 26, garage: 1, energy: 1, rep: 0.04 },
   { id: 'flat', n: ['Квартира', 'Квартира', 'Apartment'], rent: 60, price: 110000, store: 42, garage: 1, energy: 1.05, rep: 0.06 },
+  { id: 'flat2', n: ['2‑комнатная квартира', '2‑кімнатна квартира', 'Two‑bed flat'], rent: 80, price: 150000, store: 52, garage: 1, energy: 1.06, rep: 0.07 },
+  { id: 'flat3', n: ['3‑комнатная квартира', '3‑кімнатна квартира', 'Three‑bed flat'], rent: 100, price: 200000, store: 64, garage: 1, energy: 1.07, rep: 0.08 },
+  { id: 'townhouse', n: ['Таунхаус', 'Таунхаус', 'Townhouse'], rent: 105, price: 260000, store: 72, garage: 2, energy: 1.08, rep: 0.08 },
   { id: 'house', n: ['Дом с гаражом', 'Будинок з гаражем', 'House with garage'], rent: 115, price: 290000, store: 80, garage: 3, energy: 1.1, rep: 0.09 },
   { id: 'penthouse', n: ['Пентхаус', 'Пентхаус', 'Penthouse'], rent: 260, price: 1200000, store: 120, garage: 4, energy: 1.15, rep: 0.13 },
   { id: 'villa', n: ['Вилла', 'Вілла', 'Villa'], rent: 520, price: 3200000, store: 200, garage: 8, energy: 1.2, rep: 0.18 },
@@ -169,7 +173,7 @@ export function netWorth() {
   let w = s.money;
   for (const it of s.inv) w += itemValue(it, it.loc || s.player.city, 'known') * 0.85;
   for (const p of s.props) if (p.own) w += p.value || 0;
-  if (s.house.own) w += houseDef().price * 0.9;
+  for (const h of s.homes || []) w += homeValue(h) * 0.9;
   for (const d of s.bank.deposits) w += d.amt;
   for (const l of s.bank.loans) w -= l.left;
   for (const [tk, q] of Object.entries(s.stocks.hold)) w += q * (s.stocks.px[tk] || 0);

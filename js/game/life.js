@@ -103,7 +103,7 @@ export function sleepGain(hours = 8) {
   const s = G.s;
   const h = houseDef();
   const home = s.house.type !== 'none' && s.house.city === s.player.city;
-  const k = home ? h.energy + (s.house.tier === 'lux' ? 0.05 : s.house.tier === 'cheap' ? -0.05 : 0) : awayFromHome() || s.house.type === 'none' ? (s.hotelNight ? 0.85 : 0.45) : 0.45;
+  const k = home ? h.energy + ({ shabby: -0.08, meh: -0.03, cheap: -0.05, euro: 0.03, lux: 0.06 }[s.house.tier] || 0) : awayFromHome() || s.house.type === 'none' ? (s.hotelNight ? 0.85 : 0.45) : 0.45;
   return clamp(hours * 12 * k, 10, 100);
 }
 export function afterSleep(hours) {

@@ -8,7 +8,7 @@ import { execSync } from 'node:child_process';
 const out = 'dist';
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
-for (const p of ['index.html', 'manifest.webmanifest', 'sw.js', '.nojekyll', 'css', 'js', 'icons', 'assets/sheets', 'assets/photo', 'assets/photos', 'assets/walls']) {
+for (const p of ['index.html', 'manifest.webmanifest', 'sw.js', '.nojekyll', 'css', 'js', 'icons', 'assets/sheets', 'assets/photo', 'assets/photos', 'assets/walls', 'assets/homes']) {
   if (existsSync(p)) cpSync(p, `${out}/${p}`, { recursive: true }); // assets/src (original sheets) stays out of the site
 }
 
