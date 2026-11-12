@@ -13,6 +13,8 @@ import { img, empty, bar, tags, row, kv, stars } from '../ui/comp.js';
 import { itemTitle, itemSub, itemValue, makeItem, isVehicle, sizeUnits } from '../game/items.js';
 import { HOUSING, houseDef, capacity, used, xpNeed, repScore, getItem, spend, addItem, canStore, stat, addXP, luggageCap, garage, vehiclesOwned, netWorth } from '../game/player.js';
 import { FOOD, foodPrice, eat, rentFor, housePrice, rentHouse, buyHouse, leaveHouse, afterSleep, awayFromHome, hotelPrice, isSick } from '../game/life.js';
+import { factsOf, dealOf, needsChat, confirmed, reqBlock, salePrice, marketDelta } from '../game/housing.js';
+import { personOf, chatList, hiddenListing, questions, qLabel, Q_ICON, ask, goView, viewCost, payPrepay, report, refusedBy, chatBadge, tierHint } from '../game/realty_chat.js';
 import { listings, findListing, priceFor, perDayOf, moveInCost, rentListing, moveOut, prepay, setPeriod, renting, PERIODS, TIERS, KINDS, tierName, kindName, titleOf, sleepOf, homeName, photoUrl, homes, myHome, homeValue, marketRent, buyListing, liveIn, rentOut, stopRent, renoQuote, renovate, sellHome } from '../game/housing.js';
 import { PROPS, propPrice, propRent, acquireProp, releaseProp } from '../game/business.js';
 import { tripOptions, startTrip, inTransit } from '../game/travel.js';
@@ -96,9 +98,35 @@ function curCard() {
   return h + `<button class="btn xs dark mt" data-a="leave">${H.own ? T('Переехать отсюда', 'Переїхати звідси', 'Move out') : T('Съехать', 'Зʼїхати', 'Move out')}</button></div></div>`;
 }
 const typeChips = (kind) => `<div class="chips wrap">${[['', T('Все', 'Усі', 'All')], ...Object.keys(KINDS).filter((k) => kind === 'rent' || KINDS[k].m2Sale).map((k) => [k, kindName(k)])].map(([k, n]) => `<button class="chip${R.type === k ? ' on' : ''}" data-a="htype" data-v="${k}">${esc(n)}</button>`).join('')}</div>`;
+const stBadge = (id) => { const b = chatBadge(id); return b ? `<span class="re-st ${b[2]}">${b[0]} ${esc(b[1])}</span>` : ''; };
+const hhmm = (t) => `${String(Math.floor((t % 1440) / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+const deltaTag = (x) => { const d = Math.round(marketDelta(x) * 100); return Math.abs(d) < 4 ? `<span class="tag">${T('по рынку', 'за ринком', 'market price')}</span>` : `<span class="tag ${d < 0 ? 'g' : 'o'}">${d > 0 ? '+' : '−'}${Math.abs(d)}% ${T('к рынку', 'до ринку', 'vs market')}</span>`; };
+// the person behind the ad: tap to write
+function contactCard(x) {
+  if (!needsChat(x)) return `<div class="re-contact"><span class="re-ava" style="background:#26a269">🛏</span><div class="grow"><b>${T('Бронирование онлайн', 'Бронювання онлайн', 'Online booking')}</b><small>${T('Хостел: писать не нужно, места есть всегда.', 'Хостел: писати не треба, місця є завжди.', 'A hostel: no need to write, there are always beds.')}</small></div></div>`;
+  const p = personOf(x), b = chatBadge(x.id), c = dealOf(x.id), last = c?.msgs[c.msgs.length - 1];
+  return `<div class="re-contact" data-a="rchat" data-v="${x.id}"><span class="re-ava" style="background:${p.col}">${esc(p.ini)}</span><div class="grow"><b>${esc(p.name)}</b><small>${esc(p.role)}</small>${last ? `<small class="re-last">${last.f === 'me' ? T('Вы: ', 'Ви: ', 'You: ') : ''}${esc(last.tx)}</small>` : ''}</div>${b ? `<span class="tag ${b[2]}">${b[0]} ${esc(b[1])}</span>` : `<span class="btn xs">💬 ${T('Написать', 'Написати', 'Message')}</span>`}</div>`;
+}
+// what stands between you and the keys
+function gateHTML(x) {
+  if (confirmed(x)) return '';
+  const c = dealOf(x.id);
+  if (c && ['taken', 'dead'].includes(c.st)) return `<button class="btn block mt" disabled>${c.st === 'taken' ? (x.kind === 'sale' ? T('Уже продана', 'Вже продана', 'Already sold') : T('Уже сдана', 'Вже здана', 'Already let')) : T('Хозяин не отвечает', 'Господар не відповідає', 'The owner isn’t answering')}</button>`;
+  return `<button class="btn block mt" data-a="rchat" data-v="${x.id}">💬 ${x.kind === 'sale' ? T('Написать продавцу', 'Написати продавцю', 'Message the seller') : T('Написать хозяину', 'Написати господарю', 'Message the landlord')}</button><p class="tiny m center">${x.kind === 'sale' ? T('Сначала узнайте, продаётся ли ещё, — потом можно покупать.', 'Спершу дізнайтеся, чи ще продається, — потім можна купувати.', 'First check it’s still for sale — then you can buy.') : T('Сначала узнайте, сдаётся ли ещё и кому сдают, — потом можно снять.', 'Спершу дізнайтеся, чи ще здається і кому здають, — потім можна зняти.', 'First check it’s still free and who they let to — then you can rent.')}</p>`;
+}
+function notes(x) {
+  const c = dealOf(x.id), out = [];
+  const real = tierHint(x);
+  if (real) out.push(`⚠️ ${T('На деле состояние хуже фото:', 'Насправді стан гірший за фото:', 'Really worse than the photos:')} «${esc(tierName(real))}»`);
+  if (c?.knowReq && x.kind === 'rent') { const no = reqBlock(x, x.periods.includes('month') ? 'month' : x.periods[0]); if (no) out.push(`🚫 ${esc(no)}`); }
+  if (c?.disc && x.kind === 'rent') out.push(`🤝 ${T('Скидка на месяц', 'Знижка на місяць', 'Monthly discount')} −${Math.round(c.disc * 100)}%`);
+  if (c?.feeK != null && c.feeK < 1 && x.agency) out.push(`💼 ${c.feeK ? T('Комиссия вдвое меньше', 'Комісія вдвічі менша', 'Half the fee') : T('Без комиссии', 'Без комісії', 'No fee')}`);
+  if (c?.held) out.push(`🔒 ${T('Задаток', 'Завдаток', 'Holding deposit')} ${fmt(c.held)} ${T('— зачтут в оплату', '— зарахують в оплату', '— counts towards rent')}`);
+  return out.length ? `<div class="re-notes">${out.map((t) => `<div>${t}</div>`).join('')}</div>` : '';
+}
 function listCard(x) {
   const price = x.kind === 'rent' ? `${fmt(priceFor(x, x.periods.includes('month') ? 'month' : 'week'))}<small>/${L(PERIODS[x.periods.includes('month') ? 'month' : 'week'].per)}</small>` : `${fmt(x.price, { short: true })}`;
-  return `<div class="re-card" data-a="hopen" data-v="${x.id}"><div class="re-hero">${x.photos?.length ? `<img src="${photoUrl(x.photos[0])}" loading="lazy" alt="">` : '<div class="re-noph">🏠</div>'}${tierBadge(x.tier)}<span class="re-cnt">📷 ${x.photos?.length || 0}</span></div>
+  return `<div class="re-card" data-a="hopen" data-v="${x.id}"><div class="re-hero">${x.photos?.length ? `<img src="${photoUrl(x.photos[0])}" loading="lazy" alt="">` : '<div class="re-noph">🏠</div>'}${tierBadge(x.tier)}<span class="re-cnt">📷 ${x.photos?.length || 0}</span>${stBadge(x.id)}</div>
     <div class="re-body"><b class="re-price">${price}</b><span>${esc(titleOf(x))}</span><small>${esc(L(x.district))} · 🚇 ${x.metro} ${T('мин', 'хв', 'min')} · ${x.agency ? T('агентство', 'агентство', 'agency') : T('собственник', 'власник', 'owner')}</small></div></div>`;
 }
 function homeCard(h) {
@@ -107,13 +135,17 @@ function homeCard(h) {
 }
 function realtyMain() {
   const s = G.s;
-  const tabs = `<div class="chips wrap re-tabs">${[['rent', T('Снять', 'Зняти', 'Rent')], ['buy', T('Купить', 'Купити', 'Buy')], ['homes', `${T('Мои дома', 'Мої будинки', 'My homes')} (${homes().length})`], ['biz', T('Коммерция', 'Комерція', 'Commercial')], ['mine', `${T('Моя коммерция', 'Моя комерція', 'My commercial')} (${s.props.length})`]].map(([k, n]) => `<button class="chip${R.tab === k ? ' on' : ''}" data-a="rt" data-v="${k}">${n}</button>`).join('')}</div>`;
+  const tabs = `<div class="chips wrap re-tabs">${[['rent', T('Снять', 'Зняти', 'Rent')], ['buy', T('Купить', 'Купити', 'Buy')], ['chats', `💬 ${T('Переписка', 'Листування', 'Chats')}${chatList().length ? ` (${chatList().length})` : ''}`], ['homes', `${T('Мои дома', 'Мої будинки', 'My homes')} (${homes().length})`], ['biz', T('Коммерция', 'Комерція', 'Commercial')], ['mine', `${T('Моя коммерция', 'Моя комерція', 'My commercial')} (${s.props.length})`]].map(([k, n]) => `<button class="chip${R.tab === k ? ' on' : ''}" data-a="rt" data-v="${k}">${n}</button>`).join('')}</div>`;
   if (R.tab === 'rent' || R.tab === 'buy') {
     const kind = R.tab === 'rent' ? 'rent' : 'sale';
-    let ls = listings(s.player.city, kind).filter((x) => !R.type || x.type === R.type);
+    let ls = listings(s.player.city, kind).filter((x) => (!R.type || x.type === R.type) && !hiddenListing(x.id));
     ls = kind === 'rent' ? ls.sort((a, b) => a.perDay - b.perDay) : ls.sort((a, b) => a.price - b.price);
     const intro = kind === 'rent' ? T('Платите вперёд за сутки, неделю или месяц. Месяц дешевле в пересчёте на день, но нужен залог, а агентство берёт половину месяца.', 'Платите наперед за добу, тиждень або місяць. Місяць дешевший у перерахунку на день, але потрібна застава, а агентство бере половину місяця.', 'Pay up front for a day, week or month. A month is cheaper per day but needs a deposit; agencies take half a month.') : T('Купленное жильё можно занять самому, сдавать жильцам, отремонтировать (дороже продать и сдать) или перепродать. Объявления обновляются каждую неделю.', 'Куплене житло можна зайняти самому, здавати мешканцям, відремонтувати (дорожче продати й здати) або перепродати. Оголошення оновлюються щотижня.', 'A home you buy can be lived in, rented out, renovated (worth and rents more) or resold. Listings refresh weekly.');
     return tabs + (kind === 'rent' ? curCard() : '') + `<p class="p">${intro}</p>` + typeChips(kind) + `<div class="re-grid">${ls.map(listCard).join('')}</div>`;
+  }
+  if (R.tab === 'chats') {
+    const cs = chatList().map((c) => [c, findListing(c.id)]).filter(([, x]) => x);
+    return tabs + (cs.length ? cs.map(([c, x]) => { const p = personOf(x), b = chatBadge(c.id), last = c.msgs[c.msgs.length - 1]; return `<div class="ms-row" data-a="rchat" data-v="${c.id}"><span class="ms-ava" style="background:${p.col}">${esc(p.ini)}</span><div class="grow"><b>${esc(p.name)}</b> <span class="small m">${esc(titleOf(x))}</span><small class="m">${last ? (last.f === 'me' ? T('Вы: ', 'Ви: ', 'You: ') : '') + esc(last.tx) : ''}</small></div>${b ? `<span class="tag ${b[2]}">${b[0]}</span>` : ''}</div>`; }).join('') : `<div class="pc-empty">💬 ${T('Переписок пока нет. Откройте объявление и напишите хозяину.', 'Листувань поки немає. Відкрийте оголошення й напишіть господарю.', 'No chats yet. Open a listing and message the owner.')}</div>`);
   }
   if (R.tab === 'homes') {
     const hs = homes();
@@ -129,12 +161,33 @@ function flatView(p) {
   const h = houseDef(KINDS[x.type].def);
   const facts = [[T('Площадь', 'Площа', 'Area'), x.type === 'hostel' ? T('койка', 'ліжко', 'a bed') : `${x.m2} м²`], ...(x.floor ? [[T('Этаж', 'Поверх', 'Floor'), `${x.floor} / ${x.floors}`]] : []), [T('До метро', 'До метро', 'Metro'), `${x.metro} ${T('мин', 'хв', 'min')}`], [T('Район', 'Район', 'District'), L(x.district)], [T('Склад', 'Склад', 'Storage'), `📦 ${h.store}`], [T('Гараж', 'Гараж', 'Garage'), `🚗 ${h.garage}`], [T('Сон', 'Сон', 'Sleep'), `💤 ×${sleepOf(x)}`], [T('Сдаёт', 'Здає', 'Listed by'), x.agency ? T('агентство', 'агентство', 'agency') : T('собственник', 'власник', 'owner')]];
   let body = `${gal(x.photos)}<div class="re-dhead">${tierBadge(x.tier)}<h2>${esc(titleOf(x))}</h2><small class="m">${esc(L(CITY[x.city].name))} · ${esc(L(x.district))}</small></div><p class="p">${esc(L(TIERS[x.tier].d))}</p><div class="re-facts">${facts.map(([k, v]) => `<div><small>${esc(k)}</small><b>${esc(v)}</b></div>`).join('')}</div>`;
-  if (x.kind === 'rent') body += `<div class="rt-prices">${x.periods.map((per) => `<span><small>${L(PERIODS[per].n)}</small><b>${fmt(priceFor(x, per))}</b></span>`).join('')}</div><button class="btn block mt" data-a="hrent" data-v="${x.id}">${T('Снять', 'Зняти', 'Rent it')}</button>`;
+  body += contactCard(x) + notes(x);
+  if (x.kind === 'rent') body += `<div class="rt-prices">${x.periods.map((per) => `<span><small>${L(PERIODS[per].n)}</small><b>${fmt(priceFor(x, per))}</b></span>`).join('')}</div><div class="row between mt"><span class="small m">${T('Цена', 'Ціна', 'Price')}</span>${deltaTag(x)}</div>${confirmed(x) ? `<button class="btn block mt" data-a="hrent" data-v="${x.id}">🔑 ${T('Снять', 'Зняти', 'Rent it')}</button>` : gateHTML(x)}`;
   else {
     const rentMo = perDayOf(x) * 30;
-    body += `<div class="card mt"><div class="kv"><span>${T('Цена', 'Ціна', 'Price')}</span><b>${fmt(x.price)}</b></div><div class="kv"><span>${T('Сдавать можно за', 'Здавати можна за', 'Could rent for')}</span><b class="g">≈ ${fmt(rentMo)}/${T('мес', 'міс', 'mo')}</b></div><div class="kv"><span>${T('Окупаемость', 'Окупність', 'Payback')}</span><b>≈ ${Math.round(x.price / Math.max(1, rentMo))} ${T('мес', 'міс', 'mo')}</b></div>${renoQuote({ ...x }) ? `<div class="kv"><span>${T('Ремонт до', 'Ремонт до', 'Renovate to')} «${esc(tierName(renoQuote(x).next))}»</span><b>${fmt(renoQuote(x).cost)}</b></div>` : ''}</div><button class="btn block mt" data-a="hbuy" data-v="${x.id}">${T('Купить', 'Купити', 'Buy')} · ${fmt(x.price)}</button>`;
+    body += `<div class="card mt"><div class="kv"><span>${T('Цена', 'Ціна', 'Price')} ${deltaTag(x)}</span><b>${salePrice(x) < x.price ? `<s class="m">${fmt(x.price)}</s> ` : ''}${fmt(salePrice(x))}</b></div><div class="kv"><span>${T('Сдавать можно за', 'Здавати можна за', 'Could rent for')}</span><b class="g">≈ ${fmt(rentMo)}/${T('мес', 'міс', 'mo')}</b></div><div class="kv"><span>${T('Окупаемость', 'Окупність', 'Payback')}</span><b>≈ ${Math.round(x.price / Math.max(1, rentMo))} ${T('мес', 'міс', 'mo')}</b></div>${renoQuote({ ...x }) ? `<div class="kv"><span>${T('Ремонт до', 'Ремонт до', 'Renovate to')} «${esc(tierName(renoQuote(x).next))}»</span><b>${fmt(renoQuote(x).cost)}</b></div>` : ''}</div>${confirmed(x) ? `<button class="btn block mt" data-a="hbuy" data-v="${x.id}">${T('Купить', 'Купити', 'Buy')} · ${fmt(salePrice(x))}</button>` : gateHTML(x)}`;
   }
   return body;
+}
+function chatView(p) {
+  const x = findListing(p.id);
+  if (!x) return empty('chat', T('Объявление снято — переписка закрыта', 'Оголошення знято — листування закрито', 'The ad is gone — chat closed'));
+  const per = personOf(x), c = dealOf(x.id), f = factsOf(x);
+  const price = x.kind === 'rent' ? `${fmt(priceFor(x, x.periods.includes('month') ? 'month' : 'week'))}/${L(PERIODS[x.periods.includes('month') ? 'month' : 'week'].per)}` : fmt(salePrice(x));
+  const top = `<div class="chat-top re-ctop" data-a="hopen" data-v="${x.id}"><div class="th">${x.photos?.length ? `<img src="${photoUrl(x.photos[0])}" alt="">` : ''}</div><div class="grow"><b style="font-size:17px">${price}</b><div class="small m">${esc(titleOf(x))} · ${esc(tierName(x.tier))}</div></div></div>
+    <div class="re-who"><span class="re-ava" style="background:${per.col}">${esc(per.ini)}</span><div class="grow"><b>${esc(per.name)}</b><small>${esc(per.role)}</small></div>${chatBadge(x.id) ? `<span class="tag ${chatBadge(x.id)[2]}">${chatBadge(x.id)[0]} ${esc(chatBadge(x.id)[1])}</span>` : ''}</div>`;
+  const msgs = (c?.msgs || []).map((m) => `<div class="msg ${m.f}">${esc(m.tx)}${m.f === 'sys' ? '' : `<span class="tm">${hhmm(m.t)}</span>`}</div>`).join('');
+  const typing = c?.wait ? (f.avail === 'ghost' ? `<div class="msg sys">✓✓ ${T('доставлено', 'доставлено', 'delivered')}</div>` : `<div class="msg them re-typing"><i></i><i></i><i></i></div>`) : '';
+  let opts = questions(x).map((k) => `<button class="opt" data-a="rask" data-v="${x.id}" data-k="${k}">${Q_ICON[k]} ${esc(qLabel(x, k))}</button>`).join('');
+  if (c && !c.wait) {
+    if (c.st === 'bait' && c.scamAsk) opts += `<button class="opt red" data-a="rpay" data-v="${x.id}">💸 ${T('Перевести предоплату', 'Переказати передоплату', 'Send the prepayment')} ${fmt(c.scamAsk)}</button>`;
+    if (c.st === 'ok' && c.holdAsk && !c.held && c.holdUntil) opts += `<button class="opt" data-a="rpay" data-v="${x.id}">💸 ${T('Внести задаток', 'Внести завдаток', 'Pay the holding deposit')} ${fmt(c.holdAsk)}</button>`;
+    if (c.st === 'bait' || (c.st === 'ok' && c.holdAsk && !c.held)) opts += `<button class="opt" data-a="rreport" data-v="${x.id}">🛡 ${T('Пожаловаться — это развод', 'Поскаржитися — це розвод', 'Report — it’s a scam')}</button>`;
+    if (c.viewOk && !c.viewed && c.st === 'ok') opts += `<button class="opt" data-a="rview" data-v="${x.id}">🚕 ${T('Съездить на просмотр', 'Зʼїздити на перегляд', 'Go to the viewing')} · ${fmt(viewCost(x))}</button>`;
+    if (c.st === 'ok') opts += x.kind === 'rent' ? `<button class="opt solid" data-a="hrent" data-v="${x.id}">🔑 ${T('Снять', 'Зняти', 'Rent it')}</button>` : `<button class="opt solid" data-a="hbuy" data-v="${x.id}">🏠 ${T('Купить', 'Купити', 'Buy')} · ${fmt(salePrice(x))}</button>`;
+  }
+  const end = !opts && !c?.wait ? `<div class="msg sys" style="margin:10px auto">${c?.st === 'done' ? T('Сделка состоялась', 'Угода відбулася', 'Deal done') : T('Диалог завершён', 'Діалог завершено', 'Conversation closed')}</div>` : '';
+  return `<div class="re-chat" data-rechat="${x.id}">${top}${notes(x)}<div class="msgs">${msgs || `<div class="msg sys">${T('Напишите, чтобы узнать, актуально ли объявление', 'Напишіть, щоб дізнатися, чи актуальне оголошення', 'Write to find out if the ad is still live')}</div>`}${typing}</div>${opts ? `<div class="opts">${opts}</div>` : end}</div>`;
 }
 function homeView(p) {
   const h = myHome(p.id);
@@ -150,24 +203,53 @@ function homeView(p) {
 export const realtyApp = {
   id: 'realty', glyph: 'home', lvl: 1,
   name: ['Недвижимость', 'Нерухомість', 'Real estate'], colors: ['#ff9a5c', '#e2622a'],
-  views: { main: realtyMain, flat: flatView, home: homeView },
+  views: { main: realtyMain, flat: flatView, home: homeView, chat: chatView },
   actions: {
     rt: (v) => { R.tab = v; R.type = ''; rerender(); },
     htype: (v) => { R.type = v; rerender(); },
     hopen: (id) => go('flat', { id }),
+    rchat: (id) => go('chat', { id }),
+    rask: (id, el) => { const r = ask(id, el.dataset.k); if (r.ok) sfx('tap'); rerender(); },
+    rview: (id) => { const r = goView(id); if (r.ok) { sfx(r.old ? 'err' : 'ok'); toast(r.old ? T('В жизни хуже, чем на фото', 'Наживо гірше, ніж на фото', 'Worse than the photos') : T('Всё как на фото', 'Усе як на фото', 'Just like the photos'), r.old ? 'r' : 'g'); } else if (r.msg) toast(r.msg, 'r'); rerender(); },
+    rpay: async (id) => {
+      const c = dealOf(id), x = findListing(id); if (!c || !x) return;
+      const sum = c.st === 'bait' ? c.scamAsk : c.holdAsk;
+      if (!(await confirmBox(T('Перевести деньги?', 'Переказати гроші?', 'Send the money?'), esc(`${fmt(sum)} → ${personOf(x).name}. ${T('Вернуть перевод на карту нельзя.', 'Повернути переказ на картку не можна.', 'A card transfer can’t be undone.')}`), T('Перевести', 'Переказати', 'Send')))) return;
+      const r = payPrepay(id);
+      if (!r.ok) toast(r.msg || T('Не получилось', 'Не вийшло', 'Didn’t work'), 'r');
+      else if (r.scam) { sfx('lose'); toast(T('Вас развели: «хозяин» пропал', 'Вас ошукали: «господар» зник', 'Scammed: the “owner” vanished'), 'r'); }
+      else { sfx('cash'); toast(T('Задаток внесён — жильё держат за вами', 'Завдаток внесено — житло тримають за вами', 'Deposit paid — it’s held for you'), 'g'); }
+      rerender();
+    },
+    rreport: async (id) => {
+      if (!(await confirmBox(T('Пожаловаться на объявление?', 'Поскаржитися на оголошення?', 'Report this ad?'), T('Если это честный хозяин — он обидится и перестанет отвечать.', 'Якщо це чесний господар — він образиться й перестане відповідати.', 'If the owner is honest, they’ll be offended and stop replying.'), T('Пожаловаться', 'Поскаржитися', 'Report'), undefined, true))) return;
+      const r = report(id);
+      if (r.ok) { sfx(r.right ? 'win' : 'err'); toast(r.right ? T('Мошенник пойман! +опыт', 'Шахрая спіймано! +досвід', 'Scammer caught! +XP') : T('Объявление оказалось честным…', 'Оголошення виявилося чесним…', 'The ad was genuine…'), r.right ? 'g' : 'r'); }
+      rerender();
+    },
     hmine: (id) => go('home', { id }),
     hrent: async (id) => {
       const l = findListing(id); if (!l) return;
-      const p = await choose(titleOf(l), l.periods.map((per) => { const c = moveInCost(l, per); return { v: per, label: `${L(PERIODS[per].n)} · ${fmt(c.price)}`, sub: [c.deposit ? T(`залог ${fmt(c.deposit)}`, `застава ${fmt(c.deposit)}`, `deposit ${fmt(c.deposit)}`) : '', c.fee ? T(`комиссия ${fmt(c.fee)}`, `комісія ${fmt(c.fee)}`, `fee ${fmt(c.fee)}`) : '', T(`сразу ${fmt(c.total)}`, `одразу ${fmt(c.total)}`, `now ${fmt(c.total)}`)].filter(Boolean).join(' · ') }; }), renting() ? T('Старое жильё освободится: залог вернут, оплаченные дни — нет.', 'Старе житло звільниться: заставу повернуть, оплачені дні — ні.', 'Your old place is released: the deposit comes back, prepaid days don’t.') : '');
+      if (!confirmed(l)) { go('chat', { id }); return; }
+      const pers = factsOf(l).req === 'long' && dealOf(id)?.knowReq && l.periods.includes('month') ? ['month'] : l.periods;
+      const p = await choose(titleOf(l), pers.map((per) => { const c = moveInCost(l, per); return { v: per, label: `${L(PERIODS[per].n)} · ${fmt(c.price)}`, sub: [c.deposit ? T(`залог ${fmt(c.deposit)}`, `застава ${fmt(c.deposit)}`, `deposit ${fmt(c.deposit)}`) : '', c.fee ? T(`комиссия ${fmt(c.fee)}`, `комісія ${fmt(c.fee)}`, `fee ${fmt(c.fee)}`) : '', c.held ? T(`задаток −${fmt(c.held)}`, `завдаток −${fmt(c.held)}`, `deposit paid −${fmt(c.held)}`) : '', T(`сразу ${fmt(c.total)}`, `одразу ${fmt(c.total)}`, `now ${fmt(c.total)}`)].filter(Boolean).join(' · ') }; }), renting() ? T('Старое жильё освободится: залог вернут, оплаченные дни — нет.', 'Старе житло звільниться: заставу повернуть, оплачені дні — ні.', 'Your old place is released: the deposit comes back, prepaid days don’t.') : '');
       if (!p) return;
       const r = rentListing(l, p);
-      if (r.ok) { sfx('win'); toast(T('Переезд!', 'Переїзд!', 'Moved in!') + (r.back ? T(` Залог вернули: ${fmt(r.back)}`, ` Заставу повернули: ${fmt(r.back)}`, ` Deposit back: ${fmt(r.back)}`) : ''), 'g'); R.tab = 'rent'; go('main'); } else toast(r.msg, 'r');
+      if (r.ok) {
+        sfx('win'); toast(T('Переезд!', 'Переїзд!', 'Moved in!') + (r.back ? T(` Залог вернули: ${fmt(r.back)}`, ` Заставу повернули: ${fmt(r.back)}`, ` Deposit back: ${fmt(r.back)}`) : ''), 'g'); R.tab = 'rent'; go('main');
+        if (r.surprise) setTimeout(() => toast(T(`Фото были старые: на деле «${tierName(r.surprise)}»`, `Фото були старі: насправді «${tierName(r.surprise)}»`, `The photos were old: it’s really “${tierName(r.surprise)}”`), 'r'), 1400);
+      } else { if (r.refused) { refusedBy(id, r.msg); go('chat', { id }); } toast(r.msg, 'r'); }
     },
     hbuy: async (id) => {
       const l = findListing(id); if (!l) return;
-      if (!(await confirmBox(titleOf(l), T(`${fmt(l.price)} + госпошлина 1%. Жильё станет вашим: живите, сдавайте, ремонтируйте или перепродайте.`, `${fmt(l.price)} + держмито 1%. Житло стане вашим: живіть, здавайте, ремонтуйте або перепродайте.`, `${fmt(l.price)} + 1% fee. It’s yours: live in, rent out, renovate or resell.`), T('Купить', 'Купити', 'Buy')))) return;
+      if (!confirmed(l)) { go('chat', { id }); return; }
+      const pr = salePrice(l);
+      if (!(await confirmBox(titleOf(l), T(`${fmt(pr)} + госпошлина 1%. Жильё станет вашим: живите, сдавайте, ремонтируйте или перепродайте.`, `${fmt(pr)} + держмито 1%. Житло стане вашим: живіть, здавайте, ремонтуйте або перепродайте.`, `${fmt(pr)} + 1% fee. It’s yours: live in, rent out, renovate or resell.`), T('Купить', 'Купити', 'Buy')))) return;
       const r = buyListing(l);
-      if (r.ok) { sfx('win'); toast(T('Поздравляем с покупкой!', 'Вітаємо з покупкою!', 'Congratulations!'), 'g'); R.tab = 'homes'; go('home', { id: r.h.id }); } else toast(r.msg, 'r');
+      if (r.ok) {
+        sfx('win'); toast(T('Поздравляем с покупкой!', 'Вітаємо з покупкою!', 'Congratulations!'), 'g'); R.tab = 'homes'; go('home', { id: r.h.id });
+        if (r.surprise) setTimeout(() => toast(T(`Фото были старые: на деле «${tierName(r.surprise)}»`, `Фото були старі: насправді «${tierName(r.surprise)}»`, `The photos were old: it’s really “${tierName(r.surprise)}”`), 'r'), 1400);
+      } else toast(r.msg, 'r');
     },
     hlive: async (id) => { const r = liveIn(id); if (r.ok) { sfx('ok'); toast(T('Переехали в своё жильё', 'Переїхали у власне житло', 'Moved into your home'), 'g'); } else toast(r.msg, 'r'); rerender(); },
     hlet: async (id) => {

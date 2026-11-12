@@ -103,13 +103,15 @@ export function home() {
   renderHome(); renderStatus();
 }
 // while the finger is on the screen or the list is still gliding, background updates wait
-let renderQueued = false, busyUntil = 0, retryT = 0;
+// ...but right after a tap the player is waiting for the answer, so those renders go out at once
+let renderQueued = false, busyUntil = 0, retryT = 0, tapUntil = 0;
 export function markBusy(ms = 650) { busyUntil = Math.max(busyUntil, performance.now() + ms); }
+export function markTap(ms = 900) { busyUntil = 0; tapUntil = performance.now() + ms; if (renderQueued) { clearTimeout(retryT); renderQueued = false; rerender(); } }
 export function rerender() {
   if (renderQueued || !UI.app) return;
   renderQueued = true;
   const run = () => {
-    const wait = busyUntil - performance.now();
+    const wait = performance.now() < tapUntil ? 0 : busyUntil - performance.now();
     if (wait > 0) { clearTimeout(retryT); retryT = setTimeout(run, wait + 30); return; }
     requestAnimationFrame(() => { renderQueued = false; if (UI.app) render(false); });
   };
@@ -323,6 +325,7 @@ export function initShell() {
     if (el.closest('.mini') && !el.closest('.mres') && !el.dataset.global) return; // minigames handle their own clicks
     const name = el.dataset.a, v = el.dataset.v;
     ev.preventDefault();
+    markTap();
     const fn = (UI.app?.actions && UI.app.actions[name]) || GLOBAL[name];
     if (!fn) { console.warn('no action', name); return; }
     try { const r = fn(v, el, ev); if (r && r.catch) r.catch((e) => console.error(e)); } catch (e) { console.error(e); toast('⚠ ' + e.message, 'r'); }

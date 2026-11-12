@@ -4,6 +4,9 @@
 // and agencies charge half a month. Homes you buy can be lived in, rented out to tenants (daily income, late
 // payers, wear and tear), renovated to the next level (worth more, rents for more) or sold.
 // Everyone starts in a room paid for one week; older saves get that week minus the days already played.
+// Before renting or buying you write to the landlord (js/game/realty_chat.js): is it still free, who they let
+// to, are the photos current, will they haggle or drop the fee. Every listing has hidden facts: some are
+// already gone, some owners never answer, some are scammers wanting a "booking prepayment".
 import { G, emit } from '../core/state.js';
 import { T, L } from '../core/i18n.js';
 import { RNG } from '../core/rng.js';
@@ -12,6 +15,7 @@ import { CITY, countryOf } from '../data/world.js';
 import { HOUSING, houseDef, spend, charge, earn, notify, stat, canAfford, log, addXP } from './player.js';
 import { fmt, nicePrice } from '../core/money.js';
 import { HOME_PHOTOS } from '../data/home_photos.js';
+import { marksCount } from './crime.js';
 
 export const PERIODS = {
   day: { n: ['сутки', 'доба', 'day'], per: ['сутки', 'добу', 'day'], days: 1, k: 1 },
@@ -61,6 +65,43 @@ export function perDayOf(x) { const k = KINDS[x.type]; return (x.type === 'hoste
 export function saleValue(x) { const k = KINDS[x.type]; return x.m2 * k.m2Sale * TIERS[x.tier].sale * cityK(x.city) * 1.4 * (x.dk || 1); }
 export const priceFor = (x, period) => nicePrice(perDayOf(x) * PERIODS[period].days * PERIODS[period].k);
 
+// what the ad doesn't say, fixed per listing (seeded): learn it by asking the landlord or going to a viewing
+// avail: yes | taken | ghost (never answers) | scam;  req (who they rent to): none | family | long | clean | income
+export const REQS = ['none', 'none', 'none', 'none', 'family', 'long', 'clean', 'income'];
+export function factsOf(x) {
+  const r = new RNG(`refx|${G.s.id}|${x.id}`);
+  const sale = x.kind === 'sale', hostel = x.type === 'hostel';
+  const scam = !hostel && r.chance(sale ? 0.05 : 0.1);
+  const roll = r.next();
+  const avail = scam ? 'scam' : hostel ? 'yes' : roll < (sale ? 0.14 : 0.22) ? 'taken' : roll < (sale ? 0.2 : 0.3) ? 'ghost' : 'yes';
+  const i = TIER_ORDER.indexOf(x.tier);
+  const oldPhotos = !hostel && i > 0 && r.chance(0.2);
+  const req = sale || hostel ? 'none' : r.pick(REQS);
+  return {
+    avail, req, oldPhotos,
+    realTier: oldPhotos ? TIER_ORDER[i - 1] : x.tier,
+    disc: hostel ? 0 : r.pick([0, 0, 0.03, 0.05, 0.05, 0.07, 0.1]) * (x.agency ? 0.6 : 1),
+    feeK: x.agency ? r.pick([1, 1, 0.5, 0.5, 0]) : 1,
+    debtK: sale && r.chance(0.3) ? r.float(0.01, 0.045) : 0,
+    hold: !sale && !x.agency && avail === 'yes' && r.chance(0.2),
+    who: r.int(0, 99), style: r.int(0, 99),
+  };
+}
+// your conversation about a listing (null if you haven't written yet)
+export const dealOf = (id) => G.s.reChats?.[id] || null;
+// online booking: hostels don't need a chat
+export const needsChat = (l) => l.type !== 'hostel';
+export const confirmed = (l) => !needsChat(l) || dealOf(l.id)?.st === 'ok';
+// the landlord's rules, checked when you actually try to move in
+export function reqBlock(l, period) {
+  const f = factsOf(l);
+  if (f.req === 'family') return T('Хозяева сдают только семейной паре.', 'Господарі здають лише сімейній парі.', 'The owners only let to a married couple.');
+  if (f.req === 'long' && period !== 'month') return T('Только на долгий срок — от месяца.', 'Лише на довгий термін — від місяця.', 'Long‑term only — a month or more.');
+  if (f.req === 'clean' && marksCount() > 0) return T('Проверили по базе: с проблемами с полицией не сдают.', 'Перевірили по базі: з проблемами з поліцією не здають.', 'They checked: no tenants with police trouble.');
+  if (f.req === 'income' && G.s.money < priceFor(l, l.periods.includes('month') ? 'month' : 'week') * 3) return T('Нужно показать доход: на счету хотя бы три платежа.', 'Треба показати дохід: на рахунку хоча б три платежі.', 'They want proof of income: at least three payments in the bank.');
+  return null;
+}
+
 // this week's listings in a city: kind 'rent' or 'sale'
 export function listings(cityId = G.s.player.city, kind = 'rent') {
   const s = G.s, week = Math.floor(s.t / (1440 * 7));
@@ -78,17 +119,26 @@ export function listings(cityId = G.s.player.city, kind = 'rent') {
     const floors = flatty ? (tier === 'shabby' || tier === 'meh' ? r.pick([5, 5, 9]) : type === 'penthouse' ? r.int(18, 40) : r.pick([9, 12, 16, 17, 25])) : 0;
     const x = { id: `hm_${kind}_${cityId}_${week}_${type}_${i}`, kind, type, tier, m2: r.int(...k.area), floor: flatty ? (type === 'penthouse' ? floors : r.int(1, floors)) : 0, floors, metro: r.int(3, 28), district: d.slice(0, 3), dk: d[3] * r.float(0.94, 1.06), agency: type !== 'hostel' && r.chance(0.55), city: cityId };
     x.photos = photosOf(x, week);
+    // price vs the market: scammers lure with "too good to be true", a few honest owners sell in a hurry
+    const fx = factsOf(x), pr = new RNG(`px|${x.id}`);
+    x.mk = d[3];
+    if (fx.avail === 'scam') x.dk *= pr.float(0.55, 0.7);
+    else if (pr.chance(0.1)) x.dk *= pr.float(0.76, 0.86);
     if (kind === 'rent') { x.perDay = perDayOf(x); x.periods = k.rent; } else x.price = nicePrice(saleValue(x) * r.float(0.92, 1.1));
     out.push(x);
   }
   return out;
 }
+export const marketDelta = (x) => (x.mk ? x.dk / x.mk - 1 : 0);
 export const findListing = (id) => listings(G.s.player.city, id.includes('_sale_') ? 'sale' : 'rent').find((x) => x.id === id);
 export function moveInCost(l, period) {
-  const price = priceFor(l, period);
+  const d = dealOf(l.id);
+  let price = priceFor(l, period);
+  if (d?.disc && period === 'month') price = nicePrice(price * (1 - d.disc));
   const deposit = period === 'month' && l.type !== 'hostel' ? price : 0;
-  const fee = l.agency && period === 'month' ? nicePrice(price * 0.5) : 0;
-  return { price, deposit, fee, total: price + deposit + fee };
+  const fee = l.agency && period === 'month' ? nicePrice(price * 0.5 * (d?.feeK ?? 1)) : 0;
+  const held = Math.min(d?.held || 0, price); // a booking deposit already paid counts towards the first payment
+  return { price, deposit, fee, held, total: price + deposit + fee - held };
 }
 
 // ---------------------------------------------------------------- where you live
@@ -97,15 +147,23 @@ export const paidLeft = () => (renting() ? G.s.house.paidUntil - G.s.t : 0);
 const snap = (x) => ({ type: x.type, tier: x.tier, m2: x.m2, floor: x.floor, floors: x.floors, metro: x.metro, district: x.district, dk: x.dk, city: x.city, photos: x.photos || photosOf(x) });
 export function rentListing(l, period) {
   const s = G.s, c = moveInCost(l, period);
+  if (!confirmed(l)) return { ok: false, msg: T('Сначала напишите хозяину и узнайте, сдаётся ли ещё', 'Спершу напишіть господарю й дізнайтеся, чи ще здається', 'Message the landlord first to check it’s still free') };
+  const no = reqBlock(l, period);
+  if (no) return { ok: false, msg: no, refused: true };
   if (!canAfford(c.total)) return { ok: false, msg: T(`Нужно ${fmt(c.total)}`, `Потрібно ${fmt(c.total)}`, `You need ${fmt(c.total)}`) };
   const back = moveOut(true);
-  spend(c.price, 'rent', `${titleOf(l)} · ${L(PERIODS[period].per)}`);
+  const f = factsOf(l), d = dealOf(l.id);
+  if (c.price - c.held > 0) spend(c.price - c.held, 'rent', `${titleOf(l)} · ${L(PERIODS[period].per)}`);
   if (c.deposit) spend(c.deposit, 'rent', T('Залог за квартиру', 'Застава за квартиру', 'Rental deposit'));
   if (c.fee) spend(c.fee, 'service', T('Комиссия агентства', 'Комісія агентства', 'Agency commission'));
-  s.house = { v: 3, ...snap(l), type: KINDS[l.type].def, kindType: l.type, own: false, since: s.t, period, price: c.price, perDay: l.perDay, deposit: c.deposit, paidUntil: s.t + PERIODS[period].days * 1440, listing: l.id, auto: true, late: 0 };
+  // old photos: the place turns out one step shabbier than in the ad
+  const real = { ...l, tier: f.realTier };
+  if (f.oldPhotos) real.photos = photosOf(real, 7);
+  s.house = { v: 3, ...snap(real), type: KINDS[l.type].def, kindType: l.type, own: false, since: s.t, period, price: c.price, perDay: perDayOf(l) * (c.price / priceFor(l, period)), deposit: c.deposit, paidUntil: s.t + PERIODS[period].days * 1440, listing: l.id, auto: true, late: 0 };
+  if (d) { d.st = 'done'; d.held = 0; }
   stat('moves'); log('house', titleOf(l));
   emit('house');
-  return { ok: true, back, cost: c };
+  return { ok: true, back, cost: c, surprise: f.oldPhotos && !d?.knowTier ? f.realTier : null };
 }
 // leaving a rented place: the deposit comes back (if you’re not behind), prepaid days don’t; an owned home just becomes empty
 export function moveOut(silent = false) {
@@ -140,16 +198,24 @@ export const homes = () => (G.s.homes ||= []);
 export const myHome = (id) => homes().find((x) => x.id === id);
 export const homeValue = (h) => saleValue(h) * (h.wear ? 1 - h.wear : 1);
 export const marketRent = (h) => perDayOf(h);
+export const salePrice = (l) => { const d = dealOf(l.id); return d?.disc ? nicePrice(l.price * (1 - d.disc)) : l.price; };
 export function buyListing(l) {
-  const s = G.s;
-  if (!spend(l.price, 'realty', titleOf(l))) return { ok: false, msg: T('Не хватает денег', 'Не вистачає грошей', 'Not enough money') };
-  const fee = nicePrice(l.price * 0.01);
+  const s = G.s, price = salePrice(l), f = factsOf(l), d = dealOf(l.id);
+  if (!confirmed(l)) return { ok: false, msg: T('Сначала напишите продавцу и узнайте, продаётся ли ещё', 'Спершу напишіть продавцю й дізнайтеся, чи ще продається', 'Message the seller first to check it’s still for sale') };
+  if (!spend(price, 'realty', titleOf(l))) return { ok: false, msg: T('Не хватает денег', 'Не вистачає грошей', 'Not enough money') };
+  const fee = nicePrice(price * 0.01);
   charge(fee, 'gov', T('Госпошлина и регистрация сделки', 'Держмито й реєстрація угоди', 'Registration fee'));
-  const h = { id: uid('home'), ...snap(l), paid: l.price, bought: s.t, mode: 'empty', rentK: 1, wear: 0 };
+  const real = { ...l, tier: f.realTier };
+  if (f.oldPhotos) real.photos = photosOf(real, 7);
+  const h = { id: uid('home'), ...snap(real), paid: price, bought: s.t, mode: 'empty', rentK: 1, wear: 0 };
   homes().push(h);
+  if (d) d.st = 'done';
+  // nobody asked about the papers: the utility debt is now yours
+  const debt = f.debtK && !d?.knowDebt ? nicePrice(l.price * f.debtK) : 0;
+  if (debt) { charge(debt, 'gov', T('Долг прежнего владельца за коммуналку', 'Борг попереднього власника за комуналку', 'The previous owner’s utility debt')); notify('realty', T('Нашёлся долг по коммуналке', 'Знайшовся борг за комуналку', 'An unpaid utility bill turned up'), T(`${titleOf(l)}: прежний хозяин не платил — ${fmt(debt)} пришлось погасить вам. В следующий раз спрашивайте про документы.`, `${titleOf(l)}: попередній господар не платив — ${fmt(debt)} довелося погасити вам. Наступного разу питайте про документи.`, `${titleOf(l)}: the old owner never paid — you covered ${fmt(debt)}. Ask about the papers next time.`)); }
   stat('homesBought'); addXP(40);
   emit('house');
-  return { ok: true, h };
+  return { ok: true, h, debt, surprise: f.oldPhotos && !d?.knowTier ? f.realTier : null };
 }
 export function liveIn(id) {
   const s = G.s, h = myHome(id);

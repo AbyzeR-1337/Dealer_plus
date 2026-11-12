@@ -1136,3 +1136,16 @@ img.bm.ready { opacity: 1; }
 .re-dhead { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; } .re-dhead h2 { margin: 2px 0 0; font-size: 20px; }
 .re-facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; } .re-facts div { border-radius: 12px; background: rgba(127,127,127,.1); padding: 8px 10px; display: flex; flex-direction: column; } .re-facts small { opacity: .6; font-size: 11.5px; } .re-facts b { font-size: 14px; }
 .re-cur { display: flex; gap: 12px; align-items: flex-start; } .re-curimg { width: 96px; height: 72px; object-fit: cover; border-radius: 12px; flex: none; }
+
+/* real estate: writing to the landlord */
+.re-st { position: absolute; right: 10px; top: 10px; background: rgba(0,0,0,.62); color: #fff; font-size: 12px; font-weight: 700; border-radius: 8px; padding: 3px 8px; }
+.re-st.g { background: rgba(38,162,105,.92); } .re-st.r { background: rgba(200,50,60,.9); } .re-st.o { background: rgba(230,120,30,.92); }
+.re-contact { display: flex; align-items: center; gap: 12px; padding: 12px; margin: 12px 0 4px; border-radius: 16px; background: rgba(127,127,127,.1); cursor: pointer; }
+.re-contact .grow { min-width: 0; display: flex; flex-direction: column; gap: 1px; } .re-contact small { opacity: .65; font-size: 12px; }
+.re-contact .re-last { opacity: .9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.re-ava { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 19px; flex: none; }
+.re-who { display: flex; align-items: center; gap: 10px; padding: 12px 0 4px; } .re-who .grow { display: flex; flex-direction: column; } .re-who small { opacity: .6; font-size: 12px; }
+.re-who .re-ava { width: 38px; height: 38px; font-size: 16px; }
+.re-ctop { cursor: pointer; } .re-ctop .th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.re-notes { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; } .re-notes div { border-radius: 12px; padding: 8px 12px; background: rgba(255,170,60,.12); font-size: 13.5px; }
+.re-typing { display: flex; gap: 5px; padding: 14px 16px; } .re-typing i { width: 8px; height: 8px; border-radius: 50%; background: var(--mute); animation: tp 1s infinite; } .re-typing i:nth-child(2) { animation-delay: .15s; } .re-typing i:nth-child(3) { animation-delay: .3s; }

@@ -78,6 +78,12 @@ function pump() {
   busy = true;
   const [key, job] = WAIT.entries().next().value;
   WAIT.delete(key);
+  // the screen that asked for this photo is gone: drop it (it is queued again if it shows up);
+  // markup that is not on the page yet gets a short grace period
+  if (!document.querySelector(`img[data-bm="${CSS.escape(key)}"]`)) {
+    if (performance.now() - job.t < 1500) WAIT.set(key, job);
+    busy = false; setTimeout(pump, WAIT.size ? 40 : 0); return;
+  }
   // yield to the UI between photos so scrolling stays smooth while the queue drains
   const run = () => rasterize(job.it, job.o, job.size).then((url) => remember(key, url)).catch((e) => { console.warn('bitmap', e); FAILED.add(key); for (const el of document.querySelectorAll(`img[data-bm="${CSS.escape(key)}"]`)) el.replaceWith(fallback(job)); })
     .finally(() => { busy = false; setTimeout(pump, 0); });
@@ -93,7 +99,8 @@ export function itemBitmap(it, o = {}, size = 460) {
   if (FAILED.has(key) || !bitmapsOK) return renderItem(it, o).svg;
   const url = URLS.get(key);
   if (url) { URLS.delete(key); URLS.set(key, url); return `<img class="bm ready" data-bm="${key}" src="${url}" alt="" draggable="false">`; }
-  if (!WAIT.has(key)) WAIT.set(key, { it, o, size });
+  if (!WAIT.has(key)) WAIT.set(key, { it, o, size, t: performance.now() });
+  else WAIT.get(key).t = performance.now();
   setTimeout(pump, 0);
   return `<img class="bm" data-bm="${key}" src="${BLANK}" alt="" draggable="false">`;
 }
