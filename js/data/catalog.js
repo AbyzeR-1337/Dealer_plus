@@ -7,6 +7,7 @@ import { buildVehicles } from './models_vehicles.js';
 import { buildExtra } from './models_extra.js';
 import { buildStorage } from './models_storage.js';
 import { buildPC } from './models_pc.js';
+import { buildNew } from './models_new.js';
 
 export const YEAR = 2026;
 
@@ -359,6 +360,7 @@ buildVehicles(addModel);
 buildExtra(addModel);
 buildStorage(addModel);
 buildPC(addModel);
+buildNew(addModel);
 
 // Typical market value for an original item in excellent used condition (USD, before regional effects)
 export function modelValue(m) {

@@ -33,7 +33,7 @@ export function procedure(api, { steps, theme = '', rival = null, head = '', onE
       logEl.scrollTop = logEl.scrollHeight;
     },
     wait(ms) { return new Promise((r) => setTimeout(() => { if (!api.ended) r(); }, ms)); },
-    timer(sec, cb) { api.setTime(sec, () => { if (!api.ended) cb(); }); },
+    timer(sec, cb) { api.setTime(sec, () => { if (!api.ended) cb(); }, { optional: true }); },
     stopTimer() { api.clearTime(); },
     tick(fn) { stepTicks.push(fn); },
     mistake(t, penalty = 1) {

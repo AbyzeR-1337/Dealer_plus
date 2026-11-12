@@ -10,6 +10,8 @@ import { makeItem, itemValue, itemTitle } from './items.js';
 import { getItem, removeItem, addItem, earn, charge, spend, addXP, addReview, notify, stat, canStore } from './player.js';
 import { storageKind } from './files.js';
 import { deliveryTime } from './market.js';
+import { stockOf, addPart, takePart } from './workshop.js';
+import { partPrice, partKey, PART_NAMES, QUALITY } from '../data/parts.js';
 import { fmt, nicePrice } from '../core/money.js';
 
 export const SLOTS = ['cpu', 'mb', 'ram', 'gpu', 'drive', 'psu', 'case', 'cooler'];
@@ -31,7 +33,7 @@ export function specOf(it) {
 export const partsOf = (kind) => G.s.inv.filter((it) => !it.listed && !it.shop && specOf(it)?.kind === kind && !it.auction);
 export function specLine(it) {
   const p = specOf(it); if (!p) return '';
-  return { cpu: `${p.socket} · ${T('мощность', 'потужність', 'power')} ${p.perf} · TDP ${p.tdp} W`, mb: `${p.socket} · ${p.ram} · ${p.form}`, ram: `${p.ram} · ${p.gb} ${T('ГБ', 'ГБ', 'GB')}`, gpu: `${T('мощность', 'потужність', 'power')} ${p.perf} · ${p.watts} W`, drive: p.nvme ? 'NVMe SSD' : p.ssd ? 'SATA SSD' : 'HDD', psu: `${p.watts} W`, case: p.form === 'ATX' ? 'ATX / mATX' : 'mATX', cooler: `${T('до', 'до', 'up to')} ${p.tdp} W` }[p.kind] || '';
+  return { cpu: `${p.socket} · ${T('мощность', 'потужність', 'power')} ${p.perf} · TDP ${p.tdp} W`, mb: `${p.socket} · ${p.ram} · ${p.form}`, ram: `${p.ram} · ${p.gb} ${T('ГБ', 'ГБ', 'GB')}`, gpu: `${T('мощность', 'потужність', 'power')} ${p.perf} · ${p.watts} W`, drive: p.nvme ? 'NVMe SSD' : p.ssd ? 'SATA SSD' : 'HDD', psu: `${p.watts} W`, case: p.form === 'ATX' ? 'ATX / mATX / ITX' : p.form === 'mATX' ? 'mATX / ITX' : 'Mini‑ITX', cooler: `${T('до', 'до', 'up to')} ${p.tdp} W` }[p.kind] || '';
 }
 // compatibility and score for a set of chosen parts { slot: itemId }
 export function checkBuild(sel) {
@@ -43,7 +45,8 @@ export function checkBuild(sel) {
   const missing = need.filter((k) => !P[k]);
   if (P.cpu && P.mb) row(P.cpu.s.socket === P.mb.s.socket, T(`Сокет: процессор ${P.cpu.s.socket}, плата ${P.mb.s.socket}`, `Сокет: процесор ${P.cpu.s.socket}, плата ${P.mb.s.socket}`, `Socket: CPU ${P.cpu.s.socket}, board ${P.mb.s.socket}`));
   if (P.ram && P.mb) row(P.ram.s.ram === P.mb.s.ram, T(`Память ${P.ram.s.ram}, плата под ${P.mb.s.ram}`, `Памʼять ${P.ram.s.ram}, плата під ${P.mb.s.ram}`, `RAM ${P.ram.s.ram}, board takes ${P.mb.s.ram}`));
-  if (P.case && P.mb) row(P.case.s.form === 'ATX' || P.mb.s.form === 'mATX', T(`Плата ${P.mb.s.form} в корпус ${P.case.s.form}`, `Плата ${P.mb.s.form} у корпус ${P.case.s.form}`, `${P.mb.s.form} board in a ${P.case.s.form} case`));
+  const FR = { ITX: 0, mATX: 1, ATX: 2 };
+  if (P.case && P.mb) row(FR[P.case.s.form] >= FR[P.mb.s.form], T(`Плата ${P.mb.s.form} в корпус ${P.case.s.form}`, `Плата ${P.mb.s.form} у корпус ${P.case.s.form}`, `${P.mb.s.form} board in a ${P.case.s.form} case`));
   if (P.cooler && P.cpu) row(P.cooler.s.tdp >= P.cpu.s.tdp, T(`Кулер тянет ${P.cooler.s.tdp} W, процессор греется на ${P.cpu.s.tdp} W`, `Кулер тягне ${P.cooler.s.tdp} W, процесор гріється на ${P.cpu.s.tdp} W`, `Cooler handles ${P.cooler.s.tdp} W, CPU puts out ${P.cpu.s.tdp} W`));
   const draw = (P.cpu?.s.tdp || 0) + (P.gpu?.s.watts || 0) + 90;
   if (P.psu) row(P.psu.s.watts >= draw, T(`Блок ${P.psu.s.watts} W, системе нужно ~${draw} W`, `Блок ${P.psu.s.watts} W, системі треба ~${draw} W`, `PSU ${P.psu.s.watts} W, system needs ~${draw} W`));
@@ -226,4 +229,45 @@ export function buyHw(id) {
   stat('bought');
   emit('deliveries');
   return { ok: true };
+}
+
+// ---------------------------------------------------------------- laptops and consoles from parts
+// Donors you dismantle in the Workshop give used parts; new originals and copies can be bought too.
+export const DEVICE_RECIPES = {
+  laptop: ['board', 'display', 'battery', 'keyboard', 'hinge', 'fan', 'frame'],
+  console: ['board', 'drive', 'psu', 'fan', 'hdmi', 'frame', 'stick'],
+};
+export const DEVICE_MODELS = (kind) => (kind === 'laptop' ? BY_CAT.electronics.filter((m) => m.art?.t === 'laptop') : (BY_CAT.consoles || []).filter((m) => m.year >= 2000)).slice().sort((a, b) => b.year - a.year);
+const QK = { orig: 1, copy: 0.82, used: 0.78 };
+export function devStock(modelId, kind) { const st = stockOf(partKey(modelId, kind)); return st; }
+export const bestQ = (st) => (st.orig ? 'orig' : st.copy ? 'copy' : st.used ? 'used' : null);
+export function devReady(dkind, modelId) {
+  const rows = DEVICE_RECIPES[dkind].map((k) => ({ k, st: devStock(modelId, k), q: bestQ(devStock(modelId, k)) }));
+  const optional = dkind === 'console' ? ['stick'] : [];
+  return { rows, ok: rows.every((r) => r.q || optional.includes(r.k)), have: rows.filter((r) => r.q).length };
+}
+export function buyDevPart(modelId, kind, q) {
+  const price = partPrice(modelId, kind, q);
+  if (!spend(price, 'repair', `${L(PART_NAMES[kind])} · ${L(QUALITY[q].n)}`)) return false;
+  addPart(partKey(modelId, kind), q);
+  stat('partsBought');
+  return true;
+}
+export function assembleDevice(dkind, modelId, res) {
+  const s = G.s, r = devReady(dkind, modelId);
+  if (!r.ok) return { ok: false, msg: T('Не хватает деталей', 'Не вистачає деталей', 'Missing parts') };
+  const used = r.rows.filter((x) => x.q);
+  for (const x of used) takePart(partKey(modelId, x.k), x.q);
+  const avg = used.reduce((a, x) => a + QK[x.q], 0) / used.length;
+  const it = makeItem(new RNG(uid('dev')), { model: modelId, quality: 'good', fakeMult: 0, lockRate: 0 });
+  it.sealed = false; it.box = false; it.docs = false; it.defects = []; it.fake = 0; it.rar = 0; it.lock = null;
+  it.cond = Math.round(clamp(55 + 42 * avg * (res.score ?? 1), 40, 97));
+  it.refurb = true;
+  it.paid = used.reduce((a, x) => a + partPrice(modelId, x.k, x.q), 0);
+  if (dkind === 'laptop') it.defects.push({ c: 'e_os', x: 0.5, y: 0.5, view: 'front', known: true }); // a fresh board has no system yet
+  if (dkind === 'console' && !used.some((x) => x.k === 'stick')) it.noPad = true;
+  addItem(it, it.paid, 'build');
+  stat(dkind === 'laptop' ? 'laptopsBuilt' : 'consolesBuilt'); addXP(18);
+  emit('inv'); emit('parts');
+  return { ok: true, it };
 }

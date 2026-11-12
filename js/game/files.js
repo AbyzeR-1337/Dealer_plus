@@ -11,6 +11,7 @@ import { MODEL, DEFECTS } from '../data/catalog.js';
 import { PHOTO_FILES } from '../data/photos.js';
 import { earn, charge, addXP, addReview, notify, log, stat, canAfford } from './player.js';
 import { fmt } from '../core/money.js';
+import { arrest } from './crime.js';
 
 const T_KIND = { usb: 'usb', secure: 'secure', sd: 'card', microsd: 'card', cf: 'card', memstick: 'card', dashcam: 'dashcam', hdd: 'hdd', office: 'office', hdd25: 'hdd', ssd: 'hdd', nvme: 'hdd', exthdd: 'hdd', extssd: 'hdd', nas: 'nas', tape: 'tape', zip: 'floppy', cd: 'cd', dvd: 'dvd', gamecd: 'gamecd', floppy: 'floppy', cassette: 'cassette', minidisc: 'cassette', vhs: 'vhs', minidv: 'vhs', ipod: 'ipod', dictaphone: 'dictaphone' };
 const CONSOLE_T = ['ps3', 'ps4', 'ps5', 'x360', 'xone', 'xss', 'xsx', 'switch', 'switchlite', 'deck', 'psp', 'ds', 'wii'];
@@ -295,7 +296,7 @@ export function corpAction(it, how) {
   if (how === 'return') { earn(f.back, 'other', T(`${f.firm}: вознаграждение`, `${f.firm}: винагорода`, `${f.firm}: reward`)); addXP(30); addReview(5, T('Вернул нашу базу, не стал сливать. Респект.', 'Повернув нашу базу, не став зливати. Респект.', 'Returned our database instead of leaking it. Respect.'), { buyer: f.firm }); return { got: f.back }; }
   // selling it to competitors: easy money, but it might be a sting
   const caught = new RNG(`corp|${it.seed}|${G.s.t}`).chance(0.35);
-  if (caught) { const fine = Math.round(f.sell * 1.6); charge(fine, 'fine', T('Штраф: торговля чужими базами данных', 'Штраф: торгівля чужими базами даних', 'Fine: selling stolen databases')); addReview(1, T('Слил нашу клиентскую базу. Обходите стороной.', 'Злив нашу клієнтську базу. Обходьте стороною.', 'Leaked our client database. Stay away.'), { buyer: f.firm }); return { caught: true, fine }; }
+  if (caught) { const fine = Math.round(f.sell * 1.6); arrest('leak', { fine, text: f.firm }); addReview(1, T('Слил нашу клиентскую базу. Обходите стороной.', 'Злив нашу клієнтську базу. Обходьте стороною.', 'Leaked our client database. Stay away.'), { buyer: f.firm }); return { caught: true, fine }; }
   earn(f.sell, 'other', T('Продал клиентскую базу', 'Продав клієнтську базу', 'Sold a client database'));
   return { got: f.sell };
 }

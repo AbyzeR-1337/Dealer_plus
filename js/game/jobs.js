@@ -1,5 +1,6 @@
 // Jobs: vacancies, applications, interviews, shifts with minigames and career growth.
 import { G, emit } from '../core/state.js';
+import { paperPenalty, marksCount } from './crime.js';
 import { spend as spendMoney } from './player.js';
 import { T, L } from '../core/i18n.js';
 import { uid, clamp, chance, rint, pickR } from '../core/util.js';
@@ -96,7 +97,7 @@ export function apply(jobId) {
   const miss = reqOk(job);
   const rng = new RNG(`${s.id}:app:${jobId}:${s.t}`);
   const hr = npcName(rng, s.player.city).name;
-  s.job.apps.unshift({ id: uid('a'), job: jobId, st: 'sent', at: s.t, respond: s.t + rint(25, 90), ok: miss.length === 0 && rng.chance(0.85 + upLevel('charisma') * 0.03), hr });
+  s.job.apps.unshift({ id: uid('a'), job: jobId, st: 'sent', at: s.t, respond: s.t + rint(25, 90), ok: miss.length === 0 && rng.chance(0.85 + upLevel('charisma') * 0.03 - paperPenalty() * 1.2), hr, record: marksCount() });
   stat('applications');
   emit('jobs');
   return true;
@@ -139,7 +140,7 @@ export function quitJob() {
   s.job.cur = null;
   emit('jobs');
 }
-export const canShift = () => { const s = G.s; return s.job.cur && s.t >= s.job.next && s.energy >= 12; };
+export const canShift = () => { const s = G.s; return s.job.cur && s.t >= s.job.next && s.energy >= 12 && !(s.sick && s.sick.until > s.t); };
 export function finishShift(score) {
   const s = G.s;
   const job = jobById(s.job.cur);

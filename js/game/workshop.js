@@ -31,7 +31,7 @@ export function addPart(key, q, n = 1) {
   p[key][q] = (p[key][q] || 0) + n;
   emit('parts');
 }
-function takePart(key, q) { const p = store()[key]; if (!p || !p[q]) return false; p[q]--; if (!p.orig && !p.copy && !p.used) delete store()[key]; return true; }
+export function takePart(key, q) { const p = store()[key]; if (!p || !p[q]) return false; p[q]--; if (!p.orig && !p.copy && !p.used) delete store()[key]; return true; }
 export function buyPart(it, kind, q) {
   const price = partPrice(it.m, kind, q);
   if (!spend(price, 'repair', `${L(PART_NAMES[kind])} · ${L(QUALITY[q].n)}`)) return false;

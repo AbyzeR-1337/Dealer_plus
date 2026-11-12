@@ -1,5 +1,7 @@
 // Life sim: energy, food, sleeping, housing & rent, taxes and the daily rollover.
 import { G, emit } from '../core/state.js';
+import { dv } from './difficulty.js';
+import { marksCount, recordMult } from './crime.js';
 import { T, L } from '../core/i18n.js';
 import { uid, clamp, chance, pickR } from '../core/util.js';
 import { countryOf, CITY } from '../data/world.js';
@@ -9,20 +11,37 @@ import { itemTitle, isVehicle } from './items.js';
 import { day } from './economy.js';
 
 export const FOOD = [
-  { id: 'shawarma', n: ['Шаурма у метро', 'Шаурма біля метро', 'Street shawarma'], price: 3, food: 30, energy: 0, icon: '🌯' },
-  { id: 'canteen', n: ['Столовая', 'Їдальня', 'Canteen meal'], price: 6, food: 50, energy: 3, icon: '🍲' },
-  { id: 'groceries', n: ['Продукты домой', 'Продукти додому', 'Groceries'], price: 12, food: 75, energy: 2, icon: '🛒', home: true },
-  { id: 'cafe', n: ['Кафе', 'Кафе', 'Café'], price: 14, food: 60, energy: 8, icon: '🍝' },
-  { id: 'energy', n: ['Энергетик', 'Енергетик', 'Energy drink'], price: 2, food: 5, energy: 15, icon: '⚡', limit: true },
-  { id: 'rest', n: ['Ресторан', 'Ресторан', 'Restaurant'], price: 55, food: 100, energy: 15, icon: '🍷' },
+  { id: 'shawarma', n: ['Шаурма у метро', 'Шаурма біля метро', 'Street shawarma'], price: 3, food: 30, energy: 0, icon: '🌯', junk: 1, risk: 0.04 },
+  { id: 'burger', n: ['Бургер и картошка фри', 'Бургер і картопля фрі', 'Burger & fries'], price: 5, food: 45, energy: 2, icon: '🍔', junk: 1 },
+  { id: 'noodles', n: ['Лапша быстрого приготовления', 'Локшина швидкого приготування', 'Instant noodles'], price: 1, food: 20, energy: 0, icon: '🍜', junk: 0.7 },
+  { id: 'canteen', n: ['Столовая', 'Їдальня', 'Canteen meal'], price: 6, food: 50, energy: 3, icon: '🍲', junk: 0.2 },
+  { id: 'groceries', n: ['Продукты домой', 'Продукти додому', 'Groceries'], price: 12, food: 75, energy: 2, icon: '🛒', home: true, healthy: 1 },
+  { id: 'cafe', n: ['Кафе', 'Кафе', 'Café'], price: 14, food: 60, energy: 8, icon: '🍝', healthy: 0.5 },
+  { id: 'energy', n: ['Энергетик', 'Енергетик', 'Energy drink'], price: 2, food: 5, energy: 15, icon: '⚡', limit: true, junk: 0.5 },
+  { id: 'rest', n: ['Ресторан', 'Ресторан', 'Restaurant'], price: 55, food: 100, energy: 15, icon: '🍷', healthy: 1 },
+  { id: 'meds', n: ['Аптека: таблетки от желудка', 'Аптека: пігулки від шлунка', 'Pharmacy: stomach pills'], price: 4, food: 0, energy: 0, icon: '💊', meds: true },
 ];
+export const isSick = () => !!(G.s?.sick && G.s.sick.until > G.s.t);
 export const foodPrice = (f) => f.price * countryOf(G.s.player.city).wage * 0.9 + f.price * 0.1;
 export function eat(f) {
   const s = G.s;
   if (f.home && s.house.type === 'none') return { ok: false, msg: T('Негде готовить — нужно жильё', 'Ніде готувати — потрібне житло', 'Nowhere to cook — get a home') };
   if (f.limit && (s.daily.energyDrinks || 0) >= 3) return { ok: false, msg: T('Хватит энергетиков на сегодня', 'Досить енергетиків на сьогодні', 'Enough energy drinks for today') };
-  if (!spend(foodPrice(f), 'food', L(f.n))) return { ok: false, msg: T('Не хватает денег', 'Не вистачає грошей', 'Not enough money') };
-  s.food = clamp(s.food + f.food, 0, 100);
+  if (f.meds && !isSick()) return { ok: false, msg: T('Вы здоровы — таблетки не нужны', 'Ви здорові — пігулки не потрібні', 'You’re fine — no pills needed') };
+  if (!spend(foodPrice(f), f.meds ? 'service' : 'food', L(f.n))) return { ok: false, msg: T('Не хватает денег', 'Не вистачає грошей', 'Not enough money') };
+  if (f.meds) { s.sick.until = Math.max(s.t + 45, s.sick.until - 360); emit('needs'); return { ok: true, meds: true }; }
+  // junk food piles up; enough of it and the stomach gives up
+  s.junk = clamp((s.junk || 0) + (f.junk || 0) - (f.healthy || 0) * 1.5, 0, 12);
+  if (f.junk) {
+    const p = (f.risk || 0.015) + Math.max(0, s.junk - 2) * 0.07;
+    if (!isSick() && chance(Math.min(0.75, p * dv().crime))) {
+      s.sick = { until: s.t + Math.round((240 + Math.random() * 360) * (dv().id === 'hard' ? 1.4 : dv().id === 'relaxed' ? 0.7 : 1)), at: s.t };
+      notify('profile', T('Расстройство желудка', 'Розлад шлунка', 'Upset stomach'), T('Кажется, это было лишним… Энергия тает быстрее, еда усваивается хуже, на смену не выйти. Купите таблетки в аптеке или переждите.', 'Здається, це було зайве… Енергія тане швидше, їжа засвоюється гірше, на зміну не вийти. Купіть пігулки в аптеці або перечекайте.', 'That was one too many… Energy drains faster, food does less, no shifts. Get pills at the pharmacy or wait it out.'));
+      stat('poisoned');
+    }
+  }
+  const absorb = isSick() ? 0.5 : 1;
+  s.food = clamp(s.food + f.food * absorb, 0, 100);
   s.energy = clamp(s.energy + f.energy, 0, 100);
   if (f.limit) s.daily.energyDrinks = (s.daily.energyDrinks || 0) + 1;
   emit('needs');
@@ -35,8 +54,10 @@ export const hotelPrice = () => 22 * countryOf(G.s.player.city).rent + 8;
 // passive drain every 10 game minutes
 export function needsTick() {
   const s = G.s;
-  s.food = clamp(s.food - 0.55, 0, 100);
-  s.energy = clamp(s.energy - (s.food < 12 ? 0.8 : 0.22), 0, 100);
+  const k = dv().needs, sick = isSick();
+  s.food = clamp(s.food - 0.55 * k * (sick ? 1.5 : 1), 0, 100);
+  s.energy = clamp(s.energy - ((s.food < 12 ? 0.8 : 0.22) + (sick ? 0.45 : 0)) * k, 0, 100);
+  if (s.junk) s.junk = Math.max(0, s.junk - 0.028);
   emit('needs');
 }
 
@@ -129,7 +150,8 @@ export function payTax() {
 export function register(regime) {
   const s = G.s;
   const r = REGIMES[regime];
-  const fee = r.reg * countryOf(s.player.city).wage;
+  const fee = r.reg * countryOf(s.player.city).wage * (1 + marksCount() * 0.25);
+  if (marksCount() >= 2) return false;
   if (!spend(fee, 'gov', L(r.n))) return false;
   s.tax.regime = regime;
   addXP(20);
@@ -146,7 +168,7 @@ export function dailyLife(prevDay) {
     const due = taxDue();
     if (due > 0) {
       if (s.settings.autoTax && s.money >= due) { payTax(); out.push(T(`Налог списан: ${fmt(due)}`, `Податок списано: ${fmt(due)}`, `Tax auto‑paid: ${fmt(due)}`)); }
-      else { s.tax.debt += due * 1.1; s.tax.daysLate++; s.bank.credit = clamp(s.bank.credit - 15, 300, 850); notify('gov', T('Налоговый долг', 'Податковий борг', 'Tax debt'), `${fmt(s.tax.debt)}`); }
+      else { s.tax.debt += due * (1 + 0.1 * recordMult()); s.tax.daysLate++; s.bank.credit = clamp(s.bank.credit - 15, 300, 850); notify('gov', T('Налоговый долг', 'Податковий борг', 'Tax debt'), `${fmt(s.tax.debt)}`); }
     }
   } else if (s.tax.income > 250 * countryOf(s.player.city).wage && chance(0.22)) {
     const fine = s.tax.income * 0.2;

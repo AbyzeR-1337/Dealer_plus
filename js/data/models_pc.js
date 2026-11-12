@@ -54,7 +54,9 @@ export function buildPC(add) {
   add('electronics', '', 'Сборка ПК', 600, 2025, { t: 'pc' }, { colors: ['col'], vars: [['', 1]], tier: 'good', nogen: true });
 }
 // video cards: performance and power for builds (by model id)
+import { GPU_SPEC_NEW } from './models_new.js';
 export const GPU_SPEC = {
+  ...GPU_SPEC_NEW,
   electronics_nvidio_rtz_3060: { perf: 38, watts: 170 }, electronics_radeen_rx_6700_xt: { perf: 46, watts: 230 }, electronics_nvidio_rtz_3080: { perf: 62, watts: 320 },
   electronics_nvidio_rtz_4070_super: { perf: 66, watts: 220 }, electronics_nvidio_rtz_3090: { perf: 70, watts: 350 }, electronics_radeen_rx_7900_xtx: { perf: 84, watts: 355 },
   electronics_nvidio_rtz_4080_super: { perf: 86, watts: 320 }, electronics_nvidio_rtz_5080: { perf: 92, watts: 360 }, electronics_nvidio_rtz_4090: { perf: 100, watts: 450 }, electronics_nvidio_rtz_5090: { perf: 118, watts: 575 },

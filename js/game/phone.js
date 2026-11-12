@@ -11,6 +11,7 @@ import { countryOf } from '../data/world.js';
 import { makeItem, itemValue, itemTitle } from './items.js';
 import { spend, earn, charge, notify, addItem, getItem, removeItem, canStore, addReview, removeReview, stat, addXP, log } from './player.js';
 import { strike } from './support.js';
+import { arrest } from './crime.js';
 
 // ---------------------------------------------------------------- installed apps
 export function ensurePhone(allApps) {
@@ -131,7 +132,7 @@ function darkTick() {
     const it = getItem(w.itemId);
     const fine = Math.max(30, w.value * 0.35);
     if (it) removeItem(it.id);
-    charge(fine, 'fine', T('Штраф: скупка краденого', 'Штраф: скупка краденого', 'Fine: receiving stolen goods'));
+    arrest('stolen', { fine: fine * 0.5, text: w.title });
     notify('gov', T('Полиция', 'Поліція', 'Police'), it ? T(`Изъято краденое: ${w.title}. Штраф ${fmt(fine)}.`, `Вилучено крадене: ${w.title}. Штраф ${fmt(fine)}.`, `Stolen goods seized: ${w.title}. Fine ${fmt(fine)}.`) : T(`Проданная вами вещь оказалась краденой. Штраф ${fmt(fine)}.`, `Продана вами річ виявилася краденою. Штраф ${fmt(fine)}.`, `An item you sold was stolen. Fine ${fmt(fine)}.`));
   }
   emit('inv');

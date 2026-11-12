@@ -16,7 +16,7 @@ function socket(corner) {
   return `<svg viewBox="0 0 120 120" width="150" height="150"><rect x="2" y="2" width="116" height="116" rx="8" fill="#2b2f36" stroke="#555" stroke-width="2"/>${dots}<path d="M${pos[0]} ${pos[1]} l16 0 l-16 16 z" fill="#e0b020"/></svg>`;
 }
 
-export function assembleGame(api, { cpuName = 'CPU', hasGpu = true, nvme = false, dead = null }) {
+export function assembleGame(api, { cpuName = 'CPU', hasGpu = true, nvme = false, dead = null, kind = 'pc' }) {
   let score = 1, step = 0, pins = false, dual = true, paste = true;
   const corner = CORNERS[Math.floor(Math.random() * 4)];
   const log = [];
@@ -73,11 +73,34 @@ export function assembleGame(api, { cpuName = 'CPU', hasGpu = true, nvme = false
       pick: () => true,
     }),
   ];
+  const steps0 = steps.slice();
+  // laptops and consoles have their own steps
+  const choice = (h, d, big, opts) => () => ({ h, d, stage: `<div class="pcb-big">${big}</div>`, ctl: `<div class="pcb-col">${shuf(opts).map(([v, t]) => `<button class="btn dark block" data-v="${v}">${t}</button>`).join('')}</div>`, pick: (v) => { const o = opts.find((x) => x[0] === v); if (o[2]) return true; score -= o[3] || 0.15; if (o[4]) log.push(o[4]); return 'bad'; } });
+  const match = (h, pairs, dests) => () => { let i = 0; const cs = shuf(pairs); return { h, d: () => T(`Куда подключить: ${cs[i][1]}?`, `Куди підключити: ${cs[i][1]}?`, `Where does ${cs[i][1]} go?`), stage: () => `<div class="pcb-big">🔌</div><div class="pcb-cable">${cs[i][1]}</div><div class="small m">${i + 1} / ${cs.length}</div>`, ctl: `<div class="pcb-col">${dests.map(([k, t]) => `<button class="btn dark block" data-v="${k}">${t}</button>`).join('')}</div>`, pick: (v) => { if (v !== cs[i][2]) { score -= 0.07; return 'retry'; } i++; return i >= cs.length ? true : 'next'; } }; };
+  const power = () => ({ h: T('Первый запуск', 'Перший запуск', 'First power‑on'), d: T('Жмём кнопку питания.', 'Тиснемо кнопку живлення.', 'Press the power button.'), stage: `<div class="pcb-big">⏻</div>`, ctl: `<button class="btn block" data-v="on">${T('Включить', 'Увімкнути', 'Power on')}</button>`, pick: () => true });
+  if (kind === 'laptop') {
+    steps.length = 0;
+    steps.push(
+      choice(T('Аккумулятор', 'Акумулятор', 'Battery'), T('Когда подключать батарею к плате?', 'Коли підключати батарею до плати?', 'When does the battery get connected?'), '🔋', [['last', T('В самом конце, когда всё собрано', 'У самому кінці, коли все зібрано', 'Last, once everything is in'), true], ['first', T('Сразу — чтобы проверить плату', 'Одразу — щоб перевірити плату', 'Right away — to test the board'), false, 0.35, T('коротнули плату', 'коротнули плату', 'shorted the board')], ['any', T('Без разницы', 'Без різниці', 'Doesn’t matter'), false, 0.2, T('искра на разъёме', 'іскра на розʼємі', 'a spark on the connector')]]),
+      steps0[1],
+      choice(T('Шлейф матрицы', 'Шлейф матриці', 'Display cable'), T('Как вставить шлейф экрана в разъём?', 'Як вставити шлейф екрана в розʼєм?', 'How does the display cable go in?'), '🖥', [['latch', T('Поднять фиксатор, вставить до упора, опустить', 'Підняти фіксатор, вставити до упору, опустити', 'Lift the latch, insert fully, close it'), true], ['push', T('Просто вдавить пальцем', 'Просто вдавити пальцем', 'Just press it in'), false, 0.15, T('полосы на экране', 'смуги на екрані', 'lines on the screen')], ['solder', T('Припаять для надёжности', 'Припаяти для надійності', 'Solder it to be safe'), false, 0.25, T('испорчен разъём', 'зіпсовано розʼєм', 'ruined the connector')]]),
+      choice(T('Винты поддона', 'Гвинти піддону', 'Bottom screws'), T('Винты разной длины. Куда какие?', 'Гвинти різної довжини. Куди які?', 'Screws of different lengths. Which go where?'), '🪛', [['map', T('Длинные — в петли, короткие — по краю поддона', 'Довгі — у петлі, короткі — по краю піддону', 'Long ones in the hinges, short ones along the edge'), true], ['any', T('Куда попало, все одинаковые', 'Куди завгодно, усі однакові', 'Anywhere, they’re all the same'), false, 0.15, T('пробит корпус под клавиатурой', 'пробито корпус під клавіатурою', 'punched through under the keyboard')], ['half', T('Половину не ставить — и так держится', 'Половину не ставити — і так тримається', 'Skip half — it holds anyway'), false, 0.1, T('скрипит корпус', 'скрипить корпус', 'creaky body')]]),
+      power,
+    );
+  } else if (kind === 'console') {
+    steps.length = 0;
+    steps.push(
+      choice(T('Термоинтерфейс', 'Термоінтерфейс', 'Thermal interface'), T('На чипе стоял жидкий металл. Что делаем?', 'На чипі стояв рідкий метал. Що робимо?', 'The chip had liquid metal. What now?'), '💧', [['lm', T('Жидкий металл тонко, с изоляцией вокруг чипа', 'Рідкий метал тонко, з ізоляцією навколо чипа', 'Thin liquid metal with insulation around the chip'), true], ['paste', T('Обычную термопасту горошиной', 'Звичайну термопасту горошиною', 'Regular paste, a pea'), false, 0.06, T('греется сильнее', 'гріється сильніше', 'runs warmer')], ['lots', T('Жидкий металл щедро, побольше', 'Рідкий метал щедро, побільше', 'Lots of liquid metal'), false, 0.4, T('металл затёк на плату', 'метал затік на плату', 'metal leaked on the board')], ['none', T('Ничего — и так сойдёт', 'Нічого — і так зійде', 'Nothing, it’ll do'), false, 0.3, T('перегрев', 'перегрів', 'overheats')]]),
+      match(T('Шлейфы и разъёмы', 'Шлейфи й розʼєми', 'Cables and connectors'), [['d', T('Шлейф привода', 'Шлейф приводу', 'Drive ribbon'), 'drive'], ['p', T('Питание 2‑pin', 'Живлення 2‑pin', '2‑pin power'), 'psu'], ['f', T('Разъём вентилятора', 'Розʼєм вентилятора', 'Fan plug'), 'fan'], ['b', T('Шлейф кнопок', 'Шлейф кнопок', 'Button ribbon'), 'front']], [['drive', T('Привод', 'Привід', 'Drive')], ['psu', T('Блок питания', 'Блок живлення', 'Power supply')], ['fan', 'FAN'], ['front', T('Передняя панель', 'Передня панель', 'Front panel')]]),
+      choice(T('Корпус', 'Корпус', 'Shell'), T('Как вернуть боковые панели?', 'Як повернути бокові панелі?', 'How do the side panels go back?'), '🎮', [['slide', T('Сдвинуть до щелчка, без силы', 'Зсунути до клацання, без сили', 'Slide until they click, no force'), true], ['press', T('Надавить посильнее', 'Натиснути сильніше', 'Push harder'), false, 0.15, T('сломана защёлка', 'зламано засувку', 'broke a clip')], ['glue', T('Посадить на клей', 'Посадити на клей', 'Glue them'), false, 0.2, T('корпус на клею', 'корпус на клею', 'glued shell')]]),
+      power,
+    );
+  }
   let cur = null;
   const draw = () => {
     cur ||= steps[step]();
     const d = typeof cur.d === 'function' ? cur.d() : cur.d, st = typeof cur.stage === 'function' ? cur.stage() : cur.stage;
-    api.body.innerHTML = `<div class="proc"><div class="phd"><h3>${step + 1}/5 · ${esc(cur.h)}</h3><p class="pdesc">${esc(d)}</p></div><div class="pstage pcb-stage">${st}</div><div class="pctl">${cur.ctl}</div></div>`;
+    api.body.innerHTML = `<div class="proc"><div class="phd"><h3>${step + 1}/${steps.length} · ${esc(cur.h)}</h3><p class="pdesc">${esc(d)}</p></div><div class="pstage pcb-stage">${st}</div><div class="pctl">${cur.ctl}</div></div>`;
     api.body.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => {
       if (api.ended) return;
       const r = cur.multi ? cur.multi(b.dataset.v, b) : cur.pick(b.dataset.v);
@@ -95,7 +118,7 @@ export function assembleGame(api, { cpuName = 'CPU', hasGpu = true, nvme = false
     const q = Math.max(0.4, score);
     api.end({ score: q, emoji: q >= 0.95 ? '🖥' : '🛠', title: q >= 0.95 ? T('Собрано идеально!', 'Зібрано ідеально!', 'A perfect build!') : T('Собрано', 'Зібрано', 'Built'), text: log.length ? T('Проблемы: ', 'Проблеми: ', 'Issues: ') + log.join(', ') : T('BIOS видит всё, температуры в норме.', 'BIOS бачить усе, температури в нормі.', 'BIOS sees everything, temps are fine.'), pins, dual, paste });
   };
-  api.setTime(90, () => finish());
+  api.setTime(90, () => finish(), { optional: true });
   draw();
 }
 export const PC_GAMES = { assemble: assembleGame };

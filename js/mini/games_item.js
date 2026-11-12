@@ -19,7 +19,7 @@ function localPoint(svg, ev) {
 function inspect(api, { item, time = 30 }) {
   const extra = upLevel('eye') * 4;
   const views = viewsOf(item, { inspect: true });
-  api.setTime(time + extra + Math.max(0, views.length - 2) * 4, () => finish(true));
+  api.setTime(time + extra + Math.max(0, views.length - 2) * 4, () => finish(true), { optional: true });
   let attempts = 4 + Math.floor(upLevel('eye') / 2);
   let view = views[0];
   const findable = item.defects.filter((d) => !d.known && DEFECTS[d.c]?.vis !== 'hidden');
@@ -288,7 +288,7 @@ function hack(api, { tries = 4, label }) {
   while (pool.length < 9) pool.push(shuffleR(WORDS.filter((w) => w.length === len))[0]);
   const pass = pickR(pool);
   let left = tries + Math.floor(upLevel('expert') / 2);
-  api.setTime(45, () => api.end({ score: 0, title: T('Таймаут', 'Таймаут', 'Timeout') }));
+  api.setTime(45, () => api.end({ score: 0, title: T('Таймаут', 'Таймаут', 'Timeout') }), { optional: true });
   const hex = () => '0x' + rint(4096, 65535).toString(16).toUpperCase();
   api.body.innerHTML = `<div class="termbox" style="margin-bottom:10px"><span class="hl">&gt; Phone Lab v2.6</span><br>${label || T('Подбери ключ прошивки. Подсказка: число совпавших букв на своих местах.', 'Підбери ключ прошивки. Підказка: кількість збігів букв на своїх місцях.', 'Find the firmware key. Hint: letters matching in place.')}<br><span class="dim lg-log"></span></div><div class="pad-grid" style="grid-template-columns:1fr 1fr 1fr">${pool.map((w) => `<button class="mono" data-w="${w}"><span class="dim tiny">${hex()}</span><br>${w}</button>`).join('')}</div><div class="mhint mono tries">${T('Попыток', 'Спроб', 'Tries')}: ${'▮'.repeat(left)}</div>`;
   const logEl = api.body.querySelector('.lg-log');

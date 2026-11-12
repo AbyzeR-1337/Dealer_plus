@@ -15,7 +15,9 @@ import { region } from './common.js';
 import {
   SLOTS, SLOT_NAME, SLOT_ICON, specOf, specLine, partsOf, checkBuild, assemble, pcState, meets, shipToOrder, SHIP_FEE, myPc, setMyPc, canBeMyPc, buildTitle,
   OS, isComputer, osOf, bootBroken, installerDrive, reinstall, installSeconds, HW_CATS, HW_CAT_NAME, hwStore, buyHw,
+  DEVICE_RECIPES, DEVICE_MODELS, devReady, buyDevPart, assembleDevice,
 } from '../game/pc.js';
+import { PART_NAMES, partPrice } from '../data/parts.js';
 
 // ---------------------------------------------------------------- hardware store
 const HW_NAMES = { RU: 'ДНК', UA: 'Розетко', BY: '21‑Вэк', KZ: 'Технодомм', PL: 'X‑Kom', DE: 'Mindfaktor', FR: 'LDLK', IT: 'Uniuro', GB: 'Scann', US: 'Newegs', JP: 'Yodobashy', CN: 'JD.kom', AE: 'Sharaf DJJ', TR: 'Vatann', GE: 'Zummer', TH: 'Bananna IT' };
@@ -57,7 +59,7 @@ const myPcActions = {
 };
 
 // ---------------------------------------------------------------- PC Build: orders / build / my PC
-const BV = { tab: 'orders', sel: {} };
+const BV = { tab: 'orders', sel: {}, mode: 'pc', dev: { laptop: null, console: null } };
 function ordersView() {
   const st = pcState(), s = G.s;
   let h = `<p class="p">${T(`Покупатели пишут, какой компьютер им нужен и сколько готовы заплатить: соберите подходящий ПК и отправьте доставкой (${fmt(SHIP_FEE)}). Деньги придут, когда покупатель получит компьютер.`, `Покупці пишуть, який компʼютер їм потрібен і скільки готові заплатити: зберіть відповідний ПК і надішліть доставкою (${fmt(SHIP_FEE)}). Гроші прийдуть, коли покупець отримає компʼютер.`, `Buyers write what PC they need and how much they’ll pay: build a matching PC and ship it (${fmt(SHIP_FEE)}). You’re paid when the buyer receives it.`)}</p>`;
@@ -70,9 +72,22 @@ function ordersView() {
   if (st.ships.length) h += `<h3 class="sub">${T('В пути к покупателям', 'У дорозі до покупців', 'On the way to buyers')}</h3>` + st.ships.map((x) => `<div class="kv"><span>📦 ${esc(x.who)} · ${esc(x.title)}</span><b>${fmt(x.pay)} · ${dur(x.eta - s.t)}</b></div>`).join('');
   return h;
 }
+const modeSeg = () => `<div class="chips wrap mb">${[['pc', '🖥', T('ПК', 'ПК', 'PC')], ['laptop', '💻', T('Ноутбук', 'Ноутбук', 'Laptop')], ['console', '🎮', T('Консоль', 'Консоль', 'Console')]].map(([k, i, n]) => `<button class="chip${BV.mode === k ? ' on' : ''}" data-a="pcmode" data-v="${k}">${i} ${n}</button>`).join('')}</div>`;
+function devView() {
+  const k = BV.mode, mid = BV.dev[k];
+  let h = modeSeg() + `<p class="p">${k === 'laptop' ? T('Ноутбук собирается из запчастей конкретной модели: плата, матрица, аккумулятор, клавиатура, петли, кулер и корпус. Б/у детали дают доноры (Мастерская → разобрать), новые можно купить. Собранному ноутбуку потом нужна система — «Компьютер».', 'Ноутбук збирається із запчастин конкретної моделі: плата, матриця, акумулятор, клавіатура, петлі, кулер і корпус. Вживані деталі дають донори (Майстерня → розібрати), нові можна купити. Зібраному ноутбуку потім потрібна система — «Компʼютер».', 'A laptop is built from parts of one model: board, display, battery, keyboard, hinges, fan and shell. Donors give used parts (Workshop → dismantle), new ones can be bought. The finished laptop then needs an OS — Computer app.') : T('Консоль собирается из деталей одной модели: плата, привод, блок питания, вентилятор, HDMI, корпус и геймпад (можно без него, но дешевле).', 'Консоль збирається з деталей однієї моделі: плата, привід, блок живлення, вентилятор, HDMI, корпус і геймпад (можна без нього, але дешевше).', 'A console is built from one model’s parts: board, drive, PSU, fan, HDMI, shell and a controller (optional, but cheaper without).')}</p>`;
+  h += `<button class="btn dark block" data-a="devmodel">${mid ? esc(itemTitle({ m: mid, v: 0 })) : T('Выбрать модель', 'Обрати модель', 'Pick a model')} ›</button>`;
+  if (!mid) return h;
+  const r = devReady(k, mid);
+  const qn = { orig: T('ориг', 'ориг', 'orig'), copy: T('копия', 'копія', 'copy'), used: T('б/у', 'вжив.', 'used') };
+  h += `<div class="pc-slots mt">${r.rows.map((x) => `<div class="pc-slot ${x.q ? 'set' : ''}"><i>${{ board: '🟩', display: '🖥', battery: '🔋', keyboard: '⌨️', hinge: '🔩', fan: '🌀', frame: '📦', drive: '💿', psu: '🔌', hdmi: '📺', stick: '🎮' }[x.k] || '🧩'}</i><div class="grow"><small>${esc(L(PART_NAMES[x.k]))}${x.k === 'stick' ? ' · ' + T('необязательно', 'необовʼязково', 'optional') : ''}</small><b>${x.q ? `✔ ${['orig', 'copy', 'used'].filter((q) => x.st[q]).map((q) => `${qn[q]} ×${x.st[q]}`).join(' · ')}` : T('нет', 'немає', 'none')}</b></div><button class="btn xs dark" data-a="devbuy" data-v="${x.k}:copy">${T('копия', 'копія', 'copy')} ${fmt(partPrice(mid, x.k, 'copy'))}</button><button class="btn xs" data-a="devbuy" data-v="${x.k}:orig">${T('ориг', 'ориг', 'orig')} ${fmt(partPrice(mid, x.k, 'orig'))}</button></div>`).join('')}</div>`;
+  h += `<button class="btn block mt ${r.ok ? '' : 'dis'}" data-a="devassemble">🔧 ${T('Собрать', 'Зібрати', 'Assemble')} · ${r.have}/${r.rows.length}</button>`;
+  return h;
+}
 function buildView() {
+  if (BV.mode !== 'pc') return devView();
   const c = checkBuild(BV.sel);
-  let h = `<div class="pc-slots">${SLOTS.map((k) => { const it = BV.sel[k] && getItem(BV.sel[k]); const n = partsOf(k).length; return `<div class="pc-slot ${it ? 'set' : ''}" data-a="pcpick" data-v="${k}"><i>${SLOT_ICON[k]}</i><div class="grow"><small>${esc(L(SLOT_NAME[k]))}${k === 'gpu' ? ' · ' + T('для офиса можно без', 'для офісу можна без', 'optional for office') : ''}</small><b>${it ? esc(itemTitle(it, false)) : n ? T(`выбрать (${n} на складе)`, `обрати (${n} на складі)`, `choose (${n} in stock)`) : T('нет на складе — купить', 'немає на складі — купити', 'none in stock — buy')}</b>${it ? `<small>${esc(specLine(it))}</small>` : ''}</div><span>›</span></div>`; }).join('')}</div>`;
+  let h = modeSeg() + `<div class="pc-slots">${SLOTS.map((k) => { const it = BV.sel[k] && getItem(BV.sel[k]); const n = partsOf(k).length; return `<div class="pc-slot ${it ? 'set' : ''}" data-a="pcpick" data-v="${k}"><i>${SLOT_ICON[k]}</i><div class="grow"><small>${esc(L(SLOT_NAME[k]))}${k === 'gpu' ? ' · ' + T('для офиса можно без', 'для офісу можна без', 'optional for office') : ''}</small><b>${it ? esc(itemTitle(it, false)) : n ? T(`выбрать (${n} на складе)`, `обрати (${n} на складі)`, `choose (${n} in stock)`) : T('нет на складе — купить', 'немає на складі — купити', 'none in stock — buy')}</b>${it ? `<small>${esc(specLine(it))}</small>` : ''}</div><span>›</span></div>`; }).join('')}</div>`;
   h += `<div class="pc-check">${c.rows.map((r) => `<span class="${r.ok ? 'g' : 'r'}">${r.ok ? '✔' : '✖'} ${esc(r.t)}</span>`).join('')}${c.missing.length ? `<span class="m">… ${T('не хватает', 'не вистачає', 'missing')}: ${c.missing.map((k) => esc(L(SLOT_NAME[k]).toLowerCase())).join(', ')}</span>` : ''}<div class="pc-score">⚡ ${T('Мощность сборки', 'Потужність збірки', 'Build power')}: <b>${c.score}</b></div></div>`;
   h += `<button class="btn block mt ${c.ok ? '' : 'dis'}" data-a="pcassemble">🔧 ${T('Собрать', 'Зібрати', 'Assemble')}</button>`;
   return h;
@@ -88,6 +103,24 @@ export const buildApp = {
   actions: {
     ...myPcActions,
     pctab: (v) => { BV.tab = v; rerender(); },
+    pcmode: (v) => { BV.mode = v; rerender(); },
+    devmodel: async () => {
+      const k = BV.mode;
+      const list = DEVICE_MODELS(k);
+      const v = await choose(k === 'laptop' ? T('Какой ноутбук собираем?', 'Який ноутбук збираємо?', 'Which laptop?') : T('Какую консоль собираем?', 'Яку консоль збираємо?', 'Which console?'), list.map((m) => { const r = devReady(k, m.id); return { v: m.id, label: itemTitle({ m: m.id, v: 0 }), sub: `${m.year} · ${T('деталей', 'деталей', 'parts')} ${r.have}/${r.rows.length}`, cls: r.have ? '' : 'dark' }; }).sort((a, b) => (b.cls ? 0 : 1) - (a.cls ? 0 : 1)));
+      if (v) { BV.dev[k] = v; rerender(); }
+    },
+    devbuy: async (v) => { const [kind, q] = v.split(':'); const mid = BV.dev[BV.mode]; if (!mid) return; if (buyDevPart(mid, kind, q)) { sfx('cash'); rerender(); } else toast(T('Не хватает денег', 'Не вистачає грошей', 'Not enough money'), 'r'); },
+    devassemble: async () => {
+      const k = BV.mode, mid = BV.dev[k]; if (!mid) return;
+      if (!devReady(k, mid).ok) return toast(T('Не хватает деталей', 'Не вистачає деталей', 'Missing parts'), 'r');
+      const r = await playMini('assemble', { title: k === 'laptop' ? T('Сборка ноутбука', 'Збірка ноутбука', 'Laptop assembly') : T('Сборка консоли', 'Збірка консолі', 'Console assembly'), kind: k, pass: 0.5 });
+      if (r.quit) return;
+      const res = assembleDevice(k, mid, r);
+      if (res.ok) { sfx('win'); toast(k === 'laptop' ? T(`Собрано: ${itemTitle(res.it)}. Поставьте систему в «Компьютере»`, `Зібрано: ${itemTitle(res.it)}. Встановіть систему в «Компʼютері»`, `Built: ${itemTitle(res.it)}. Install an OS in Computer`) : T(`Собрано: ${itemTitle(res.it)}`, `Зібрано: ${itemTitle(res.it)}`, `Built: ${itemTitle(res.it)}`), 'g'); }
+      else toast(res.msg, 'r');
+      rerender();
+    },
     pcpick: async (k) => {
       const list = partsOf(k);
       if (!list.length) { if (await confirmBox(L(SLOT_NAME[k]), T('На складе нет — заглянуть в магазин железа или на доску объявлений?', 'На складі немає — зазирнути в магазин заліза чи на дошку оголошень?', 'None in stock — check the hardware store or the classifieds?'), T('В магазин', 'У магазин', 'To the store'))) { HV.cat = k; openApp('hw'); } return; }

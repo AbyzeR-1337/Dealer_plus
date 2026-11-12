@@ -37,7 +37,7 @@ export function renderStatus() {
   const city = CITY[s.player.city];
   const c = countryOf(s.player.city);
   const bars = [4, 6, 8, 11].map((h, i) => `<i style="height:${h}px;opacity:${i < 3 + (s.energy > 50 ? 1 : 0) ? 1 : 0.3}"></i>`).join('');
-  el.innerHTML = `<span class="st-time">${gameClock()}</span><span class="st-day">${T('Д', 'Д', 'D')}${dayNum()}</span><span class="st-mid">${s.travel ? '✈ ' + T('в пути', 'в дорозі', 'travelling') : `${c.flag} ${esc(L(city.name))}`}</span><span class="st-net">${bars}</span><span class="st-en" title="energy"><b><i style="width:${clamp(s.energy, 3, 100)}%;background:${s.energy < 20 ? 'var(--red)' : s.energy < 45 ? 'var(--yel)' : 'var(--acc)'}"></i></b></span>`;
+  el.innerHTML = `<span class="st-time">${gameClock()}</span><span class="st-day">${T('Д', 'Д', 'D')}${dayNum()}</span><span class="st-mid">${s.travel ? '✈ ' + T('в пути', 'в дорозі', 'travelling') : `${c.flag} ${esc(L(city.name))}`}</span><span class="st-net">${bars}</span>${s.sick && s.sick.until > s.t ? '<span class="st-sick" title="sick">🤢</span>' : ''}<span class="st-en" title="energy"><b><i style="width:${clamp(s.energy, 3, 100)}%;background:${s.energy < 20 ? 'var(--red)' : s.energy < 45 ? 'var(--yel)' : 'var(--acc)'}"></i></b></span>`;
 }
 
 // ---------------------------------------------------------------- home screen
@@ -59,6 +59,7 @@ export function renderHome() { renderHomeScreen(); }
 export function openApp(id, view = 'main', params = {}) {
   const a = UI.apps[id];
   if (!a) return;
+  if (G.s?.jail && G.s.jail.until > G.s.t) { toast(T('Телефон изъят — вы в обезьяннике', 'Телефон вилучено — ви в мавпятнику', 'Your phone is confiscated'), 'r'); return; }
   if (!isInstalled(id)) { toast(T('Сначала скачайте приложение в App Store', 'Спочатку завантажте застосунок в App Store', 'Download it from the App Store first')); sfx('err'); if (id !== 'appstore' && UI.apps.appstore) openApp('appstore', 'app', { id }); return; }
   if (appLocked(a)) { toast(T(`Откроется на ${a.lvl} уровне`, `Відкриється на ${a.lvl} рівні`, `Unlocks at level ${a.lvl}`)); sfx('err'); return; }
   if (APP_META[id]?.secret && !vpnActive()) { toast(T('Нет защищённого соединения — включите VPN', 'Немає захищеного зʼєднання — увімкніть VPN', 'No secure connection — turn on the VPN'), 'r'); sfx('err'); return; }

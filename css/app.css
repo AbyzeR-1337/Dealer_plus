@@ -1106,3 +1106,12 @@ img.bm.ready { opacity: 1; }
 .sup-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 8px 0 2px; text-align: center; font-size: 11.5px; } .sup-steps i { display: grid; place-items: center; width: 24px; height: 24px; margin: 0 auto 4px; border-radius: 50%; background: #ff7a1a; font-style: normal; font-weight: 800; }
 .sup-price { font-size: 16px; color: #ff4d1a; } .sup-price small { font-size: 11px; color: var(--mute); } .sup-qty { align-self: flex-start; background: rgba(255,122,26,.16); color: #ff7a1a; border-radius: 6px; padding: 1px 6px; font-weight: 700; font-size: 11px; }
 .sup-card .btn { margin-top: 4px; }
+
+/* holding cell */
+#jail-layer { position: fixed; inset: 0; z-index: 9000; background: radial-gradient(circle at 50% 30%, #2a1218, #07080c 70%); display: grid; place-items: center; padding: 20px; color: #fff; }
+.jl-box { width: min(420px, 100%); text-align: center; display: flex; flex-direction: column; gap: 6px; }
+.jl-ico { font-size: 64px; } .jl-box h2 { margin: 0; font-size: 26px; } .jl-box p { margin: 0; opacity: .8; }
+.jl-time { font-family: var(--mono); font-size: 40px; font-weight: 800; color: #ff5468; margin-top: 10px; } .jl-box small { opacity: .6; }
+.jl-row { display: flex; justify-content: space-between; padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,.1); font-size: 14px; }
+.jl-box .tiny { opacity: .55; font-size: 12px; margin-top: 6px; }
+.st-sick { font-size: 13px; margin-right: 4px; }

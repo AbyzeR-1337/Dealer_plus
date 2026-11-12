@@ -275,6 +275,7 @@ export function itemValue(it, cityId, mode = 'true', opts = {}) {
   if (it.tune) v *= it.tune === 'wheels' || it.tune === 'exhaust' ? 1.03 : 0.98;
   if (it.data?.wiped && ['phones', 'electronics', 'consoles'].includes(it.cat)) v *= 1.03; // factory reset, ready for the next owner
   if (it.os) v *= OS_MULT[it.os] || 1;
+  if (it.refurb) v *= 0.94; // rebuilt from parts
   if (!opts.raw) v *= priceFactor(it.cat, city, m.id, m.brand);
   return Math.max(0.5, v);
 }

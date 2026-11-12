@@ -16,6 +16,7 @@ import { getItem, removeItem, addItem, earn, charge, spend, stat, addXP, upLevel
 import { demand } from './economy.js';
 import { leaksData, storageKind } from './files.js';
 import { ymOnSale } from './shops2.js';
+import { risk } from './crime.js';
 import { deliveryTime } from './market.js';
 import { collectionBonus } from './quests.js';
 
@@ -302,6 +303,8 @@ export function feedbackTick() {
     if (f.claim === 'bogus') defect = pickR([T('царапина, которой не было на фото', 'подряпина, якої не було на фото', 'a scratch that wasn’t in the photos'), T('не тот цвет', 'не той колір', 'wrong colour'), T('всё плохо, верните деньги', 'усе погано, поверніть гроші', 'it’s just bad, refund me')]);
     const tx = f.claim === 'fake' ? L(pickR(CLAIM_FAKE)) : lie ? fill(L(pickR(CLAIM_LIE)), { topic: lieTopicName(lie.topic), defect }) : fill(L(pickR(CLAIM)), { defect });
     const c = { id: uid('c'), kind: 'claim', npc: sale.buyer, title: sale.title, sale, claim: f.claim, lie: !!lie, msgs: [{ f: 'them', tx, t: s.t }], st: 'claim', t: s.t, unread: 1 };
+    if (f.claim === 'fake' && !(sale.told || []).includes('fake') && risk('fake', 0.22, { fine: sale.price * 0.3, text: sale.title, salt: sale.id })) c.msgs.push({ f: 'sys', tx: T('Покупатель написал заявление в полицию.', 'Покупець написав заяву в поліцію.', 'The buyer went to the police.'), t: s.t });
+    else if (lie && risk('fraud', 0.1, { fine: sale.price * 0.2, text: sale.title, salt: sale.id })) c.msgs.push({ f: 'sys', tx: T('Покупатель написал заявление в полицию.', 'Покупець написав заяву в поліцію.', 'The buyer went to the police.'), t: s.t });
     s.chats.unshift(c);
     notify('market', T('Претензия покупателя', 'Претензія покупця', 'Buyer complaint'), tx, { go: ['market', 'chat', { id: c.id }] });
   }

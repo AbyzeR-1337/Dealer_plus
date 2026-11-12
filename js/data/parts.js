@@ -51,8 +51,8 @@ export const PART_NAMES = {
 };
 export const MODEL_PART_CATS = {
   phones: ['display', 'battery', 'backglass', 'lens', 'speaker', 'port', 'flex', 'faceid', 'frame'],
-  electronics: ['display', 'battery', 'keyboard', 'hinge', 'fan', 'board', 'lens'],
-  consoles: ['drive', 'hdmi', 'psu', 'stick', 'fan'],
+  electronics: ['display', 'battery', 'keyboard', 'hinge', 'fan', 'board', 'lens', 'frame'],
+  consoles: ['board', 'drive', 'hdmi', 'psu', 'stick', 'fan', 'frame'],
   watches: ['crystal', 'bezel'],
   cars: ['headlight', 'engine_kit', 'gearbox_kit', 'tire', 'windshield', 'wiring'],
   bikes: ['brake_pads', 'battery', 'tire'],
@@ -113,6 +113,6 @@ export function recipeFor(code) {
 // which defects make a part useless when the donor is dismantled
 export const PART_BROKEN_BY = {
   display: ['crack', 'deadpix', 'nonorig', 'e_crack'], battery: ['battery', 'e_battery', 'bk_battery'], backglass: ['backcrack'], lens: ['camera', 'e_lens'], speaker: ['speaker'], port: ['port'], flex: ['button'],
-  faceid: ['faceid'], frame: ['bent'], keyboard: ['e_keys'], hinge: ['e_hinge'], fan: ['e_fan', 'c_fan'], board: ['e_dead', 'e_water', 'water'], drive: ['c_drive'], hdmi: ['c_hdmi'], psu: ['c_dead'], stick: ['c_drift'],
+  faceid: ['faceid'], frame: ['bent', 'e_dent', 'e_crack', 'c_scratch'], keyboard: ['e_keys'], hinge: ['e_hinge'], fan: ['e_fan', 'c_fan'], board: ['e_dead', 'e_water', 'water', 'c_dead'], drive: ['c_drive'], hdmi: ['c_hdmi'], psu: ['c_dead'], stick: ['c_drift'],
   crystal: ['t_crack'], bezel: ['t_bezel'], headlight: ['v_light'], engine_kit: ['v_engine'], gearbox_kit: ['v_gearbox'], tire: ['v_tire', 'bk_wheel'], windshield: ['v_glass'], wiring: ['v_electric'], brake_pads: ['bk_brake'],
 };

@@ -1,5 +1,7 @@
 // Money apps: Bank, Gov services (taxes), Stock exchange, Numbers & plates, Casino.
 import { G, emit } from '../core/state.js';
+import { recordCard } from '../ui/record.js';
+import { marksCount } from '../game/crime.js';
 import { T, L, dur, fmtDate } from '../core/i18n.js';
 import { esc, clamp, rnd } from '../core/util.js';
 import { fmt, rate, curCode, nicePrice, fmtNum, symOf } from '../core/money.js';
@@ -105,13 +107,14 @@ export const bankApp = {
 // ---------------------------------------------------------------- GOV / TAXES
 function govMain() {
   const s = G.s;
+  const rec = recordCard();
   const t = s.tax;
   const due = taxDue();
   const reg = REGIMES[t.regime];
   const earned = t.income;
   const after = earned - (t.regime === 'none' ? 0 : taxBase() + earned * taxRate());
   const paidOk = t.regime === 'none' || (due <= 0 && t.debt <= 0);
-  return `<div class="hero"><div class="lbl">${T('Заработок сегодня', 'Заробіток сьогодні', 'Earned today')}</div><div class="big">${earned >= 0 ? '+' : ''}${fmt(earned)}</div><div class="pills"><span>${T('Продано', 'Продано', 'Sold')}: ${today('sold')}</span><span>${T('Выручка', 'Виручка', 'Revenue')}: ${fmt(today('revenue'))}</span><span>${T('После налога', 'Після податку', 'After tax')}: ${after >= 0 ? '+' : ''}${fmt(after)}</span></div></div>
+  return `${rec}<div class="hero"><div class="lbl">${T('Заработок сегодня', 'Заробіток сьогодні', 'Earned today')}</div><div class="big">${earned >= 0 ? '+' : ''}${fmt(earned)}</div><div class="pills"><span>${T('Продано', 'Продано', 'Sold')}: ${today('sold')}</span><span>${T('Выручка', 'Виручка', 'Revenue')}: ${fmt(today('revenue'))}</span><span>${T('После налога', 'Після податку', 'After tax')}: ${after >= 0 ? '+' : ''}${fmt(after)}</span></div></div>
     <div class="card ${paidOk ? 'hl' : 'warn'}"><div class="row"><div style="width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:${paidOk ? 'rgba(46,242,160,.12)' : 'rgba(255,84,104,.15)'};color:${paidOk ? 'var(--acc)' : 'var(--red)'};flex:none">${icon(paidOk ? 'check' : 'info')}</div><div class="grow"><h3>${t.regime === 'none' ? T('Вы не зарегистрированы', 'Ви не зареєстровані', 'Not registered') : paidOk ? T('Налог за сегодня оплачен', 'Податок за сьогодні сплачено', 'Today’s tax is paid') : T('Налог к оплате', 'Податок до сплати', 'Tax due')}</h3><div class="d">${t.regime === 'none' ? T('Торговля без регистрации рискованна: при больших доходах — проверка и штраф.', 'Торгівля без реєстрації ризикована.', 'Unregistered trading risks audits and fines.') : T('Если заработаете больше, налог вырастет', 'Якщо заробите більше, податок зросте', 'Earn more — the tax grows')}</div></div></div>
       ${t.regime !== 'none' ? `${kv(T('Базовый налог', 'Базовий податок', 'Base tax'), fmt(taxBase()))}${kv(`${T('С дохода', 'З доходу', 'On income')} ${fmt(earned)} (${Math.round(taxRate() * 100)}%)`, fmt(earned * taxRate()))}${kv(T('Уже оплачено', 'Вже сплачено', 'Already paid'), '−' + fmt(t.paid))}${t.debt ? kv(T('Долг с пенями', 'Борг із пенею', 'Debt + penalties'), fmt(t.debt), 'r') : ''}${kv(`<b>${T('К оплате сегодня', 'До сплати сьогодні', 'Due today')}</b>`, fmt(due + t.debt))}` : t.debt ? kv(T('Штраф', 'Штраф', 'Fine'), fmt(t.debt), 'r') : ''}
       ${due + t.debt > 0 ? `<button class="btn block mt" data-a="pay">${T('Оплатить', 'Сплатити', 'Pay')} ${fmt(due + t.debt)}</button>` : ''}
@@ -129,7 +132,7 @@ export const govApp = {
   actions: {
     pay: () => { if (payTax()) { sfx('ok'); toast(T('Налог оплачен', 'Податок сплачено', 'Tax paid'), 'g'); } else toast(T('Недостаточно средств', 'Недостатньо коштів', 'Insufficient funds'), 'r'); rerender(); },
     auto: (v, el) => { G.s.settings.autoTax = !G.s.settings.autoTax; rerender(); },
-    reg: async (k) => { const r = REGIMES[k]; if (!(await confirmBox(L(r.n), esc(L(r.d)), T('Оформить', 'Оформити', 'Register')))) return; if (register(k)) { sfx('win'); toast(T('Регистрация завершена', 'Реєстрацію завершено', 'Registered'), 'g'); } else toast(T('Не хватает денег на пошлину', 'Не вистачає грошей на мито', 'Can’t afford the fee'), 'r'); rerender(); },
+    reg: async (k) => { const r = REGIMES[k]; if (!(await confirmBox(L(r.n), esc(L(r.d)), T('Оформить', 'Оформити', 'Register')))) return; if (register(k)) { sfx('win'); toast(T('Регистрация завершена', 'Реєстрацію завершено', 'Registered'), 'g'); } else toast(marksCount() >= 2 ? T('Отказ: пометки в личном деле', 'Відмова: позначки в особовій справі', 'Refused: marks on your record') : T('Не хватает денег на пошлину', 'Не вистачає грошей на мито', 'Can’t afford the fee'), 'r'); rerender(); },
   },
 };
 

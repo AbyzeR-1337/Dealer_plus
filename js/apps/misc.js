@@ -1,5 +1,6 @@
 // Misc apps: Quests, Upgrades, News, Stats, Rating (leaderboard + friends), Settings.
 import { G, emit, save, wipe, exportSave, importSave } from '../core/state.js';
+import { DIFF, dv } from '../game/difficulty.js';
 import { T, L, LANGS, setLang, lang, dur } from '../core/i18n.js';
 import { esc, clamp } from '../core/util.js';
 import { fmt } from '../core/money.js';
@@ -143,7 +144,9 @@ export const ratingApp = {
 // ---------------------------------------------------------------- SETTINGS
 function setMain() {
   const s = G.s;
-  return `<div class="card"><h3>${T('Язык', 'Мова', 'Language')}</h3><div class="opt-grid mt">${LANGS.map((l) => `<button class="${lang() === l.id ? 'on' : ''}" data-a="lang" data-v="${l.id}">${l.flag} ${l.name}</button>`).join('')}</div></div>
+  const DF = dv();
+  return `<div class="card"><h3>🎚 ${T('Сложность', 'Складність', 'Difficulty')}</h3><div class="seg mt">${Object.values(DIFF).map((d) => `<button class="${DF.id === d.id ? 'on' : ''}" data-a="diff" data-v="${d.id}">${d.icon} ${d.n()}</button>`).join('')}</div><div class="d mt">${DF.d()}</div></div>
+    <div class="card"><h3>${T('Язык', 'Мова', 'Language')}</h3><div class="opt-grid mt">${LANGS.map((l) => `<button class="${lang() === l.id ? 'on' : ''}" data-a="lang" data-v="${l.id}">${l.flag} ${l.name}</button>`).join('')}</div></div>
     <div class="card"><h3>${T('Валюта отображения', 'Валюта відображення', 'Display currency')}</h3><div class="d">${T('«Местная» — валюта страны, где вы сейчас.', '«Місцева» — валюта країни, де ви зараз.', '“Local” follows the country you’re in.')}</div><div class="chips wrap mt"><button class="chip${s.settings.cur === 'auto' ? ' on' : ''}" data-a="cur" data-v="auto">${T('Местная', 'Місцева', 'Local')}</button>${Object.keys(CURRENCIES).map((c) => `<button class="chip${s.settings.cur === c ? ' on' : ''}" data-a="cur" data-v="${c}">${c} ${CURRENCIES[c].sym}</button>`).join('')}</div></div>
     <div class="card"><h3>${T('Звук', 'Звук', 'Sound')}</h3><div class="seg mt"><button class="${s.settings.sound !== false ? 'on' : ''}" data-a="snd" data-v="1">${T('Вкл', 'Увімк', 'On')}</button><button class="${s.settings.sound === false ? 'on' : ''}" data-a="snd" data-v="0">${T('Выкл', 'Вимк', 'Off')}</button></div></div>
     <div class="card"><h3>${T('Профиль', 'Профіль', 'Profile')}</h3>${kv(T('Имя', 'Імʼя', 'Name'), esc(s.player.name))}${kv(T('Родина', 'Батьківщина', 'Home country'), `${countryOf(s.player.city).flag} ${esc(L(COUNTRIES.find((c) => c.id === s.player.country)?.name || ''))}`)}<button class="btn dark sm mt" data-a="rename">${T('Сменить имя', 'Змінити імʼя', 'Rename')}</button></div>
@@ -160,6 +163,7 @@ export const settingsApp = {
     lang: (v) => { G.s.player.lang = v; setLang(v); save(); refreshAll(); },
     cur: (v) => { G.s.settings.cur = v; save(); refreshAll(); },
     snd: (v) => { G.s.settings.sound = v === '1'; rerender(); },
+    diff: (v) => { G.s.settings.diff = v; save(); toast(`${DIFF[v].icon} ${DIFF[v].n()}`, 'g'); rerender(); },
     srvset: async () => {
       const v = await sheet(`<h2>${T('Сервер мультиплеера', 'Сервер мультиплеєра', 'Multiplayer server')}</h2><p class="p">${T('Supabase → Project Settings → API: Project URL и anon public key.', 'Supabase → Project Settings → API: Project URL і anon public key.', 'Supabase → Project Settings → API: Project URL and anon public key.')}</p><input class="input" id="su" placeholder="https://xxxx.supabase.co" autocapitalize="off" autocorrect="off"><input class="input mt" id="sk" placeholder="anon key (eyJ...)" autocapitalize="off" autocorrect="off"><button class="btn block mt" id="sok">${T('Подключить', 'Підключити', 'Connect')}</button>`, { after(el) { el.querySelector('#sok').onclick = () => resolveSheet(JSON.stringify([el.querySelector('#su').value, el.querySelector('#sk').value])); } });
       if (!v) return;

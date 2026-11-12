@@ -1,5 +1,6 @@
 // Life apps: Profile (needs, sleep, food), Real estate, Travel, City map (flea market) and Pawn shop.
 import { G, emit } from '../core/state.js';
+import { recordCard } from '../ui/record.js';
 import { T, L, dur } from '../core/i18n.js';
 import { esc, clamp, uid } from '../core/util.js';
 import { RNG } from '../core/rng.js';
@@ -11,7 +12,7 @@ import { go, rerender, toast, askPrice, confirmBox, choose, sheet, closeSheet, r
 import { img, empty, bar, tags, row, kv, stars } from '../ui/comp.js';
 import { itemTitle, itemSub, itemValue, makeItem, isVehicle, sizeUnits } from '../game/items.js';
 import { HOUSING, houseDef, capacity, used, xpNeed, repScore, getItem, spend, addItem, canStore, stat, addXP, luggageCap, garage, vehiclesOwned, netWorth } from '../game/player.js';
-import { FOOD, foodPrice, eat, rentFor, housePrice, rentHouse, buyHouse, leaveHouse, afterSleep, awayFromHome, hotelPrice } from '../game/life.js';
+import { FOOD, foodPrice, eat, rentFor, housePrice, rentHouse, buyHouse, leaveHouse, afterSleep, awayFromHome, hotelPrice, isSick } from '../game/life.js';
 import { PROPS, propPrice, propRent, acquireProp, releaseProp } from '../game/business.js';
 import { tripOptions, startTrip, inTransit } from '../game/travel.js';
 import { regionMult } from '../game/economy.js';
@@ -30,7 +31,9 @@ function profMain() {
   return `<div class="card"><div class="levelrow"><div class="lv">${s.level}</div><div class="grow"><b style="font-size:19px">${esc(s.player.name)}</b><div class="small m">${countryOf(s.player.city).flag} ${esc(cityName())} · ★ ${repScore() ? repScore().toFixed(2) : '—'} (${s.rep.n})</div>${bar((s.xp / xpNeed(s.level)) * 100, 'var(--acc2)')}<div class="tiny m">XP ${s.xp} / ${xpNeed(s.level)}</div></div></div></div>
     <div class="stats"><div class="stat"><small>⚡ ${T('Энергия', 'Енергія', 'Energy')}</small><b data-live="energy">${Math.round(s.energy)}</b>${bar(s.energy, s.energy < 25 ? 'var(--red)' : '')}</div><div class="stat"><small>🍔 ${T('Сытость', 'Ситість', 'Food')}</small><b data-live="food">${Math.round(s.food)}</b>${bar(s.food, 'var(--yel)')}</div></div>
     <div class="btns"><button class="btn" data-a="eatMenu">🍔 ${T('Поесть', 'Поїсти', 'Eat')}</button><button class="btn dark" data-a="sleepMenu">🌙 ${T('Спать', 'Спати', 'Sleep')}</button></div>
-    ${s.food < 15 ? `<div class="card warn small">${T('Вы голодны — энергия тает быстрее.', 'Ви голодні — енергія тане швидше.', 'You’re hungry — energy drains faster.')}</div>` : ''}
+    ${s.food < 12 ? `<div class="card warn small">${T('Вы голодны — энергия тает быстрее.', 'Ви голодні — енергія тане швидше.', 'You’re hungry — energy drains faster.')}</div>` : ''}
+    ${isSick() ? `<div class="card warn small">🤢 ${T('Расстройство желудка: энергия тает быстрее, еда усваивается вдвое хуже, на смену не выйти. Пройдёт через', 'Розлад шлунка: енергія тане швидше, їжа засвоюється вдвічі гірше, на зміну не вийти. Мине через', 'Upset stomach: energy drains faster, food does half, no shifts. Clears in')} <span data-cd="${s.sick.until}" data-fmt="long"></span>. ${T('Таблетки — в «Поесть → Аптека».', 'Пігулки — у «Поїсти → Аптека».', 'Pills: Eat → Pharmacy.')}</div>` : (s.junk || 0) > 2.5 ? `<div class="card small">🍔 ${T('Многовато фастфуда — желудок может не выдержать. Поешьте нормально.', 'Забагато фастфуду — шлунок може не витримати. Поїжте нормально.', 'Lots of junk food lately — your stomach may give up. Eat properly.')}</div>` : ''}
+    ${recordCard()}
     <h3 class="sub">${T('Жизнь', 'Життя', 'Life')}</h3>
     <div class="card">${kv(T('Жильё', 'Житло', 'Home'), `${esc(L(h.n))}${s.house.type !== 'none' ? ` · ${esc(L(CITY[s.house.city]?.name || ''))}` : ''}`)}${kv(T('Склад', 'Склад', 'Storage'), `${used()} / ${capacity()}`)}${kv(T('Транспорт', 'Транспорт', 'Vehicle'), car ? esc(itemTitle(car)) : T('пешком', 'пішки', 'on foot'))}${kv(T('Гараж', 'Гараж', 'Garage'), `${vehiclesOwned()} / ${garage()}`)}${kv(T('Капитал', 'Капітал', 'Net worth'), fmt(netWorth()), 'g')}</div>
     <div class="btns"><button class="btn dark" data-a="open" data-v="realty">${icon('home')} ${T('Недвижимость', 'Нерухомість', 'Real estate')}</button><button class="btn dark" data-a="open" data-v="travel">${icon('plane')} ${T('Поездки', 'Поїздки', 'Travel')}</button></div>`;
@@ -41,14 +44,14 @@ export const profileApp = {
   views: { main: profMain },
   actions: {
     eatMenu: async () => {
-      const v = await choose(T('Поесть', 'Поїсти', 'Eat'), FOOD.map((f) => ({ v: f.id, label: `${f.icon} ${L(f.n)} · ${fmt(foodPrice(f))}`, sub: `+${f.food} 🍔${f.energy ? ` +${f.energy} ⚡` : ''}` })));
+      const v = await choose(T('Поесть', 'Поїсти', 'Eat'), FOOD.filter((f) => !f.meds || isSick()).map((f) => ({ v: f.id, label: `${f.icon} ${L(f.n)} · ${fmt(foodPrice(f))}`, sub: f.meds ? T('снимает расстройство', 'знімає розлад', 'settles your stomach') : `+${f.food} 🍔${f.energy ? ` +${f.energy} ⚡` : ''}${f.junk >= 0.7 ? ' · ' + T('вредно', 'шкідливо', 'junk') : f.healthy ? ' · ' + T('полезно', 'корисно', 'healthy') : ''}` })));
       if (!v) return;
       const f0 = FOOD.find((f) => f.id === v);
       let cookQ = null;
       if (f0.home && G.s.house.type !== 'none') { const rc = await playMini('pancake', { title: T('Готовим дома', 'Готуємо вдома', 'Cooking at home'), pass: 0.6 }); if (!rc.quit) cookQ = rc.score; }
       const r = eat(f0);
       if (r.ok && cookQ != null) G.s.food = Math.max(0, Math.min(100, G.s.food + Math.round((cookQ - 0.5) * 16)));
-      if (r.ok) { sfx('ok'); toast(T('Вкусно!', 'Смачно!', 'Yum!'), 'g'); } else toast(r.msg, 'r');
+      if (r.ok) { sfx('ok'); toast(r.meds ? T('Полегчало', 'Полегшало', 'Feeling better') : T('Вкусно!', 'Смачно!', 'Yum!'), 'g'); } else toast(r.msg, 'r');
       refreshAll();
     },
     sleepMenu: async () => {

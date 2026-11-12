@@ -11,6 +11,7 @@ import { APPS, DOCK } from './apps/index.js';
 import { UI, registerApps, initShell, renderHome, renderStatus, liveUpdate, rerender, sheet, resolveSheet, toast, banner, dayNum, refreshAll, appName } from './ui/shell.js';
 import { ensurePhone, PHONE } from './game/phone.js';
 import { readInvite, sendPendingFriend, errText, startOnline } from './game/online.js';
+import { risk, jailed, payBail, crimeName } from './game/crime.js';
 import { initHome } from './ui/home.js';
 import { initGalleries } from './ui/comp.js';
 import { initWorld, startSim, isPaused } from './game/sim.js';
@@ -91,6 +92,8 @@ function startGame() {
   initGalleries();
   wire();
   startOnline();
+  on('jail', renderJail);
+  renderJail();
   renderStatus();
   renderHome();
   startSim();
@@ -136,10 +139,10 @@ async function lifeEvent(e) {
       if (r.won) { addXP(30); addReview(5, T('Вернул мне кошелёк! Честный человек.', 'Повернув мені гаманець! Чесна людина.', 'Returned my wallet! Honest person.')); earn(e.cash * 0.2, 'other', T('Благодарность', 'Подяка', 'Thank‑you gift')); toast(T('Владелец благодарит! +репутация', 'Власник дякує! +репутація', 'The owner thanks you! +reputation'), 'g'); }
       else { addXP(5); toast(T('Кошелёк ушёл не тому человеку…', 'Гаманець пішов не тій людині…', 'The wallet went to the wrong person…'), 'r'); }
     }
-    else if (v === 'keep') { earn(e.cash, 'other', T('Находка', 'Знахідка', 'Found')); toast(`+${fmt(e.cash)}`); }
+    else if (v === 'keep') { earn(e.cash, 'other', T('Находка', 'Знахідка', 'Found')); if (risk('wallet', 0.025, { fine: e.cash, text: T('Кошелёк нашли по камерам', 'Гаманець знайшли по камерах', 'Caught on camera with the wallet') })) toast(T('Вас нашли по камерам! Обезьянник и штраф', 'Вас знайшли по камерах! Мавпятник і штраф', 'Caught on camera! Holding cell and a fine'), 'r'); else toast(`+${fmt(e.cash)}`); }
   } else if (e.id === 'parcel') {
     const v = await timedChoice('📦 ' + T('Курьер роняет коробку!', 'Курʼєр впускає коробку!', 'A courier drops a box!'), `<p class="p">${T('Успейте поймать — получите чаевые.', 'Встигніть піймати — отримаєте чайові.', 'Catch it for a tip.')}</p>`, [{ v: 'go', label: T('Ловить!', 'Ловити!', 'Catch!'), cls: 'yel' }], 4);
-    if (v === 'go') { const r = await playMini('timing', { title: T('Поймай коробку', 'Спіймай коробку', 'Catch the box'), rounds: 1, speed: 1.8 }); if (r.score > 0.5) { earn(e.tip, 'other', T('Чаевые', 'Чайові', 'Tip')); toast(`+${fmt(e.tip)}`, 'g'); } }
+    if (v === 'go') { const r = await playMini('timing', { title: T('Поймай коробку', 'Спіймай коробку', 'Catch the box'), rounds: 1, speed: 1.8 }); if (r.score > 0.5) { earn(e.tip, 'tip', T('Чаевые', 'Чайові', 'Tip')); toast(`+${fmt(e.tip)}`, 'g'); } }
   } else if (e.id === 'blogger') {
     const v = await timedChoice('📸 ' + T('Блогер хочет обзор', 'Блогер хоче огляд', 'A blogger wants a review'), `<p class="p">${T('Покажет ваши объявления подписчикам — покупатели будут писать в 2 раза чаще.', 'Покаже ваші оголошення підписникам — покупці писатимуть удвічі частіше.', 'They’ll show your listings — twice as many buyers for a while.')}</p>`, [{ v: 'yes', label: T('Согласиться', 'Погодитися', 'Agree'), cls: 'green' }, { v: 'no', label: T('Отказаться', 'Відмовитися', 'Decline'), cls: 'dark' }], 10);
     if (v === 'yes') { G.s.boostUntil = G.s.t + 240; toast(T('Ваши объявления в тренде!', 'Ваші оголошення в тренді!', 'Your listings are trending!'), 'g'); }
@@ -200,6 +203,21 @@ async function bootScreen() {
     });
   }
   draw();
+}
+
+// ---------------------------------------------------------------- the holding cell: the phone is confiscated
+function renderJail() {
+  let el = document.getElementById('jail-layer');
+  if (!jailed()) { if (el) el.remove(); document.body.classList.remove('in-jail'); return; }
+  const j = G.s.jail;
+  if (!el) { el = document.createElement('div'); el.id = 'jail-layer'; document.body.appendChild(el); }
+  document.body.classList.add('in-jail');
+  el.innerHTML = `<div class="jl-box"><div class="jl-ico">📵</div><h2>${T('Телефон изъят', 'Телефон вилучено', 'Phone confiscated')}</h2><p>${T('Вы в обезьяннике', 'Ви в мавпятнику', 'You’re in the holding cell')} · ${esc(crimeName(j.kind))}${j.text ? ` · ${esc(j.text)}` : ''}</p>
+    <div class="jl-time"><span data-cd="${j.until}" data-fmt="long"></span></div><small>${T('до освобождения', 'до звільнення', 'until release')}</small>
+    <div class="jl-row"><span>${T('Штраф списан', 'Штраф списано', 'Fine charged')}</span><b>${fmt(j.fine)}</b></div><div class="jl-row"><span>${T('Пометка в личном деле', 'Позначка в особовій справі', 'Record mark')}</span><b>+1</b></div>
+    <button class="btn block mt" id="jl-bail">${T('Внести залог', 'Внести заставу', 'Post bail')} · ${fmt(j.bail)}</button><p class="tiny">${T('С пометками в деле штрафы и просрочки дороже, а документы, кредиты и работа — сложнее.', 'З позначками у справі штрафи й прострочки дорожчі, а документи, кредити й робота — складніші.', 'With record marks fines and late fees cost more; papers, credit and jobs get harder.')}</p></div>`;
+  el.querySelector('#jl-bail').onclick = () => { const r = payBail(); if (r.ok) { sfx('ok'); toast(T('Вы на свободе', 'Ви на волі', 'You’re free'), 'g'); } else toast(r.msg, 'r'); renderJail(); refreshAll(); };
+  liveUpdate();
 }
 
 // ---------------------------------------------------------------- boot

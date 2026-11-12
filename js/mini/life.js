@@ -476,7 +476,7 @@ function codelock(api, { digits = 3, tries = 6, head = '' }) {
       draw();
     }));
   };
-  api.setTime(90, () => api.end({ score: 0.1, emoji: '⌛', title: T('Время вышло', 'Час вийшов', 'Out of time'), text: T(`Код был ${code}`, `Код був ${code}`, `The code was ${code}`) }));
+  api.setTime(90, () => api.end({ score: 0.1, emoji: '⌛', title: T('Время вышло', 'Час вийшов', 'Out of time'), text: T(`Код был ${code}`, `Код був ${code}`, `The code was ${code}`) }), { optional: true });
   draw();
 }
 

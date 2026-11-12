@@ -1,5 +1,7 @@
 // Player-level helpers: money, XP, reputation, inventory capacity, notifications, upgrades.
 import { G, emit } from '../core/state.js';
+import { dv, MINI_EARN } from './difficulty.js';
+import { recordMult } from './crime.js';
 import { T, L } from '../core/i18n.js';
 import { uid, clamp, sum } from '../core/util.js';
 import { itemValue, sizeUnits, isVehicle, itemTitle } from './items.js';
@@ -33,6 +35,7 @@ const TAXABLE = new Set(['job', 'casino', 'biz', 'rent', 'profit', 'quest', 'sto
 export function earn(usd, kind = 'other', note = '') {
   const s = G.s;
   usd = Math.max(0, usd);
+  if (MINI_EARN.has(kind)) usd *= dv().earn;
   s.money += usd;
   if (TAXABLE.has(kind)) s.tax.income += usd;
   pushHist(usd, kind, note);
@@ -51,7 +54,7 @@ export function spend(usd, kind = 'other', note = '') {
   return true;
 }
 // forced payments can push the balance below zero (rent, fines, loan autopay)
-export function charge(usd, kind = 'other', note = '') { const s = G.s; s.money -= usd; pushHist(-usd, kind, note); emit('money'); }
+export function charge(usd, kind = 'other', note = '') { const s = G.s; if (kind === 'fine') usd *= recordMult(); s.money -= usd; pushHist(-usd, kind, note); emit('money'); }
 export function addProfit(profit) { if (profit > 0) G.s.tax.income += profit; }
 function pushHist(amt, kind, note) {
   const s = G.s;

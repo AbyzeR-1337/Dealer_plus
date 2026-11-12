@@ -1,5 +1,6 @@
 // Minigame engine: fullscreen overlay, timer, result screen. Games are registered as functions(api, opts).
 import { T } from '../core/i18n.js';
+import { dv } from '../game/difficulty.js';
 import { esc, clamp } from '../core/util.js';
 import { icon } from '../ui/icons.js';
 import { sfx } from '../ui/sfx.js';
@@ -26,7 +27,11 @@ export function playMini(name, opts = {}) {
     const api = {
       root, body, opts,
       setTitle(t) { root.querySelector('h2').textContent = t; },
-      setTime(sec, cb) { timeLeft = sec; onTimeout = cb || null; tmEl.classList.remove('hidden'); },
+      setTime(sec, cb, o = {}) {
+        const d = dv();
+        if (d.id === 'relaxed') { if (o.optional) { this.clearTime(); return; } sec *= d.timer; timeLeft = sec; onTimeout = cb || null; tmEl.classList.add('hidden'); return; }
+        timeLeft = sec * d.timer; onTimeout = cb || null; tmEl.classList.remove('hidden');
+      },
       clearTime() { timeLeft = null; onTimeout = null; tmEl.classList.add('hidden'); tmEl.classList.remove('low'); },
       addTime(sec) { if (timeLeft != null) timeLeft = Math.max(0, timeLeft + sec); },
       get time() { return timeLeft; },

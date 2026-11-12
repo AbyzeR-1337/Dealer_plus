@@ -10,6 +10,7 @@ import { makeItem, itemValue, itemTitle, knownDefects } from './items.js';
 import { getItem, removeItem, addItem, spend, earn, charge, addXP, notify, stat, canStore, addReview } from './player.js';
 import { deliveryTime } from './market.js';
 import { fmt, nicePrice } from '../core/money.js';
+import { arrest } from './crime.js';
 
 export const CHANNELS = [
   { id: 'garage', name: ['Тёмный гараж', 'Темний гараж', 'Dark Garage'], ic: '🚗', col: '#7f1d1d', fee: 55, members: 5, about: ['Машины и техника без вопросов. Только для своих.', 'Машини й техніка без питань. Лише для своїх.', 'Cars and tech, no questions asked. Members only.'], cats: ['phones', 'electronics', 'consoles', 'cars', 'watches'], price: [0.35, 0.6], stolen: 0.3, scam: 0.1, lock: 0.12, handle: ['@tihiy_garage', '@bez_voprosov', '@noch_shop'] },
@@ -92,7 +93,7 @@ export function tgTick() {
     if (it) {
       removeItem(it.id);
       const fine = Math.round(x.val * 0.25 + 20);
-      charge(fine, 'fine', T('Штраф: покупка краденого', 'Штраф: купівля краденого', 'Fine: buying stolen goods'));
+      arrest('stolen', { fine: x.val * 0.1, text: x.title });
       notify('gov', T('Полиция', 'Поліція', 'Police'), T(`${x.title} оказался в розыске — изъят. Штраф ${fmt(fine)}.`, `${x.title} виявився в розшуку — вилучено. Штраф ${fmt(fine)}.`, `${x.title} was reported stolen — seized. Fine ${fmt(fine)}.`));
     } else if (new RNG(x.id).chance(0.5)) {
       const fine = Math.round(x.val * 0.15 + 15);

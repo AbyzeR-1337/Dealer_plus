@@ -6,6 +6,7 @@ import { MODELS, COLORS } from '../js/data/catalog.js';
 import { RNG } from '../js/core/rng.js';
 
 const BRAND = {
+  Vivvo: 'Vivo', Opo: 'Oppo', Nofing: 'Nothing', 'Kuler Mastar': 'Cooler Master', Montek: 'Montech',
   Intell: 'Intel', AMB: 'AMD', MSE: 'MSI', Gigabait: 'Gigabyte', ASRok: 'ASRock', Corsar: 'Corsair', 'G.Skil': 'G.Skill', 'be quite!': 'be quiet!', Seasonik: 'Seasonic', Deepkool: 'DeepCool', NZXX: 'NZXT', 'Lian Lee': 'Lian Li', Fractel: 'Fractal Design', Zalmen: 'Zalman', Noctuo: 'Noctua', Arktik: 'Arctic', 'ID‑Kuler': 'ID-COOLING',
   Kingstone: 'Kingston', SanDisc: 'SanDisk', Transcand: 'Transcend', Apricorm: 'Apricorn', Lexxar: 'Lexar', Hitachy: 'Hitachi', 'Westen Digital': 'Western Digital', Seagait: 'Seagate', Toshibo: 'Toshiba', Crucal: 'Crucial', LaCi: 'LaCie', Synologi: 'Synology', Quantim: 'Quantum', Iomego: 'Iomega', Verbatum: 'Verbatim', TDQ: 'TDK', Olimpus: 'Olympus',
   Pear: 'Apple', Samsong: 'Samsung', Xiaomo: 'Xiaomi', Gugle: 'Google', Huawai: 'Huawei', OnePlas: 'OnePlus', Tekno: 'Tecno', Honar: 'Honor', Sonny: 'Sony', Nokla: 'Nokia', Motorolla: 'Motorola', Vertuo: 'Vertu', BlackBerri: 'BlackBerry',

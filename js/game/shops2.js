@@ -11,6 +11,7 @@ import { makeItem, itemValue, itemTitle, isVehicle } from './items.js';
 import { getItem, removeItem, addItem, spend, earn, charge, addXP, notify, stat, canStore, canAfford } from './player.js';
 import { makeListing, deliveryTime, marketEstimate } from './market.js';
 import { fmt, nicePrice, rate } from '../core/money.js';
+import { recordMult, paperPenalty } from './crime.js';
 
 // ---------------------------------------------------------------- car market
 export const CAR_CLASSES = [
@@ -119,7 +120,7 @@ export function ymTick() {
     while (p.left.length && p.left[0].due <= s.t) {
       const pay = p.left.shift();
       const late = !canAfford(pay.amt);
-      charge(pay.amt * (late ? 1.05 : 1), 'loan', T(`Сплит: ${p.title}`, `Спліт: ${p.title}`, `Split: ${p.title}`));
+      charge(pay.amt * (late ? 1 + 0.05 * recordMult() : 1), 'loan', T(`Сплит: ${p.title}`, `Спліт: ${p.title}`, `Split: ${p.title}`));
       if (late) { st.sus = clamp(st.sus + 12, 0, 100); notify('ymarket', T('Просрочка по сплиту', 'Прострочка по спліту', 'Late split payment'), T(`${p.title}: штраф 5%`, `${p.title}: штраф 5%`, `${p.title}: 5% penalty`)); }
     }
   }

@@ -1,5 +1,7 @@
 // Travel between cities with luggage, customs checks and arrival handling.
 import { cardEffects } from './cards.js';
+import { arrest, marksCount } from './crime.js';
+import { dv } from './difficulty.js';
 import { G, emit } from '../core/state.js';
 import { T, L } from '../core/i18n.js';
 import { clamp, chance } from '../core/util.js';
@@ -69,10 +71,11 @@ export function resolveCustoms(choice) {
     for (const id of c.fakes) { if (getItem(id)) { removeItem(id); conf++; } }
     return { paid: c.duty, confiscated: conf };
   }
-  // risk: 30% chance of inspection
-  if (chance(0.3)) {
+  // risk: 30% chance of inspection (more with a record)
+  if (chance(Math.min(0.85, (0.3 + marksCount() * 0.1) * dv().crime))) {
     const fine = c.duty * 2 + 50;
     charge(fine, 'customs', T('Штраф таможни', 'Штраф митниці', 'Customs fine'));
+    if (c.fakes.length || c.value > 4000) arrest('smuggling', { text: T('Попытка провезти товар мимо таможни', 'Спроба провезти товар повз митницю', 'Trying to sneak goods past customs') });
     let conf = 0;
     for (const id of c.fakes) { if (getItem(id)) { removeItem(id); conf++; } }
     return { caught: true, fine, confiscated: conf };

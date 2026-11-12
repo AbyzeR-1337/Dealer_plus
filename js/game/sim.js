@@ -13,6 +13,8 @@ import { travelTick } from './travel.js';
 import { needsTick, dailyLife } from './life.js';
 import { bankTick, dailyBank, stocksTick, numbersTick, initStocks } from './finance.js';
 import { pcTick } from './pc.js';
+import { jailTick } from './crime.js';
+import { dv } from './difficulty.js';
 import { tgTick } from './tg.js';
 import { ymTick, supTick } from './shops2.js';
 import { bizHourly, bizDaily } from './business.js';
@@ -36,7 +38,8 @@ export function initWorld() {
 }
 export function startSim() {
   if (timer) return;
-  timer = setInterval(() => { if (!paused && G.s && !document.hidden) tick(); }, 1000);
+  let n = 0;
+  timer = setInterval(() => { if (!paused && G.s && !document.hidden) { tick(); if (dv().fast && ++n % 4 === 0) tick(); } }, 1000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) save(); else G.s && (G.s.lastReal = Date.now()); });
   window.addEventListener('pagehide', save);
 }
@@ -76,6 +79,7 @@ export function tick(fast = false) {
   sellTick();
   feedbackTick();
   pcTick();
+  jailTick();
   tgTick();
   ymTick();
   supTick();

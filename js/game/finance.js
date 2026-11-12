@@ -1,5 +1,6 @@
 // Bank (loans, deposits, credit rating, cards), stock exchange and collectible phone numbers / plates.
 import { G, emit } from '../core/state.js';
+import { paperPenalty, recordMult } from './crime.js';
 import { T, L } from '../core/i18n.js';
 import { uid, clamp, chance, rnd, rint, pickR } from '../core/util.js';
 import { RNG, hashStr } from '../core/rng.js';
@@ -19,7 +20,7 @@ export function creditInfo() {
   const mult = [0.7, 0.85, 1, 1.3, 1.8][tier];
   const company = G.s.tax.regime === 'company' ? 3 : G.s.tax.regime === 'ip' ? 1.6 : 1;
   const card = cardEffects().limit;
-  const limit = Math.max(0, Math.round(Math.pow(Math.max(0, r - 450), 2) * 0.05 * (1 + lvl * 0.35) * company * card));
+  const limit = Math.max(0, Math.round(Math.pow(Math.max(0, r - 450), 2) * 0.05 * (1 + lvl * 0.35) * company * card * (1 - paperPenalty())));
   return { r, tier, name: L(names[tier]), mult, limit };
 }
 export const LOAN_TERMS = [
@@ -68,7 +69,7 @@ export function bankTick() {
     else {
       const pay = Math.max(0, s.money);
       if (pay > 0) repayLoan(l.id, pay);
-      const pen = l.left * 0.1;
+      const pen = l.left * 0.1 * recordMult();
       l.left += pen;
       l.due = s.t + 1440;
       s.bank.credit = clamp(s.bank.credit - 45, 300, 850);
