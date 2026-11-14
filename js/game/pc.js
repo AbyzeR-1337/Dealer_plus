@@ -12,6 +12,7 @@ import { storageKind } from './files.js';
 import { deliveryTime } from './market.js';
 import { stockOf, addPart, takePart } from './workshop.js';
 import { partPrice, partKey, PART_NAMES, QUALITY } from '../data/parts.js';
+import { slowK } from './pcvirus.js';
 import { fmt, nicePrice } from '../core/money.js';
 
 export const SLOTS = ['cpu', 'mb', 'ram', 'gpu', 'drive', 'psu', 'case', 'cooler'];
@@ -158,7 +159,8 @@ export function myPc() {
   return { name: it.build ? buildTitle(it) : itemTitle(it), spec: it.build ? `${it.build.ram} ${T('ГБ', 'ГБ', 'GB')} · ${it.build.ssd ? 'SSD' : 'HDD'}` : itemTitle(it), speed: +clamp(1 + sc / 32, 1, 4).toFixed(1), item: it };
 }
 export const laptopScore = (it) => clamp(Math.round((MODEL[it.m]?.price || 500) / 40), 8, 70);
-export const pcSpeed = () => myPc().speed;
+// a hidden miner eats the CPU: everything on the PC gets slower (see pcvirus.js)
+export const pcSpeed = () => +(myPc().speed / slowK()).toFixed(2);
 export function setMyPc(itemId) { pcState().mine = itemId; emit('pc'); }
 export const canBeMyPc = (it) => !!it && (it.build || ['laptop', 'box'].includes(MODEL[it.m]?.art?.t) || /iMak/.test(MODEL[it.m]?.name || ''));
 

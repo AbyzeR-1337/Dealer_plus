@@ -25,11 +25,12 @@ import { LAB_GAMES } from './mini/lab.js';
 import { LIFE_GAMES } from './mini/life.js';
 import { PC_GAMES } from './mini/pcbuild.js';
 import { ACC_GAMES } from './mini/games_acc.js';
+import { REPAIR_GAMES } from './mini/repair_games.js';
 import { itemSVG } from './ui/art.js';
 import { itemTitle, itemSub } from './game/items.js';
 import { unlockAudio, sfx } from './ui/sfx.js';
 
-registerGames({ ...ITEM_GAMES, ...WORK_GAMES, ...MORE_GAMES, ...LAB_GAMES, ...LIFE_GAMES, ...PC_GAMES, ...ACC_GAMES });
+registerGames({ ...ITEM_GAMES, ...WORK_GAMES, ...MORE_GAMES, ...LAB_GAMES, ...LIFE_GAMES, ...PC_GAMES, ...ACC_GAMES, ...REPAIR_GAMES });
 window.GR = { G }; // debug handle
 registerApps(APPS, DOCK);
 

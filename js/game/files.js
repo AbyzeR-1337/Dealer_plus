@@ -318,7 +318,8 @@ export function runExe(it, file) {
     emit('inv');
     return { stealer: true, amt: f.steal };
   }
-  d.ransom = true; emit('inv');
+  // on your PC the ransomware locks the whole computer (a winlocker, see pcvirus.js)
+  emit('inv');
   return { ransom: true, amt: f.ransom };
 }
 export function payRansom(it) {

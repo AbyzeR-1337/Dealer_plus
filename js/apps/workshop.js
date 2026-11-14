@@ -28,6 +28,18 @@ const GAME_LABEL = {
   dent: ['Выправляйте вмятину точными ударами', 'Виправляйте вмʼятину точними ударами', 'Tap out the dent with precise hits'],
 };
 
+// what each step of a repair is called (shown before you start)
+const STEP_NAME = {
+  ph_heat: ['прогрев клея', 'прогрів клею', 'heat the glue'], ph_open: ['вскрытие по порядку', 'розкриття по порядку', 'open in order'], ph_battery: ['клеевые ленты', 'клейові стрічки', 'adhesive strips'], ph_bend: ['пресс', 'прес', 'press'], ph_ultra: ['ультразвук', 'ультразвук', 'ultrasonic'], ph_speaker: ['тест звука', 'тест звуку', 'sound test'],
+  lt_screws: ['винты по длине', 'гвинти за довжиною', 'screws by length'], lt_keys: ['клавиши', 'клавіші', 'keys'], lt_paste: ['термопаста', 'термопаста', 'thermal paste'], lt_short: ['поиск КЗ', 'пошук КЗ', 'find the short'], lt_hinge: ['момент затяжки', 'момент затягування', 'torque'], lt_dent: ['вмятина', 'вмʼятина', 'dent'],
+  cn_open: ['разборка', 'розбирання', 'teardown'], cn_laser: ['ток лазера', 'струм лазера', 'laser current'], cn_stick: ['калибровка стика', 'калібрування стіка', 'stick calibration'], cn_retro: ['УФ‑отбеливание', 'УФ‑відбілювання', 'UV bleach'],
+  sh_glue: ['клей по контуру', 'клей по контуру', 'glue line'], sh_press: ['пресс', 'прес', 'press'], sh_steam: ['пар', 'пара', 'steam'], cl_stitch: ['шов', 'шов', 'seam'], cl_zip: ['строчка молнии', 'рядок блискавки', 'zip seam'], bg_edge: ['покраска уреза', 'фарбування зрізу', 'edge paint'], bg_steam: ['форма паром', 'форма парою', 'steam shaping'],
+  wt_back: ['крышка ключом', 'кришка ключем', 'caseback'], wt_reg: ['таймграфер', 'таймграфер', 'timegrapher'], jw_prongs: ['лапки крест‑накрест', 'лапки навхрест', 'prongs'], jw_size: ['шперак', 'шперак', 'mandrel'], jw_solder: ['пайка горелкой', 'паяння пальником', 'torch solder'],
+  car_lug: ['гайки звёздочкой', 'гайки зірочкою', 'star pattern'], car_pump: ['давление', 'тиск', 'pressure'], car_obd: ['сканер OBD', 'сканер OBD', 'OBD scan'], car_bolts: ['болты по схеме', 'болти за схемою', 'bolt sequence'], car_idle: ['холостые', 'холості', 'idle'], car_fluid: ['уровень ATF', 'рівень ATF', 'ATF level'], car_fuse: ['предохранители', 'запобіжники', 'fuses'], car_pdr: ['PDR', 'PDR', 'PDR'], car_seal: ['герметик', 'герметик', 'sealant'], car_lights: ['снятие фары', 'зняття фари', 'lamp removal'], car_aim: ['регулировка света', 'регулювання світла', 'beam aim'],
+  bk_true: ['восьмёрка', 'вісімка', 'wheel truing'], bk_brake: ['калипер', 'каліпер', 'caliper'], bk_cells: ['банки батареи', 'банки батареї', 'battery cells'], in_tune: ['настройка', 'налаштування', 'tuning'], in_truss: ['анкер', 'анкер', 'truss rod'], in_glue: ['клей в трещину', 'клей у тріщину', 'crack glue'], dentfix: ['вмятина', 'вмʼятина', 'dent'],
+  screws: ['винты', 'гвинти', 'screws'], screen: ['дисплей', 'дисплей', 'screen'], solder: ['пайка', 'паяння', 'soldering'], wires: ['шлейфы', 'шлейфи', 'cables'], scrub: ['чистка и полировка', 'чистка й полірування', 'clean & polish'], align: ['установка детали', 'встановлення деталі', 'fit the part'], color: ['подбор краски', 'підбір фарби', 'paint match'], dent: ['вмятина', 'вмʼятина', 'dent'],
+};
+const stepNames = (steps) => steps.map((k) => L(STEP_NAME[k] || [k, k, k])).join(' → ');
 // ---------------------------------------------------------------- REPAIR
 function repairMain() {
   const s = G.s;
@@ -60,7 +72,7 @@ function repairItem(p) {
       }
       for (const c of n.r.cons) lines.push(`<div class="row between mt"><span>🧴 ${esc(L(CONS[c].n))}</span>${consLeft(c) ? `<span class="small g">${T('есть', 'є', 'have')} ${consLeft(c)}</span>` : `<button class="btn xs dark" data-a="bcons" data-v="${c}">${T('Купить', 'Купити', 'Buy')} ×${PACK} · ${fmt(consPackPrice(c))}</button>`}</div>`);
       if (n.r.tool) lines.push(`<div class="row between mt"><span>${TOOLS[n.r.tool].icon} ${esc(L(TOOLS[n.r.tool].n))}</span>${n.toolOk ? `<span class="small g">✓ ${T('есть', 'є', 'owned')}</span>` : `<button class="btn xs dark" data-a="btool" data-v="${n.r.tool}">${T('Купить', 'Купити', 'Buy')} ${fmt(TOOLS[n.r.tool].price)}</button>`}</div>`);
-      h += `<div class="small m mt">${T('Этапов работы', 'Етапів роботи', 'Work steps')}: ${n.r.steps.length}${lines.length ? '' : ' · ' + T('материалы не нужны', 'матеріали не потрібні', 'no supplies needed')}</div>${lines.join('')}`;
+      h += `<div class="small m mt">${T('Этапы', 'Етапи', 'Steps')}: ${esc(stepNames(n.r.steps))}${lines.length ? '' : ' · ' + T('материалы не нужны', 'матеріали не потрібні', 'no supplies needed')}</div>${lines.join('')}`;
     }
     h += `<div class="btns">${n ? `<button class="btn sm" data-a="diyp" data-v="${it.id}" data-w="${d.c}" ${b || !n.ok ? 'disabled' : ''}>🛠 ${T('Починить самому', 'Полагодити самому', 'Fix it myself')}</button>` : `<button class="btn sm" data-a="diy" data-v="${it.id}" data-w="${d.c}" ${b ? 'disabled' : ''}>🛠 ${T('Сам', 'Сам', 'DIY')} · ${fmt(q.parts)}</button>`}${q ? `<button class="btn sm dark" data-a="master" data-v="${it.id}" data-w="${d.c}" ${b ? 'disabled' : ''}>👨‍🔧 ${fmt(q.master)} · ${dur(q.time)}</button>` : ''}</div></div>`;
   }
@@ -105,7 +117,7 @@ export const repairApp = {
       const it = getItem(id); const code = el.dataset.w; const q = repairQuote(it, code);
       if (!q) return;
       if (G.s.money < q.parts) return toast(T('Не хватает на запчасти', 'Не вистачає на запчастини', 'Can’t afford parts'), 'r');
-      const r = await playMini(q.game, { title: `🛠 ${defectName(code)}`, label: L(GAME_LABEL[q.game] || GAME_LABEL.align), item: it, rounds: 3 });
+      const r = await playMini(q.game, { title: `🛠 ${defectName(code)}`, label: GAME_LABEL[q.game] ? L(GAME_LABEL[q.game]) : undefined, item: it, rounds: 3 });
       if (r.quit) return;
       const res = diyRepair(it, code, r.score);
       toast(res.ok ? T('Отремонтировано!', 'Відремонтовано!', 'Repaired!') : res.msg, res.ok ? 'g' : 'r');
@@ -122,7 +134,7 @@ export const repairApp = {
       const steps = n.r.steps;
       let total = 0;
       for (let i = 0; i < steps.length; i++) {
-        const r = await playMini(steps[i], { title: `🛠 ${defectName(code)} · ${i + 1}/${steps.length}`, label: L(GAME_LABEL[steps[i]] || GAME_LABEL.align), item: it, rounds: 2 });
+        const r = await playMini(steps[i], { title: `🛠 ${defectName(code)} · ${i + 1}/${steps.length} · ${L(STEP_NAME[steps[i]] || [steps[i], steps[i], steps[i]])}`, label: GAME_LABEL[steps[i]] ? L(GAME_LABEL[steps[i]]) : undefined, item: it, rounds: 2 });
         if (r.quit) return toast(T('Ремонт отменён, запчасти целы', 'Ремонт скасовано, запчастини цілі', 'Repair cancelled, parts kept'));
         total += r.score;
       }

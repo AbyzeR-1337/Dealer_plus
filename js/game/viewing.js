@@ -101,7 +101,7 @@ export function applyShow(c, it, chosen, pitch = null) {
   }
   let down = 0;
   for (const d of found) { d.known = true; down += (DEFECTS[d.c]?.sev || 0.05) * 0.8; }
-  up = clamp(up, -0.02, 0.14);
+  up = clamp(up, -0.02, 0.1);
   c.offer = nicePrice(Math.max(1, c.offer * (1 + up - down)), cur);
   c.maxPay = Math.max(c.maxPay || 0, c.offer);
   c.msgs.push({ f: 'them', tx: found.length ? T(`Нашёл(ла) при проверке: ${found.map((d) => defectName(d.c).toLowerCase()).join(', ')}. Тогда ${fmt(c.offer)}.`, `Знайшов(ла) під час перевірки: ${found.map((d) => defectName(d.c).toLowerCase()).join(', ')}. Тоді ${fmt(c.offer)}.`, `Found while testing: ${found.map((d) => defectName(d.c).toLowerCase()).join(', ')}. Then ${fmt(c.offer)}.`) : up > 0.005 ? T(`Всё отлично, видно, что вещь берегли. Дам ${fmt(c.offer)}.`, `Усе чудово, видно, що річ берегли. Дам ${fmt(c.offer)}.`, `All great, clearly well kept. I’ll give ${fmt(c.offer)}.`) : T(`Хорошо, как договаривались — ${fmt(c.offer)}.`, `Добре, як домовлялися — ${fmt(c.offer)}.`, `Fine, as agreed — ${fmt(c.offer)}.`), t: s.t });

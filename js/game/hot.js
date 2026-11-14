@@ -36,6 +36,9 @@ const MARKS_BY_CAT = {
   bikes: ['vin', 'paint'], cars: ['vin', 'plates', 'paint'], instruments: ['serial', 'engrave'], pcparts: ['serial'],
 };
 const RESIDUE = 0.15; // a wiped trace still shows a little (tampering)
+// however well you wipe it, a stolen thing never drops below this trace: serials in old databases, a photo in the
+// owner's police report, a neighbour who saw it
+export const HOT_FLOOR = 17;
 export const marksFor = (cat) => MARKS_BY_CAT[cat] || ['serial', 'owner'];
 export const isHot = (it) => !!it?.hot;
 export const traceOf = (it) => (it?.hot ? Math.round(it.hot.tr) : 0);
@@ -47,7 +50,7 @@ export function makeHot(it, rng, o = {}) {
   // an old console has no online account, a 90s phone no IMEI blacklist worth the name
   const ms = marksFor(it.cat).filter((k) => !((k === 'acct' && year < 2010) || (k === 'imei' && year < 2005))).filter(() => rng.chance(0.8));
   if (!ms.length) ms.push(marksFor(it.cat).find((k) => k !== 'acct' && k !== 'imei') || 'serial');
-  const tr = clamp(ms.reduce((a, k) => a + MARKS[k].w, 0) * rng.float(0.8, 1.05), 20, 95);
+  const tr = clamp(ms.reduce((a, k) => a + MARKS[k].w, 0) * rng.float(0.8, 1.05), 28, 95);
   it.hot = { tr: Math.round(tr), marks: ms, done: [], known: o.known !== false, src: o.src || 'dark' };
   it.stolen = true;
   return it;
@@ -116,7 +119,7 @@ export function wipeMark(it, k, quality = 1) {
     return { ok: true, res: 'botched' };
   }
   it.hot.done.push(k);
-  it.hot.tr = Math.max(3, Math.round(it.hot.tr - m.w * (1 - RESIDUE) * (quality >= 0.7 ? 1 : 0.7)));
+  it.hot.tr = Math.max(HOT_FLOOR, Math.round(it.hot.tr - m.w * (1 - RESIDUE) * (quality >= 0.7 ? 1 : 0.7)));
   if (m.valueHit) it.cond = Math.max(5, Math.round(it.cond * (1 - m.valueHit)));
   if (k === 'owner') { (it.data ||= {}).wiped = true; }
   if (k === 'papers') it.docs = false;
@@ -139,7 +142,7 @@ export function buyWipe(itemId, k) {
 }
 
 // the fence: takes any hot item now, no questions, no comeback — but pays little
-export const fenceOffer = (it) => nicePrice(itemValue(it, G.s.player.city, 'true', { clean: true }) * (0.3 + 0.12 * (1 - traceOf(it) / 100)), countryOf(G.s.player.city).cur);
+export const fenceOffer = (it) => nicePrice(itemValue(it, G.s.player.city, 'true', { clean: true }) * (0.2 + 0.1 * (1 - traceOf(it) / 100)), countryOf(G.s.player.city).cur);
 export function fenceSell(itemId) {
   const s = G.s, it = getItem(itemId);
   if (!it?.hot || it.listed) return { ok: false };
@@ -160,11 +163,12 @@ export function darkOrders() {
   s.dord ||= { w: -1, list: [], done: {} };
   if (s.dord.w !== w) {
     const r = new RNG(`dord|${s.id}|${w}`);
-    s.dord = { w, done: s.dord.done || {}, list: Array.from({ length: 4 }, (_, i) => ({ id: `do${w}_${i}`, cat: r.pick(ORDER_CATS), k: +r.float(0.55, 0.78).toFixed(2), who: r.pick(BUYERS), until: (w + 1) * 240 })) };
+    s.dord = { w, done: s.dord.done || {}, list: Array.from({ length: 4 }, (_, i) => ({ id: `do${w}_${i}`, cat: r.pick(ORDER_CATS), k: +r.float(0.5, 0.72).toFixed(2), who: r.pick(BUYERS), until: (w + 1) * 240 })) };
   }
   return s.dord.list.filter((o) => !s.dord.done[o.id]);
 }
-export const orderPay = (o, it) => nicePrice(itemValue(it, G.s.player.city, 'true', { clean: true }) * o.k, countryOf(G.s.player.city).cur);
+// they know what they're buying: a hot item is priced with its traces
+export const orderPay = (o, it) => nicePrice(itemValue(it, G.s.player.city, 'true') * o.k, countryOf(G.s.player.city).cur);
 export function fillOrder(orderId, itemId) {
   const s = G.s, o = darkOrders().find((x) => x.id === orderId), it = getItem(itemId);
   if (!o || !it || it.cat !== o.cat || it.listed) return { ok: false };
@@ -198,7 +202,7 @@ export function fakeDocs(itemId) {
   if (!it || it.docs) return { ok: false };
   if (!spend(docsPrice(it), 'service', T('Документы «под ключ»', 'Документи «під ключ»', 'Turnkey papers'))) return { ok: false, msg: T('Не хватает денег', 'Не вистачає грошей', 'Not enough money') };
   it.docs = true; it.box = true; it.fakeDocs = true;
-  if (it.hot) it.hot.tr = Math.max(3, it.hot.tr - 8);
+  if (it.hot) it.hot.tr = Math.max(HOT_FLOOR, it.hot.tr - 8);
   emit('inv');
   return { ok: true };
 }

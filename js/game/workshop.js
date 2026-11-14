@@ -16,7 +16,7 @@ export function repairQuote(it, code) {
   if (!d?.fix) return null;
   const k = 1 - upLevel('hands') * 0.12;
   const parts = Math.max(2, base(it) * d.fix[1] * k);
-  return { game: d.fix[0], parts, master: parts * 1.7 + 5, time: Math.round(d.fix[2] * k) };
+  return { game: { dent: 'dentfix', screen: 'align' }[d.fix[0]] || d.fix[0], parts, master: parts * 1.7 + 5, time: Math.round(d.fix[2] * k) };
 }
 export const busy = (itemId) => G.s.repairs.some((r) => r.itemId === itemId);
 

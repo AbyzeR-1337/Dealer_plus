@@ -7,10 +7,11 @@ import { fmt, nicePrice } from '../core/money.js';
 import { CATS, RARITY } from '../data/catalog.js';
 import { countryOf } from '../data/world.js';
 import { icon } from '../ui/icons.js';
-import { go, rerender, toast, askPrice, confirmBox, sheet, closeSheet, UI } from '../ui/shell.js';
+import { go, rerender, toast, askPrice, confirmBox, sheet, closeSheet, UI, gameDate } from '../ui/shell.js';
 import { img, empty, tags, specs, defectList } from '../ui/comp.js';
 import { itemTitle, itemSub, itemValue, makeItem, isVehicle, rarityName } from '../game/items.js';
 import { auctions, minNext, placeBid, BOXES, rollBox, buyBox, takeBoxPrize, wholesale, buyWholesale } from '../game/sources.js';
+import { getItem } from '../game/player.js';
 import { canStore, spend, stat, addXP, addItem } from '../game/player.js';
 import { deliveryTime } from '../game/market.js';
 import { regName, regColors } from './common.js';
@@ -27,7 +28,7 @@ function lotCard(lot) {
 function aucMain() {
   const A = auctions();
   const lots = A.lots.filter((l) => !l.done || l.mine);
-  return `<p class="p">${T('Торги идут в реальном времени. Ставка в последние секунды продлевает аукцион. «Контейнеры» — кот в мешке: внутри может быть хлам или сокровище.', 'Торги йдуть у реальному часі. Ставка в останні секунди подовжує аукціон.', 'Live bidding. Last‑second bids extend the timer. Storage units are a gamble.')}</p><div class="tiles">${lots.map(lotCard).join('')}</div>`;
+  return `<button class="dr-tab" data-a="audrawer">📋<small>${drCount()}</small></button><p class="p">${T('Торги идут в реальном времени. Ставка в последние секунды продлевает аукцион. «Контейнеры» — кот в мешке: внутри может быть хлам или сокровище.', 'Торги йдуть у реальному часі. Ставка в останні секунди подовжує аукціон.', 'Live bidding. Last‑second bids extend the timer. Storage units are a gamble.')}</p><div class="tiles">${lots.map(lotCard).join('')}</div>`;
 }
 function lotView(p) {
   const A = auctions();
@@ -41,12 +42,46 @@ function lotView(p) {
     ${lot.done ? `<div class="card ${lot.won ? 'hl' : 'warn'}">${lot.won ? T('Вы выиграли! Вещи на складе.', 'Ви виграли! Речі на складі.', 'You won! Items are in storage.') : lot.failed ? T('Лот аннулирован (нет денег/места)', 'Лот анульовано', 'Cancelled (no money/space)') : T('Аукцион завершён', 'Аукціон завершено', 'Auction ended')}</div>` : `<div class="btns"><button class="btn" data-a="bid" data-v="${lot.id}" data-w="${next}">${T('Ставка', 'Ставка', 'Bid')} ${fmt(next)}</button><button class="btn dark" data-a="bidc" data-v="${lot.id}">${T('Своя', 'Своя', 'Custom')}</button></div><div class="small m mt">${T('Баланс', 'Баланс', 'Balance')}: ${fmt(s.money)}</div>`}
     ${!lot.container ? `<h3 class="sub">${T('Состояние', 'Стан', 'Condition')}</h3>${defectList(lot.item, false)}<div class="card mt">${specs(lot.item)}</div>` : ''}`;
 }
+// ---------------------------------------------------------------- "My lots" panel on the right: your bids, your own
+// items on auction, the bid history of each lot, current prices and how the finished ones went
+const hm = (t) => `${String(Math.floor((t % 1440) / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+const lotTitle = (lot) => (lot.container ? T(`Контейнер · ${lot.items.length} вещей`, `Контейнер · ${lot.items.length} речей`, `Storage unit · ${lot.items.length} items`) : itemTitle(lot.item));
+function histHTML(h) {
+  if (!h?.length) return `<div class="dr-h m">${T('Ставок ещё нет', 'Ставок ще немає', 'No bids yet')}</div>`;
+  return h.slice(-6).reverse().map((x, i) => `<div class="dr-h ${x.me ? 'me' : ''} ${i === 0 ? 'top' : ''}"><span>${hm(x.t)}</span><span>${esc(x.me ? T('Вы', 'Ви', 'You') : x.who)}</span><b>${fmt(x.amt)}</b></div>`).join('');
+}
+const myLots = () => auctions().lots.filter((l) => l.touched && !l.done);
+const myOwn = () => (G.s.ownAuctions || []).filter((a) => !a.done && getItem(a.itemId));
+function drawerHTML() {
+  const s = G.s, mine = myLots(), own = myOwn(), log = s.aucLog || [];
+  const frozen = mine.filter((l) => l.mine).reduce((a, l) => a + l.bid, 0);
+  let h = `<div class="dr-sum"><div><small>${T('Лидирую', 'Лідирую', 'Leading')}</small><b class="g">${mine.filter((l) => l.mine).length}</b></div><div><small>${T('Перебили', 'Перебили', 'Outbid')}</small><b class="r">${mine.filter((l) => !l.mine).length}</b></div><div><small>${T('В ставках', 'У ставках', 'In bids')}</small><b>${fmt(frozen)}</b></div></div>`;
+  h += `<div class="dr-sec">🔨 ${T('Мои ставки', 'Мої ставки', 'My bids')}</div>` + (mine.length ? mine.map((l) => `<div class="dr-card ${l.mine ? 'lead' : 'out'}" data-a="drgo" data-v="${l.id}"><div class="row between"><b>${esc(lotTitle(l))}</b><span class="tag ${l.mine ? 'g' : 'r'}">${l.mine ? T('лидирую', 'лідирую', 'leading') : T('перебили', 'перебили', 'outbid')}</span></div>
+      <div class="dr-kv"><span>${T('Текущая', 'Поточна', 'Current')}</span><b>${fmt(l.bid)}</b></div><div class="dr-kv"><span>${T('Моя ставка', 'Моя ставка', 'My bid')}</span><b>${fmt(l.myBid || 0)}</b></div><div class="dr-kv"><span>${T('До конца', 'До кінця', 'Ends in')}</span><b class="mono" data-cd="${l.end}"></b></div>
+      ${histHTML(l.hist)}${!l.mine ? `<button class="btn xs mt" data-a="bid" data-v="${l.id}" data-w="${minNext(l)}">${T('Перебить', 'Перебити', 'Outbid')} ${fmt(minNext(l))}</button>` : ''}</div>`).join('') : `<div class="dr-empty">${T('Вы пока ни на что не ставили', 'Ви поки ні на що не ставили', 'You haven’t bid on anything yet')}</div>`);
+  h += `<div class="dr-sec">🏷 ${T('Мои вещи на аукционе', 'Мої речі на аукціоні', 'My items on auction')}</div>` + (own.length ? own.map((a) => { const it = getItem(a.itemId); const au = it.auction || {}; return `<div class="dr-card"><div class="row between"><b>${esc(itemTitle(it))}</b><span class="tag ${au.bids ? 'g' : ''}">${au.bids || 0} ${T('ставок', 'ставок', 'bids')}</span></div><div class="dr-kv"><span>${T('Старт', 'Старт', 'Start')}</span><b>${fmt(a.start)}</b></div><div class="dr-kv"><span>${T('Сейчас', 'Зараз', 'Now')}</span><b class="${au.bid ? 'g' : 'm'}">${au.bid ? fmt(au.bid) : '—'}</b></div><div class="dr-kv"><span>${T('Вам после комиссии 8%', 'Вам після комісії 8%', 'You get after 8% fee')}</span><b>${au.bid ? fmt(au.bid * 0.92) : '—'}</b></div><div class="dr-kv"><span>${T('До конца', 'До кінця', 'Ends in')}</span><b class="mono" data-cd="${a.end}"></b></div>${histHTML(a.hist)}</div>`; }).join('') : `<div class="dr-empty">${T('Выставить вещь: Склад → вещь → Продать → Аукцион', 'Виставити річ: Склад → річ → Продати → Аукціон', 'List one: Storage → item → Sell → Auction')}</div>`);
+  const KIND = { won: ['🏆', T('Выиграл', 'Виграв', 'Won'), 'g'], lost: ['💨', T('Упустил', 'Упустив', 'Lost'), 'r'], sold: ['💰', T('Продал', 'Продав', 'Sold'), 'g'], nobid: ['🙈', T('Без ставок', 'Без ставок', 'No bids'), 'm'], failed: ['⛔', T('Аннулирован', 'Анульовано', 'Cancelled'), 'r'] };
+  h += `<div class="dr-sec">🕘 ${T('История', 'Історія', 'History')}</div>` + (log.length ? log.slice(0, 20).map((e) => { const k = KIND[e.kind] || KIND.lost; return `<div class="dr-log"><span>${k[0]}</span><div class="grow"><b>${esc(e.title)}</b><small>${esc(k[1])}${e.kind === 'lost' && e.my ? ` · ${T('моя', 'моя', 'mine')} ${fmt(e.my)} → ${esc(e.who || '')}` : ''}${e.kind === 'sold' ? ` · ${e.bids || 0} ${T('ставок', 'ставок', 'bids')}` : ''} · ${hm(e.t)}</small></div><b class="${k[2]}">${fmt(e.net || e.price || 0)}</b></div>`; }).join('') : `<div class="dr-empty">${T('Пока пусто', 'Поки порожньо', 'Nothing yet')}</div>`);
+  return h;
+}
+let drTimer = 0;
+async function openDrawer() {
+  clearInterval(drTimer);
+  const p = sheet(`<div class="dr-head"><b>📋 ${T('Мои лоты', 'Мої лоти', 'My lots')}</b><button class="dr-x" data-a="closeSheet">✕</button></div><div class="dr-body">${drawerHTML()}</div>`, { cls: 'drawer-r' });
+  // live: prices, leaders and timers move while the panel is open
+  drTimer = setInterval(() => { const b = document.querySelector('.sheet.drawer-r .dr-body'); if (!b) { clearInterval(drTimer); return; } const top = b.scrollTop; b.innerHTML = drawerHTML(); b.scrollTop = top; }, 1000);
+  await p; clearInterval(drTimer);
+}
+const drCount = () => myLots().length + myOwn().length;
 export const auctionApp = {
   id: 'auction', glyph: 'gavel', lvl: 3,
   name: () => regName('auction'), colors: () => regColors('auction'),
   views: { main: aucMain, lot: lotView },
   live: true,
+  right: () => `<button class="pill dr-open" data-a="audrawer">☰ ${T('Мои лоты', 'Мої лоти', 'My lots')}${drCount() ? ` · ${drCount()}` : ''}</button>`,
   actions: {
+    audrawer: () => openDrawer(),
+    drgo: (id, el, ev) => { if (ev?.target?.closest('[data-a="bid"]')) return; closeSheet(); go('lot', { id }); },
     bid: (id, el) => { const lot = auctions().lots.find((l) => l.id === id); const r = placeBid(lot, +el.dataset.w); if (r.ok) { sfx('hit'); toast(T('Ставка принята', 'Ставку прийнято', 'Bid placed'), 'g'); } else toast(r.msg || T('Не удалось', 'Не вдалося', 'Failed'), 'r'); rerender(); },
     bidc: async (id) => { const lot = auctions().lots.find((l) => l.id === id); const v = await askPrice({ title: T('Ваша ставка', 'Ваша ставка', 'Your bid'), value: minNext(lot), min: minNext(lot), max: Math.max(G.s.money, minNext(lot)) }); if (!v) return; const r = placeBid(lot, v); toast(r.ok ? T('Ставка принята', 'Ставку прийнято', 'Bid placed') : r.msg, r.ok ? 'g' : 'r'); rerender(); },
   },

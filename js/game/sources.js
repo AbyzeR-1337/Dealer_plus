@@ -239,7 +239,8 @@ export function placeBid(lot, amount) {
   const s = G.s;
   if (lot.done || s.t >= lot.end) return { ok: false };
   if (amount > s.money) return { ok: false, msg: T('Ставка больше баланса', 'Ставка більша за баланс', 'Bid exceeds your balance') };
-  lot.bid = amount; lot.bidder = s.player.name; lot.mine = true;
+  lot.bid = amount; lot.bidder = s.player.name; lot.mine = true; lot.touched = true; lot.myBid = amount;
+  (lot.hist ||= []).push({ who: s.player.name, amt: amount, t: s.t, me: true });
   if (lot.end - s.t < 15) lot.end = s.t + 15; // anti-snipe extension
   stat('bids');
   return { ok: true };
@@ -260,6 +261,7 @@ export function auctionTick() {
         const b = pickR(cand);
         const was = lot.mine;
         lot.bid = minNext(lot); lot.bidder = b.name; lot.mine = false;
+        (lot.hist ||= []).push({ who: b.name, amt: lot.bid, t: s.t });
         if (left < 15) lot.end = s.t + 15;
         if (was) notify('auction', T('Вашу ставку перебили', 'Вашу ставку перебили', 'You were outbid'), `${lot.container ? T('Контейнер', 'Контейнер', 'Storage unit') : itemTitle(lot.item)} — ${fmt(lot.bid)}`, { go: ['auction', 'lot', { id: lot.id }] });
       }
@@ -267,14 +269,18 @@ export function auctionTick() {
   }
   A.lots = A.lots.filter((l) => !l.done || s.t - l.end < 300);
 }
+// what happened to the auctions you took part in (for the "My lots" panel)
+export function aucLog(e) { const s = G.s; (s.aucLog ||= []).unshift({ t: s.t, ...e }); if (s.aucLog.length > 40) s.aucLog.length = 40; }
+const lotName = (lot) => (lot.container ? T(`Контейнер · ${lot.items.length} вещей`, `Контейнер · ${lot.items.length} речей`, `Storage unit · ${lot.items.length} items`) : itemTitle(lot.item));
 function closeLot(lot) {
   const s = G.s;
   lot.done = true;
-  if (!lot.mine) return;
+  if (!lot.mine) { if (lot.touched) aucLog({ kind: 'lost', title: lotName(lot), price: lot.bid, my: lot.myBid, who: lot.bidder }); return; }
   const items = lot.container ? lot.items : [lot.item];
   const units = items.reduce((a, it) => a + sizeUnits(it), 0);
   if (s.money < lot.bid || (!lot.container && !canStore(lot.item)) || (lot.container && freeSpace() < units)) {
     lot.failed = true;
+    aucLog({ kind: 'failed', title: lotName(lot), price: lot.bid });
     notify('auction', T('Лот аннулирован', 'Лот анульовано', 'Lot cancelled'), T('Не хватило денег или места', 'Не вистачило грошей чи місця', 'Not enough money or space'));
     return;
   }
@@ -282,6 +288,7 @@ function closeLot(lot) {
   const per = lot.bid / items.length;
   for (const it of items) addItem(it, per, 'auction');
   lot.won = true;
+  aucLog({ kind: 'won', title: lotName(lot), price: lot.bid });
   stat('auctionsWon'); addXP(15);
   notify('auction', T('Вы выиграли аукцион!', 'Ви виграли аукціон!', 'You won the auction!'), `${lot.container ? T(`Контейнер: ${items.length} вещей`, `Контейнер: ${items.length} речей`, `Storage unit: ${items.length} items`) : itemTitle(lot.item)} — ${fmt(lot.bid)}`, { go: ['inventory'] });
 }
@@ -305,7 +312,7 @@ export function ownAuctionTick() {
     const val = itemValue(it, s.player.city, 'known');
     if (!a.done && chance(0.05)) {
       const next = Math.max(a.start, (it.auction.bid || 0) * 1.07);
-      if (next < val * rnd(0.85, 1.2)) { it.auction.bid = next; it.auction.bids++; }
+      if (next < val * rnd(0.85, 1.2)) { it.auction.bid = next; it.auction.bids++; (a.hist ||= []).push({ who: pickR(BIDDERS), amt: next, t: s.t }); }
     }
     if (!a.done && s.t >= a.end) {
       a.done = true;
@@ -319,7 +326,8 @@ export function ownAuctionTick() {
         addProfit(bid - fee - (it.paid || 0));
         stat('sold'); stat('auctionSold'); addXP(12);
         notify('auction', T('Аукцион завершён', 'Аукціон завершено', 'Auction finished'), `${itemTitle(it)}: ${fmt(bid - fee)}`);
-      } else notify('auction', T('Ставок не было', 'Ставок не було', 'No bids'), itemTitle(it));
+        aucLog({ kind: 'sold', title: itemTitle(it), price: bid, net: bid - fee, bids: (a.hist || []).length });
+      } else { notify('auction', T('Ставок не было', 'Ставок не було', 'No bids'), itemTitle(it)); aucLog({ kind: 'nobid', title: itemTitle(it), price: a.start }); }
     }
   }
   s.ownAuctions = s.ownAuctions.filter((a) => !a.done);

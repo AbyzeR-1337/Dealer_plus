@@ -17,6 +17,7 @@ import { bankTick, dailyBank, stocksTick, numbersTick, initStocks } from './fina
 import { pcTick, mineHourly } from './pc.js';
 import { accTick } from './phoneacc.js';
 import { hotTick } from './hot.js';
+import { pcvTick } from './pcvirus.js';
 import { jailTick } from './crime.js';
 import { rentTick } from './housing.js';
 import { reChatTick } from './realty_chat.js';
@@ -127,6 +128,7 @@ export function tick(fast = false) {
   pcTick();
   accTick();
   hotTick();
+  pcvTick();
   taxRemindTick();
   jailTick();
   rentTick();

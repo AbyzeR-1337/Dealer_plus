@@ -14,6 +14,7 @@ import {
   storageKind, deviceFiles, accessOf, LOCKED, connect, wipe, recover, recoverCost, tryWallet, cashWallet, returnToOwner, dashAction, corpAction, rareSell,
   runExe, payRansom, decrypted, pinResult, passResult, passReady, KIND_NAME, resetWord,
 } from '../game/files.js';
+import { runOnPc } from '../game/pcvirus.js';
 
 const walletCtx = { id: null, fid: null };
 const ICON = { photo: '🖼', video: '🎞', text: '📝', doc: '📄', music: '🎵', audio: '🎙', exe: '⚙️', wallet: '👛', game: '🎮', save: '💾', archive: '🗜', contact: '👥' };
@@ -36,9 +37,19 @@ export function filesView(p) {
     let act = '';
     if (acc.why === 'lock') act = `<button class="btn block mt" data-a="lab" data-v="${it.id}">🔓 Phone Lab</button>`;
     if (acc.why === 'dead' || acc.why === 'click') act = `<button class="btn block mt" data-a="frecover" data-v="${it.id}">🛠 ${T('Сервис восстановления данных', 'Сервіс відновлення даних', 'Data recovery service')} · ${fmt(recoverCost(it))}</button><p class="small m mt">${T('Шанс около 70%. Если не выйдет — деньги не возвращают.', 'Шанс близько 70%. Якщо не вийде — гроші не повертають.', 'About a 70% chance. No refund if it fails.')}</p>`;
-    if (acc.why === 'pin') act = `<button class="btn block mt" data-a="fpin" data-v="${it.id}">⌨️ ${T('Подобрать PIN', 'Підібрати PIN', 'Crack the PIN')} · ${3 - (d.pinFails || 0)}/3</button>`;
-    if (acc.why === 'pass') act = `<button class="btn block mt" data-a="fpass" data-v="${it.id}" ${passReady(it) ? '' : 'disabled'}>🔑 ${passReady(it) ? T('Подобрать пароль', 'Підібрати пароль', 'Guess the password') : T('Попытка раз в игровой час', 'Спроба раз на ігрову годину', 'One try per game hour')}</button>${wipeBtn.replace('dark block mt', 'dark block mt')}`;
+    if (!FV.pc && ['pin', 'pass'].includes(acc.why)) act = `<button class="btn block mt" data-a="fpc" data-v="${it.id}">🖥 ${T('Подбирать на ПК', 'Підбирати на ПК', 'Crack it on the PC')}</button>`;
+    else if (acc.why === 'pin') act = `<button class="btn block mt" data-a="fpin" data-v="${it.id}">⌨️ ${T('Подобрать PIN', 'Підібрати PIN', 'Crack the PIN')} · ${3 - (d.pinFails || 0)}/3</button>`;
+    else if (acc.why === 'pass') act = `<button class="btn block mt" data-a="fpass" data-v="${it.id}" ${passReady(it) ? '' : 'disabled'}>🔑 ${passReady(it) ? T('Подобрать пароль', 'Підібрати пароль', 'Guess the password') : T('Попытка раз в игровой час', 'Спроба раз на ігрову годину', 'One try per game hour')}</button>${wipeBtn.replace('dark block mt', 'dark block mt')}`;
     return `${head}<div class="card warn">${esc(LOCKED[acc.why] ? LOCKED[acc.why]() : '')}</div>${act}`;
+  }
+  // from the phone (OTG) you only get a summary; the files themselves open on the PC
+  if (!FV.pc) {
+    const pcBtn = `<button class="btn block mt" data-a="fpc" data-v="${it.id}">🖥 ${T('Открыть на ПК — все файлы', 'Відкрити на ПК — усі файли', 'Open on the PC — all files')}</button>`;
+    if (f.empty) return `${head}<div class="fv-empty">📭<b>${f.why === 'new' ? T('Новое устройство — пусто', 'Новий пристрій — порожньо', 'Brand new — empty') : f.why === 'wiped' ? T('Вы всё стёрли', 'Ви все стерли', 'You wiped it') : T('Похоже, пусто', 'Схоже, порожньо', 'Looks empty')}</b><small>${T('Точно проверить — на ПК.', 'Точно перевірити — на ПК.', 'Check properly on the PC.')}</small></div>${pcBtn}`;
+    const nFiles = f.dirs.reduce((a, dd) => a + dd.files.length, 0);
+    return `${head}<div class="card warn small">📱 ${T('С телефона через переходник видно только папки и сколько в них файлов. Открыть файлы, найти ценное, проверить на вирусы — только на ПК.', 'З телефона через перехідник видно лише папки й скільки в них файлів. Відкрити файли, знайти цінне, перевірити на віруси — лише на ПК.', 'Over an OTG adapter the phone only sees folders and file counts. Opening files, finding valuables and virus checks need the PC.')}</div>
+      ${f.dirs.map((dd) => `<div class="fv-dir">📁 ${esc(dd.name || '/')} <small class="m">· ${dd.files.length} ${T('файлов', 'файлів', 'files')}</small></div>`).join('')}
+      <div class="small m mt">${T('Всего', 'Усього', 'Total')}: ${nFiles} ${T('файлов', 'файлів', 'files')}</div>${pcBtn}${wipeBtn}`;
   }
   if (f.empty) return `${head}<div class="fv-empty">📭<b>${f.why === 'new' ? T('Новое устройство — пусто', 'Новий пристрій — порожньо', 'Brand new — empty') : f.why === 'wiped' ? T('Вы всё стёрли', 'Ви все стерли', 'You wiped it') : T('Отформатировано прежним владельцем', 'Відформатовано попереднім власником', 'Formatted by the previous owner')}</b><small>${T('Можно продавать спокойно.', 'Можна спокійно продавати.', 'Safe to sell.')}</small></div>`;
   if (d.ransom) return `${head}<div class="card warn">🔒 ${esc(LOCKED.ransom())} ${T('На экране: «Переведите выкуп, иначе файлы будут удалены».', 'На екрані: «Переведіть викуп, інакше файли буде видалено».', 'On screen: “Pay up or your files are deleted”.')}</div>
@@ -83,8 +94,11 @@ function filePreview(it, x) {
   return [`${top}${media}${text}<p class="small m">${[size(x.size), x.date].filter(Boolean).join(' · ')}</p>`, btn];
 }
 
+// FV.pc is set while the desktop shows a device — then the full view and file previews are allowed
+export const FV = { pc: false };
 export const filesActions = {
   files: (id) => import('../ui/shell.js').then(({ go }) => go('files', { id })),
+  fpc: (id) => import('./pc_desktop.js').then((m) => m.openDesktopOn(id)),
   fopen: async (v) => {
     const [id, fid] = v.split('|');
     const it = getItem(id); if (!it) return;
@@ -108,8 +122,8 @@ export const filesActions = {
     if (r === 'run') {
       const res = runExe(it, x);
       if (res.clean) toast(T('Программа запустилась и ничего не сделала', 'Програма запустилася й нічого не зробила', 'It ran and did nothing'));
-      else if (res.stealer) { sfx('err'); toast(T(`Вирус! Троян украл данные карты: −${fmt(res.amt)}`, `Вірус! Троян викрав дані картки: −${fmt(res.amt)}`, `Virus! A trojan stole your card: −${fmt(res.amt)}`), 'r'); }
-      else { sfx('err'); toast(T('Вирус‑вымогатель зашифровал файлы!', 'Вірус‑вимагач зашифрував файли!', 'Ransomware encrypted the files!'), 'r'); }
+      else if (res.stealer) { runOnPc('stealer'); sfx('err'); toast(T(`Троян! Украл данные карты (−${fmt(res.amt)}) и что‑то поставил в систему…`, `Троян! Викрав дані картки (−${fmt(res.amt)}) і щось поставив у систему…`, `A trojan! It stole your card (−${fmt(res.amt)}) and installed something…`), 'r'); }
+      else { runOnPc('ransom'); sfx('err'); toast(T('Экран погас… Похоже на вирус‑блокировщик!', 'Екран згас… Схоже на вірус‑блокувальник!', 'The screen went dark… looks like a winlocker!'), 'r'); }
     }
     if (r === 'police' || r === 'dashsell') { const got = dashAction(it, r === 'police' ? 'police' : 'sell'); if (got) { sfx('cash'); toast(`+${fmt(got)}`, 'g'); } }
     if (r === 'corpback' || r === 'corpsell') { const res = corpAction(it, r === 'corpback' ? 'return' : 'sell'); if (res?.caught) { sfx('err'); toast(T(`Это была проверка полиции. Штраф ${fmt(res.fine)}`, `Це була перевірка поліції. Штраф ${fmt(res.fine)}`, `It was a police sting. Fine ${fmt(res.fine)}`), 'r'); } else if (res?.got) { sfx('cash'); toast(`+${fmt(res.got)}`, 'g'); } }

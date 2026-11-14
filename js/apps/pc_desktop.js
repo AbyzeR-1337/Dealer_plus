@@ -17,14 +17,16 @@ import { img } from '../ui/comp.js';
 import { sfx } from '../ui/sfx.js';
 import { playMini } from '../mini/engine.js';
 import { hasStorage, storageKind, deviceFiles, accessOf, connect, wipe, KIND_NAME, LOCKED } from '../game/files.js';
-import { filesActions } from './files_view.js';
+import { filesActions, FV } from './files_view.js';
+import { lockOf, lockText, tryCode, payLocker, lookupCode, cureAll, processList, endTask, deleteFile, defenderCatch, aliveMiners, badProcs, autorun, slowK } from '../game/pcvirus.js';
+import { installerDrive } from '../game/pc.js';
 import {
   myPc, setMyPc, isComputer, osOf, OS, SLOTS, SLOT_NAME, SLOT_ICON, specLine, swapCandidates, swapPart, disassemblePc, cleanCooler,
   diagTargets, runDiag, mineState, mineRate, mineCashout, pcSpeed, canBeMyPc, buildTitle,
 } from '../game/pc.js';
 import { taxDue } from '../game/life.js';
 
-const D = { open: false, wins: [], active: null, start: false, ex: 'c', diag: { id: null, res: null, run: 0 }, svc: null, term: [], mines: null, flag: false };
+const D = { tm: null, lockMsg: '', open: false, wins: [], active: null, start: false, ex: 'c', diag: { id: null, res: null, run: 0 }, svc: null, term: [], mines: null, flag: false };
 const APPS = {
   thispc: { ic: '🖥', n: () => T('Этот компьютер', 'Цей компʼютер', 'This PC') },
   explorer: { ic: '📁', n: () => T('Проводник', 'Провідник', 'Explorer') },
@@ -37,8 +39,9 @@ const APPS = {
   notepad: { ic: '📝', n: () => T('Блокнот', 'Блокнот', 'Notepad') },
   browser: { ic: '🌐', n: () => T('Браузер', 'Браузер', 'Browser') },
   trash: { ic: '🗑', n: () => T('Корзина', 'Кошик', 'Recycle Bin') },
+  taskmgr: { ic: '📊', n: () => T('Диспетчер задач', 'Диспетчер завдань', 'Task Manager') },
 };
-const DESK = ['thispc', 'explorer', 'diag', 'service', 'defender', 'term', 'mine', 'mines', 'notepad', 'browser', 'trash'];
+const DESK = ['thispc', 'explorer', 'taskmgr', 'diag', 'service', 'defender', 'term', 'mine', 'mines', 'notepad', 'browser', 'trash'];
 const hhmm = () => { const m = G.s.t % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 const pa = (a, v = '', extra = '') => `data-pa="${a}" data-pv="${esc(String(v))}" ${extra}`;
 const osName = () => { const it = myPc().item; return it ? OS[osOf(it)]?.n || 'Windows 11' : 'Windows 10'; };
@@ -56,10 +59,12 @@ export function openDesktop(o = {}) {
   layer.addEventListener('input', onInput);
   layer.addEventListener('keydown', onKey);
   layer.addEventListener('contextmenu', (e) => e.preventDefault());
-  const secs = clamp(2.6 / pcSpeed(), 0.7, 2.6);
+  // a hidden miner makes the boot crawl
+  const secs = clamp(2.6 / pcSpeed(), 0.7, 9);
+  FV.pc = true;
   layer.innerHTML = `<div class="pcd-boot"><div class="pcd-logo"><i></i><i></i><i></i><i></i></div><div class="pcd-spin"></div><small>${T('Добро пожаловать', 'Ласкаво просимо', 'Welcome')}</small><small class="m">${esc(myPc().name)}</small></div>`;
   sfx('tap');
-  setTimeout(() => { if (!D.open) return; if (o.app) openWin(o.app, o.params); render(); }, secs * 1000);
+  setTimeout(() => { if (!D.open) return; if (o.app) openWinNow(o.app, o.params); render(); }, secs * 1000);
   clock = setInterval(() => { if (!layer) return; const c = layer.querySelector('.pcd-clock'); if (c) c.textContent = hhmm(); const mb = layer.querySelector('[data-live-mine]'); if (mb) mb.textContent = fmt(mineState().bal); }, 1000);
   unsubs = [on('inv', onInv), on('pc', onInv)];
 }
@@ -73,11 +78,25 @@ export function openDesktopOn(itemId) {
   D.diag.id = it.id; openDesktop({ app: 'diag' });
 }
 export function closeDesktop() {
-  D.open = false; clearInterval(clock);
+  D.open = false; FV.pc = false; clearInterval(clock);
   for (const u of unsubs) u(); unsubs = [];
   layer?.remove(); layer = null;
 }
-function openWin(app, params = {}) {
+// with a miner eating the CPU, every window opens with a lag ("Not responding")
+let lagging = false;
+function lag(fn) {
+  const n = aliveMiners();
+  if (!n || !layer) return fn();
+  if (lagging) return;
+  lagging = true;
+  const box = document.createElement('div');
+  box.className = 'pcd-lag';
+  box.innerHTML = `<div class="pcd-spin"></div><small>${T('Не отвечает…', 'Не відповідає…', 'Not responding…')}</small>`;
+  layer.appendChild(box);
+  setTimeout(() => { lagging = false; box.remove(); if (D.open) fn(); }, Math.min(3500, 500 + n * 700 + Math.random() * 600));
+}
+function openWin(app, params = {}) { lag(() => openWinNow(app, params)); }
+function openWinNow(app, params = {}) {
   let w = D.wins.find((x) => x.app === app);
   if (!w) { w = { id: app, app, min: false }; D.wins.push(w); }
   Object.assign(w, { min: false, params });
@@ -89,6 +108,7 @@ function openWin(app, params = {}) {
 // ---------------------------------------------------------------- render
 function render() {
   if (!layer || !D.open) return;
+  if (lockOf()) return renderLock();
   const act = D.wins.find((w) => w.app === D.active && !w.min);
   const icons = DESK.map((k) => `<button class="pcd-ic" ${pa('open', k)}><i>${APPS[k].ic}</i><span>${esc(APPS[k].n())}</span></button>`).join('');
   const win = act ? `<div class="pcw"><div class="pcw-bar"><span>${APPS[act.app].ic} ${esc(APPS[act.app].n())}</span><button ${pa('min', act.app)}>—</button><button class="x" ${pa('close', act.app)}>✕</button></div><div class="pcw-body">${body(act)}</div></div>` : '';
@@ -109,6 +129,7 @@ function body(w) {
     case 'mines': return mines();
     case 'notepad': return `<textarea class="pcd-note" data-pin="note" placeholder="${T('Заметки: цены, кому что обещал…', 'Нотатки: ціни, кому що обіцяв…', 'Notes: prices, promises…')}">${esc(G.s.pcNote || '')}</textarea>`;
     case 'browser': return browser();
+    case 'taskmgr': return taskmgr();
     case 'trash': return `<div class="pcd-empty">🗑<b>${T('Корзина пуста', 'Кошик порожній', 'The bin is empty')}</b><small>${T('Вы всё удаляете сразу. Уважаем.', 'Ви все видаляєте одразу. Поважаємо.', 'You delete things for good. Respect.')}</small></div>`;
   }
   return '';
@@ -146,12 +167,15 @@ function explorer() {
     const it = getItem(sel);
     if (!it) { D.ex = 'c'; return explorer(); }
     const acc = accessOf(it);
-    if (!acc.ok) main = `<div class="pcd-empty">⚠️<b>${esc(LOCKED[acc.why] ? LOCKED[acc.why]() : T('Нет доступа', 'Немає доступу', 'No access'))}</b><button class="btn sm" ${pa('phonefiles', it.id)}>${T('Открыть на телефоне', 'Відкрити на телефоні', 'Open on the phone')}</button></div>`;
+    if (!acc.ok) {
+      const btn = { pin: ['fpin', '⌨️ ' + T('Подобрать PIN', 'Підібрати PIN', 'Crack the PIN')], pass: ['fpass', '🔑 ' + T('Подобрать пароль', 'Підібрати пароль', 'Guess the password')], dead: ['frecover', '🛠 ' + T('Сервис восстановления', 'Сервіс відновлення', 'Recovery service')], click: ['frecover', '🛠 ' + T('Сервис восстановления', 'Сервіс відновлення', 'Recovery service')], lock: ['lab', '🔓 Phone Lab'] }[acc.why];
+      main = `<div class="pcd-empty">⚠️<b>${esc(LOCKED[acc.why] ? LOCKED[acc.why]() : T('Нет доступа', 'Немає доступу', 'No access'))}</b>${btn ? `<button class="btn sm" ${pa('fact', `${btn[0]}|${it.id}`)}>${btn[1]}</button>` : ''}</div>`;
+    }
     else {
       const f = deviceFiles(it);
       main = `<div class="pcd-path">${esc(L(KIND_NAME[storageKind(it)]))} · ${esc(itemTitle(it, false))}</div>`;
       if (f.empty) main += `<div class="pcd-empty">📭<b>${T('Пусто', 'Порожньо', 'Empty')}</b></div>`;
-      else if (it.data?.ransom) main += `<div class="pcd-empty">🔒<b>${esc(LOCKED.ransom())}</b><button class="btn sm" ${pa('phonefiles', it.id)}>${T('Разобраться', 'Розібратися', 'Deal with it')}</button></div>`;
+      else if (it.data?.ransom) main += `<div class="pcd-empty">🔒<b>${esc(LOCKED.ransom())}</b><div class="pcd-btns"><button class="btn sm" ${pa('fact', `fransom|${it.id}`)}>💸 ${T('Заплатить', 'Заплатити', 'Pay')}</button><button class="btn sm dark" ${pa('fact', `fdecrypt|${it.id}`)}>🧩 ${T('Подобрать ключ', 'Підібрати ключ', 'Crack the key')}</button></div></div>`;
       else main += f.dirs.map((dd) => `<div class="pcd-dir">📁 ${esc(dd.name || '/')}</div>${dd.files.map((x) => `<div class="pcd-file ${x.bad ? 'bad' : ''}" ${pa('fopen', `${it.id}|${x.id}`)}><i>${{ photo: '🖼', video: '🎞', text: '📝', doc: '📄', music: '🎵', audio: '🎙', exe: '⚙️', wallet: '👛', game: '🎮', save: '💾', archive: '🗜', contact: '👥' }[x.type] || '📄'}</i><b>${esc(x.name)}</b><small>${x.bad ? '⚠' : ''}</small></div>`).join('')}`).join('');
       if (!f.empty) main += `<button class="btn sm dark mt" ${pa('wipe', it.id)}>🧹 ${T('Стереть всё', 'Стерти все', 'Wipe everything')}</button>`;
     }
@@ -216,7 +240,7 @@ function runCmd(raw) {
   D.term.push(`C:\\> ${raw}`);
   const pc = myPc(), city = L(CITY[G.s.player.city]?.name || '');
   if (!cmd) return;
-  if (cmd === 'help') out(T('help, systeminfo, ipconfig, ping <сайт>, dir, chkdsk, scan, tasklist, date, whoami, cls, color, shutdown', 'help, systeminfo, ipconfig, ping <сайт>, dir, chkdsk, scan, tasklist, date, whoami, cls, color, shutdown', 'help, systeminfo, ipconfig, ping <site>, dir, chkdsk, scan, tasklist, date, whoami, cls, color, shutdown'));
+  if (cmd === 'help') out(T('help, systeminfo, ipconfig, ping <сайт>, dir, chkdsk, scan, tasklist, taskkill /im <имя>, date, whoami, cls, color, shutdown', 'help, systeminfo, ipconfig, ping <сайт>, dir, chkdsk, scan, tasklist, taskkill /im <імʼя>, date, whoami, cls, color, shutdown', 'help, systeminfo, ipconfig, ping <site>, dir, chkdsk, scan, tasklist, taskkill /im <name>, date, whoami, cls, color, shutdown'));
   else if (cmd === 'cls') D.term = [];
   else if (cmd === 'systeminfo') out(`Host: ${pc.name}\nOS: ${osName()}\nSpeed: x${pc.speed}\nLocation: ${city}`);
   else if (cmd === 'ipconfig') out(`IPv4: 192.168.${(G.s.id.length * 7) % 255}.${(G.s.t % 200) + 20}\nGateway: 192.168.0.1\nVPN: ${G.s.vpn?.on && G.s.vpn.until > G.s.t ? 'ON' : 'OFF'}`);
@@ -224,7 +248,8 @@ function runCmd(raw) {
   else if (cmd === 'dir') out(myDocs().map((f) => `  ${f.n}`).join('\n'));
   else if (cmd === 'chkdsk') { const ds = devices(); const found = []; for (const it of ds) { const f = connect(it); if (f.length) found.push(`${itemTitle(it, false)}: ${f.map((c) => defectName(c)).join(', ')}`); } out(found.length ? found.join('\n') : T(`Проверено дисков: ${ds.length}. Ошибок нет.`, `Перевірено дисків: ${ds.length}. Помилок немає.`, `${ds.length} drive(s) checked. No errors.`)); }
   else if (cmd === 'scan' || cmd === 'sfc /scannow') out(scanAll().replace(/<br>/g, '\n').replace(/&[a-z]+;/g, ''));
-  else if (cmd === 'tasklist') out(`explorer.exe\nbrowser.exe\n${mineState().on ? 'miner.exe   ⛏\n' : ''}cmd.exe`);
+  else if (cmd === 'tasklist') out(processList(D.wins.map((w) => w.app), mineState().on).map((p) => `${p.name.padEnd(22, ' ')} ${String(p.cpu).padStart(3, ' ')}%  ${p.mem} MB`).join('\n'));
+  else if (cmd.startsWith('taskkill')) { const nm = raw.trim().split(/\s+/).pop(); const p = processList(D.wins.map((w) => w.app), mineState().on).find((x) => x.name.toLowerCase() === String(nm).toLowerCase()); if (!p) out(T(`Процесс "${nm}" не найден.`, `Процес "${nm}" не знайдено.`, `Process "${nm}" not found.`)); else { const r = endTask(p.id); if (r.bsod) { bsod(); return; } out(T(`Успешно: процесс "${p.name}" завершён.`, `Успішно: процес "${p.name}" завершено.`, `SUCCESS: "${p.name}" terminated.`)); } }
   else if (cmd === 'date' || cmd === 'time') out(hhmm());
   else if (cmd === 'whoami') out(`${(G.s.player.name || 'user').toLowerCase().replace(/\s+/g, '_')}@${city.toLowerCase().replace(/\s+/g, '-')}`);
   else if (cmd.startsWith('color')) out('OK');
@@ -276,6 +301,31 @@ function browser() {
   return `<div class="pcd-url">🔒 https://</div><div class="pcd-links">${links.map(([id, ic, n]) => `<button ${pa('phone', id)}><i>${ic}</i><span>${esc(n)}</span></button>`).join('')}</div><p class="small m">${T('Сайты откроются в приложениях телефона.', 'Сайти відкриються в застосунках телефона.', 'Sites open in the phone apps.')}</p>`;
 }
 
+// ---------------------------------------------------------------- Task Manager
+function taskmgr() {
+  const list = processList(D.wins.map((w) => w.app), mineState().on).sort((a, b) => b.cpu - a.cpu);
+  const cpu = Math.min(100, list.reduce((a, p) => a + p.cpu, 0) + 3), mem = Math.min(97, Math.round(list.reduce((a, p) => a + p.mem, 0) / 80));
+  const sel = D.tm && list.find((p) => p.id === D.tm);
+  return `<div class="tm-head"><div><small>${T('ЦП', 'ЦП', 'CPU')}</small><b class="${cpu > 80 ? 'r' : ''}">${cpu}%</b><div class="tm-bar"><i style="width:${cpu}%;background:${cpu > 80 ? '#ff5468' : '#4cc2ff'}"></i></div></div><div><small>${T('Память', 'Памʼять', 'Memory')}</small><b>${mem}%</b><div class="tm-bar"><i style="width:${mem}%"></i></div></div></div>
+    <div class="tm-row tm-th"><span>${T('Имя', 'Імʼя', 'Name')}</span><span>${T('ЦП', 'ЦП', 'CPU')}</span><span>${T('Память', 'Памʼять', 'Mem')}</span></div>
+    ${list.map((p) => `<div class="tm-row ${D.tm === p.id ? 'on' : ''}" ${pa('tmsel', p.id)}><span>${p.app ? '🪟' : '⚙️'} ${esc(p.name)}</span><span class="${p.cpu > 40 ? 'r' : ''}">${p.cpu}%</span><span>${p.mem} MB</span></div>${D.tm === p.id ? `<div class="tm-det"><div class="small">📁 ${esc(p.path)}${esc(p.path.endsWith('.exe') ? '' : p.name)}</div><div class="small m">${T('Издатель', 'Видавець', 'Publisher')}: ${esc(p.pub)}</div><div class="pcd-btns"><button class="btn xs" ${pa('tmkill', p.id)}>${T('Снять задачу', 'Зняти задачу', 'End task')}</button>${p.bad ? `<button class="btn xs dark" ${pa('tmdel', p.id)}>🗑 ${T('Открыть расположение и удалить', 'Відкрити розташування й видалити', 'Open location and delete')}</button>` : ''}</div></div>` : ''}`).join('')}
+    ${badProcs().filter((p) => !p.alive).length ? `<div class="small m mt">⏳ ${T('Завершённые подозрительные процессы могут перезапуститься, пока их файл на диске.', 'Завершені підозрілі процеси можуть перезапуститися, поки їхній файл на диску.', 'Ended suspicious processes can restart while their file is on disk.')}</div>` : ''}`;
+}
+// ---------------------------------------------------------------- winlocker / blue screen
+function renderLock() {
+  const L0 = lockOf(), t = lockText();
+  layer.innerHTML = `<div class="pcd-lock"><div class="lk-badge">⚠️</div><h2>${esc(L(t.n))}</h2><p>${T(`Ваш компьютер заблокирован: ${L(t.why)}. Для разблокировки переведите <b>${fmt(L0.ask)}</b> на номер +7 9xx xxx‑xx‑xx и введите код из чека. Через 12 часов все данные будут удалены.`, `Ваш компʼютер заблоковано: ${L(t.why)}. Для розблокування переведіть <b>${fmt(L0.ask)}</b> на номер +380 xx xxx‑xx‑xx і введіть код із чека. Через 12 годин усі дані буде видалено.`, `Your computer is blocked: ${L(t.why)}. To unlock, send <b>${fmt(L0.ask)}</b> and enter the code from the receipt. All data will be deleted in 12 hours.`)}</p>
+    <div class="lk-in"><input data-pin="lcode" inputmode="numeric" maxlength="6" placeholder="____"><button ${pa('lcode')}>OK</button></div>${D.lockMsg ? `<div class="lk-msg">${esc(D.lockMsg)}</div>` : ''}${L0.tries ? `<small class="m">${T('Неверных попыток', 'Невірних спроб', 'Wrong tries')}: ${L0.tries}</small>` : ''}
+    <div class="lk-acts"><button ${pa('lpay')}>💸 ${T('Заплатить', 'Заплатити', 'Pay')} ${fmt(L0.ask)}</button><button ${pa('llook')}>📱 ${T('Найти код на сайте антивируса', 'Знайти код на сайті антивірусу', 'Look up the code on an antivirus site')}</button><button ${pa('lreinst')}>💿 ${T('Загрузиться с флешки и переустановить Windows', 'Завантажитися з флешки й перевстановити Windows', 'Boot from a stick and reinstall Windows')}</button><button ${pa('power')}>⏻ ${T('Выключить', 'Вимкнути', 'Shut down')}</button></div></div>`;
+}
+function bsod() {
+  if (!layer) return;
+  sfx('lose');
+  layer.innerHTML = `<div class="pcd-bsod"><div class="bs-face">:(</div><p>${T('На вашем ПК возникла проблема, и его необходимо перезагрузить.', 'На вашому ПК виникла проблема, і його потрібно перезавантажити.', 'Your PC ran into a problem and needs to restart.')}</p><small>CRITICAL_PROCESS_DIED · 0% ${T('выполнено', 'виконано', 'complete')}</small></div>`;
+  D.wins = []; D.active = null;
+  setTimeout(() => { closeDesktop(); setTimeout(() => openDesktop(), 200); }, 2600);
+}
+
 // ---------------------------------------------------------------- input
 function onInput(e) {
   const k = e.target?.dataset?.pin;
@@ -293,10 +343,12 @@ async function onClick(e) {
     case 'open': if (v === 'diag' && el.dataset.pw) D.diag.id = el.dataset.pw; openWin(v); return;
     case 'start': D.start = !D.start; render(); return;
     case 'power': closeDesktop(); return;
-    case 'task': { const w = D.wins.find((x) => x.app === v); if (!w) return; if (D.active === v && !w.min) w.min = true; else { w.min = false; D.active = v; } render(); return; }
+    case 'task': { const w = D.wins.find((x) => x.app === v); if (!w) return; if (D.active === v && !w.min) { w.min = true; render(); } else lag(() => { w.min = false; D.active = v; render(); }); return; }
     case 'min': { const w = D.wins.find((x) => x.app === v); if (w) w.min = true; render(); return; }
     case 'close': D.wins = D.wins.filter((x) => x.app !== v); D.active = D.wins[D.wins.length - 1]?.app || null; render(); return;
-    case 'ex': D.ex = v; if (!D.wins.some((w) => w.app === 'explorer')) D.wins.push({ id: 'explorer', app: 'explorer', min: false }); D.active = 'explorer'; D.wins.find((w) => w.app === 'explorer').min = false; render(); return;
+    case 'fact': { const [fn, id] = v.split('|'); if (fn === 'lab') { closeDesktop(); filesActions.lab(id); return; } await filesActions[fn]?.(id); render(); return; }
+    case 'ex': { const dv = v !== 'c' && getItem(v); if (dv && accessOf(dv).ok) { const f = deviceFiles(dv); autorun(dv, f.finds?.virus); } }
+      D.ex = v; if (!D.wins.some((w) => w.app === 'explorer')) D.wins.push({ id: 'explorer', app: 'explorer', min: false }); D.active = 'explorer'; D.wins.find((w) => w.app === 'explorer').min = false; render(); return;
     case 'doc': { const f = myDocs().find((x) => x.id === v); if (f) { G.s.pcDoc = f; toastDoc(f); } return; }
     case 'fopen': filesActions.fopen(v); return;
     case 'phonefiles': closeDesktop(); openApp('inventory', 'files', { id: v }); return;
@@ -323,7 +375,23 @@ async function onClick(e) {
     case 'dust': { const it = getItem(v); if (!it) return; const r = await playMini('scrub', { title: T('Чистка от пыли', 'Чистка від пилу', 'Dusting out'), label: T('Выдуйте и ототрите пыль с радиатора и кулера', 'Видуйте й відітріть пил із радіатора і кулера', 'Blow and wipe the dust off the heatsink and fan'), pass: 0.5 }); if (r.quit) return; const res = cleanCooler(v, r.score); toast(res.fixed ? T('Кулер больше не шумит, температура упала', 'Кулер більше не шумить, температура впала', 'The fan is quiet, temps are down') : T('Почищено', 'Почищено', 'Cleaned'), 'g'); render(); return; }
     case 'repair': closeDesktop(); openApp('repair', 'item', { id: v }); return;
     case 'setmy': setMyPc(v); sfx('win'); toast(T(`Теперь это ваш рабочий ПК · ×${myPc().speed}`, `Тепер це ваш робочий ПК · ×${myPc().speed}`, `Now your workstation · ×${myPc().speed}`), 'g'); render(); return;
-    case 'scan': D.scan = scanAll(); sfx('ok'); render(); return;
+    case 'scan': { const caught = defenderCatch(); D.scan = (caught.length ? caught.map((n) => `🦠 ${esc(n)} → ${T('удалён', 'видалено', 'removed')}`).join('<br>') + '<br>' : '') + scanAll(); sfx(caught.length ? 'win' : 'ok'); render(); return; }
+    case 'tmsel': D.tm = D.tm === v ? null : v; render(); return;
+    case 'tmkill': {
+      const r = endTask(v);
+      if (r.bsod) { bsod(); return; }
+      sfx('tap'); toast(r.bad ? T('Процесс завершён. Нагрузка упала… пока что', 'Процес завершено. Навантаження впало… поки що', 'Process ended. The load dropped… for now') : T('Процесс завершён', 'Процес завершено', 'Process ended'), r.bad ? 'g' : '');
+      render(); return;
+    }
+    case 'tmdel': { const r = deleteFile(v); if (r.ok) { sfx('win'); toast(T('Файл удалён — больше не запустится', 'Файл видалено — більше не запуститься', 'File deleted — it won’t come back'), 'g'); D.tm = null; } else toast(r.msg || '—', 'r'); render(); return; }
+    case 'lcode': { const inp = layer.querySelector('[data-pin="lcode"]'); const r = tryCode(inp?.value || ''); if (r.ok) { sfx('win'); toast(T('Разблокировано!', 'Розблоковано!', 'Unlocked!'), 'g'); render(); } else { sfx('err'); D.lockMsg = T('Неверный код', 'Невірний код', 'Wrong code'); render(); } return; }
+    case 'lpay': { const r = payLocker(); if (!r.ok) { toast(r.msg || '—', 'r'); return; } if (r.honest) { sfx('ok'); toast(T(`Пришёл код ${r.code} — разблокировано`, `Прийшов код ${r.code} — розблоковано`, `Code ${r.code} arrived — unlocked`), 'g'); } else { sfx('lose'); D.lockMsg = T('Деньги ушли, кода нет. Теперь просят больше.', 'Гроші пішли, коду немає. Тепер просять більше.', 'Money gone, no code. Now they want more.'); } render(); return; }
+    case 'llook': { const r = lookupCode(); if (!r.ok && r.wait) { D.lockMsg = T(`Сайт антивируса: попробуйте через ${r.wait} мин`, `Сайт антивірусу: спробуйте через ${r.wait} хв`, `Antivirus site: try again in ${r.wait} min`); } else D.lockMsg = r.code ? T(`На сайте антивируса нашёлся код для этого блокировщика: ${r.code}`, `На сайті антивірусу знайшовся код для цього блокувальника: ${r.code}`, `The antivirus site lists a code for this locker: ${r.code}`) : T('Для этого блокировщика кода пока нет. Попробуйте позже.', 'Для цього блокувальника коду поки немає. Спробуйте пізніше.', 'No code for this locker yet. Try later.'); render(); return; }
+    case 'lreinst': {
+      if (!installerDrive()) { D.lockMsg = T('Нужна загрузочная флешка от 8 ГБ — купите в магазине железа.', 'Потрібна завантажувальна флешка від 8 ГБ — купіть у магазині заліза.', 'You need an 8 GB+ boot stick — buy one at the hardware store.'); render(); return; }
+      if (!(await confirmBox(T('Переустановить Windows?', 'Перевстановити Windows?', 'Reinstall Windows?'), T('Все вирусы исчезнут, но и ваши заметки на диске C: тоже.', 'Усі віруси зникнуть, але й ваші нотатки на диску C: теж.', 'Every virus goes, and so do your notes on C:.'), T('Переустановить', 'Перевстановити', 'Reinstall')))) return;
+      cureAll(); G.s.pcNote = ''; D.wins = []; D.active = null; sfx('win'); toast(T('Система переустановлена — чисто', 'Систему перевстановлено — чисто', 'Reinstalled — clean'), 'g'); closeDesktop(); setTimeout(() => openDesktop(), 300); return;
+    }
     case 'cmd': { const inp = layer.querySelector('[data-pin="cmd"]'); runCmd(inp?.value || ''); if (D.open) render(); return; }
     case 'mtoggle': { const st = mineState(); st.on = !st.on; sfx('tap'); render(); return; }
     case 'mcash': { const vv = mineCashout(); toast(vv ? `+${fmt(vv)}` : T('В пуле пока мало', 'У пулі поки мало', 'Not enough in the pool yet'), vv ? 'g' : ''); render(); return; }
