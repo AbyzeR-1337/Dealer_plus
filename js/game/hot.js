@@ -14,7 +14,7 @@ import { countryOf } from '../data/world.js';
 import { MODEL } from '../data/catalog.js';
 import { itemValue, itemTitle } from './items.js';
 import { getItem, removeItem, earn, charge, spend, notify, stat, addXP, log } from './player.js';
-import { arrest } from './crime.js';
+import { arrest, policeFine } from './crime.js';
 import { dv } from './difficulty.js';
 
 // trace kinds: weight (how much of the trace it is), how to remove it
@@ -42,7 +42,19 @@ export const HOT_FLOOR = 17;
 export const marksFor = (cat) => MARKS_BY_CAT[cat] || ['serial', 'owner'];
 export const isHot = (it) => !!it?.hot;
 export const traceOf = (it) => (it?.hot ? Math.round(it.hot.tr) : 0);
-export const catchChance = (it) => clamp((0.03 + 0.45 * traceOf(it) / 100) * dv().crime, 0.01, 0.6);
+// The overall chance that a stolen thing gets you caught while you hold it (all police checks together).
+// Even wiped to the floor it stays 41–47% (every item has its own minimum); untouched — up to ~92%.
+const CHECKS = 3;
+const hashId = (id) => { let h = 7; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+export const minRisk = (it) => (it?.hot ? (it.hot.min ??= +(0.41 + (hashId(it.id) % 61) / 1000).toFixed(3)) : 0);
+export function riskOf(it) {
+  if (!it?.hot) return 0;
+  const lo = minRisk(it), x = clamp((traceOf(it) - HOT_FLOOR) / (95 - HOT_FLOOR), 0, 1);
+  const base = lo + (0.92 - lo) * Math.pow(x, 0.8);
+  return clamp(1 - Math.pow(1 - base, dv().crime), 0.05, 0.97); // easier / harder difficulty bends it
+}
+// one police check
+export const catchChance = (it) => 1 - Math.pow(1 - riskOf(it), 1 / CHECKS);
 
 // make an item stolen; known = the seller admitted it (it shows as hot right away)
 export function makeHot(it, rng, o = {}) {
@@ -59,7 +71,7 @@ export function hotState() { const s = G.s; s.hotw ||= []; return s.hotw; }
 // police checks for an item you now hold: 3 times over the next ~5 days
 export function watchHot(it) {
   const s = G.s, r = new RNG(uid('hw'));
-  for (let i = 0; i < 3; i++) hotState().push({ id: it.id, title: itemTitle(it), at: s.t + r.int(300, 1500) + i * r.int(900, 2400), val: itemValue(it, s.player.city, 'true', { clean: true }) });
+  for (let i = 0; i < CHECKS; i++) hotState().push({ id: it.id, title: itemTitle(it), at: s.t + r.int(300, 1500) + i * r.int(900, 2400), val: itemValue(it, s.player.city, 'true', { clean: true }) });
 }
 export function hotTick() {
   const s = G.s, w = s.hotw;
@@ -68,10 +80,27 @@ export function hotTick() {
   if (!due.length) return;
   s.hotw = w.filter((x) => x.at > s.t);
   for (const x of due) {
+    // after a sale: the buyer runs the thing through the databases
+    if (x.buyer) {
+      if (Math.random() >= x.p) continue;
+      const cur = countryOf(s.player.city).cur;
+      if (x.grey) {
+        const fine = nicePrice(Math.max(15, x.price * 0.25), cur);
+        policeFine('grey', fine, x.title);
+        notify('gov', T('Полиция', 'Поліція', 'Police'), T(`Покупатель проверил ${x.title} по серийнику: серый импорт без растаможки. Он написал заявление — к вам пришла полиция. Штраф ${fmt(fine)} и пометка в деле.`, `Покупець перевірив ${x.title} за серійником: сірий імпорт без розмитнення. Він написав заяву — до вас прийшла поліція. Штраф ${fmt(fine)} і позначка в справі.`, `The buyer checked the ${x.title} by its serial: an uncleared grey import. He filed a report — the police came. Fine ${fmt(fine)} and a mark on your record.`));
+      } else {
+        const refund = nicePrice(x.price || x.val * 0.5, cur);
+        charge(refund, 'refund', T(`Возврат покупателю: ${x.title}`, `Повернення покупцю: ${x.title}`, `Refund to the buyer: ${x.title}`));
+        arrest('stolen', { fine: nicePrice(x.val * 0.2 + 25, cur), text: x.title });
+        notify('gov', T('Полиция', 'Поліція', 'Police'), T(`Покупатель пробил ${x.title} по базе — вещь числится краденой. Он написал заявление, и к вам пришла полиция: вернули ему ${fmt(refund)}, штраф и пометка в деле.`, `Покупець пробив ${x.title} за базою — річ числиться краденою. Він написав заяву, і до вас прийшла поліція: повернули йому ${fmt(refund)}, штраф і позначка в справі.`, `The buyer ran the ${x.title} through the database — it’s listed as stolen. He filed a report and the police came: ${fmt(refund)} refunded to him, a fine and a mark on your record.`));
+      }
+      stat('hotCaught');
+      continue;
+    }
     const it = getItem(x.id);
     const sold = s.hotSold?.[x.id];
     if (!it && !sold) continue; // given to a fence / an order / lost — off your hands
-    const p = it ? catchChance(it) : clamp((0.03 + 0.45 * (sold.tr || 0) / 100) * 0.8 * dv().crime, 0.01, 0.5);
+    const p = it ? catchChance(it) : clamp((0.03 + 0.45 * (sold.tr || 0) / 100) * 0.8 * dv().crime, 0.01, 0.5); // "sold" = saves from before buyer checks
     if (Math.random() >= p) continue;
     // caught: no more checks for this item
     s.hotw = s.hotw.filter((y) => y.id !== x.id);
@@ -92,13 +121,24 @@ export function hotTick() {
   }
   emit('inv');
 }
-// remember a sold hot item so the buyer's check can still find you
+// Selling anything that came from the Shade (through ads, a pawn shop, your store, an auction, a dealer…):
+// the buyer may check it. Stolen: whatever risk was still hanging over it passes to the buyer's check (at least
+// half of the item's overall risk, all of it if you sold before the police ever looked). Grey imports: now and
+// then a buyer checks the serial and reports the seller. The fence and "no questions" orders don't check.
 export function noteHotSale(it, price) {
   // forged papers: now and then a buyer's bank or a service centre spots them
   if (it?.fakeDocs && Math.random() < 0.06) arrest('fake', { text: T('Поддельные документы на вещь', 'Підроблені документи на річ', 'Forged papers for an item') });
-  if (!it?.hot) return;
-  const s = G.s;
-  (s.hotSold ||= {})[it.id] = { tr: it.hot.tr, price, t: s.t };
+  if (!it) return;
+  const s = G.s, r = new RNG(uid('hb'));
+  if (it.hot) {
+    const left = (s.hotw || []).filter((x) => x.id === it.id && !x.buyer).length;
+    s.hotw = (s.hotw || []).filter((x) => x.id !== it.id);
+    const R = riskOf(it);
+    const p = Math.max(1 - Math.pow(1 - R, left / CHECKS), R * 0.5);
+    s.hotw.push({ id: it.id, buyer: true, title: itemTitle(it), at: s.t + r.int(90, 720), val: itemValue(it, s.player.city, 'true', { clean: true }), price, p });
+    return;
+  }
+  if (it.shade === 'grey') (s.hotw ||= []).push({ id: it.id, buyer: true, grey: true, title: itemTitle(it), at: s.t + r.int(120, 900), val: 0, price, p: 0.12 * dv().crime });
 }
 
 // wiping a trace

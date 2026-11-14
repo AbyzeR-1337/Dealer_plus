@@ -15,6 +15,7 @@ import { getItem, removeItem, addItem, spend, earn, charge, addXP, notify, stat,
 import { makeListing, deliveryTime, marketEstimate } from './market.js';
 import { fmt, nicePrice, rate } from '../core/money.js';
 import { recordMult, paperPenalty } from './crime.js';
+import { noteHotSale } from './hot.js';
 
 // ---------------------------------------------------------------- car market
 export const CAR_CLASSES = [
@@ -58,6 +59,7 @@ export const buyoutPrice = (it) => nicePrice(itemValue(it, G.s.player.city, 'kno
 export function dealerBuyout(it) {
   const p = buyoutPrice(it);
   if (G.s.car === it.id) G.s.car = null;
+  noteHotSale(it, p);
   removeItem(it.id);
   earn(p, 'sale', T(`Выкуп: ${itemTitle(it)}`, `Викуп: ${itemTitle(it)}`, `Buyout: ${itemTitle(it)}`));
   stat('sold'); addXP(8);

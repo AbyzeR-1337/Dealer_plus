@@ -7,6 +7,7 @@ import { CITY, countryOf } from '../data/world.js';
 import { CATS, CAT_LIST, LUXURY_CATS } from '../data/catalog.js';
 import { earn, spend, charge, stat, addXP, notify, log, getItem, removeItem, addItem, repFactor, addProfit, upLevel } from './player.js';
 import { itemValue, itemTitle, isVehicle } from './items.js';
+import { noteHotSale } from './hot.js';
 import { fmt, nicePrice } from '../core/money.js';
 import { npcName } from './npc.js';
 import { feedFor, isBelowMarket } from './market.js';
@@ -216,6 +217,7 @@ export function bizHourly() {
 function sellFromShop(shop, it) {
   const s = G.s;
   const price = it.shopPrice;
+  noteHotSale(it, price);
   removeItem(it.id);
   earn(price, 'biz', `${shop.name}: ${itemTitle(it)}`);
   addProfit(0); // business revenue is taxed via 'biz' kind already

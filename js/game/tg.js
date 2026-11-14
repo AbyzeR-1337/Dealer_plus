@@ -10,7 +10,7 @@ import { makeItem, itemValue, itemTitle, knownDefects } from './items.js';
 import { getItem, removeItem, addItem, spend, earn, charge, addXP, notify, stat, canStore, addReview } from './player.js';
 import { deliveryTime } from './market.js';
 import { fmt, nicePrice } from '../core/money.js';
-import { makeHot, watchHot } from './hot.js';
+import { makeHot, watchHot, noteHotSale } from './hot.js';
 import { arrest } from './crime.js';
 
 export const CHANNELS = [
@@ -122,6 +122,7 @@ export const matchesFor = (rq) => G.s.inv.filter((it) => it.m === rq.m && !it.li
 export function fulfil(rq, itemId) {
   const it = getItem(itemId), st = tgState();
   if (!it || st.reqDone[rq.id]) return { ok: false };
+  noteHotSale(it, rq.budget);
   removeItem(it.id);
   st.reqDone[rq.id] = true;
   earn(rq.budget, 'sale', T(`Телега: ${rq.title} для ${rq.who}`, `Телега: ${rq.title} для ${rq.who}`, `Telega: ${rq.title} for ${rq.who}`));

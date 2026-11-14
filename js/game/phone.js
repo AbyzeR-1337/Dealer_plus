@@ -116,7 +116,21 @@ function darkFeed() {
     else if (kind === 'hidden') { makeHot(it, rng, { known: false }); k = rng.float(0.5, 0.65); }
     else if (kind === 'replica') { it.fake = 2; it.fakeKnown = true; k = rng.float(0.1, 0.16); }
     else k = rng.float(0.62, 0.8);
-    s.dark.feed.push({ id: uid('dk'), item: it, kind: kind === 'hidden' ? 'grey' : kind, price: nicePrice(Math.max(5, clean * k), cur), seller: rng.pick(SELLERS) });
+    // a deal that is too good may be a police test purchase — nothing on the listing gives it away
+    const cheap = clamp((0.5 - k) / 0.3, 0, 1), dear = clamp(Math.log10(Math.max(1, clean) / 150) / 1.6, 0, 1);
+    const pSting = kind === 'replica' ? 0 : 0.02 + 0.2 * cheap * (0.4 + 0.6 * dear) + (it.cond >= 90 ? 0.05 : 0);
+    s.dark.feed.push({ id: uid('dk'), item: it, kind: kind === 'hidden' ? 'grey' : kind, price: nicePrice(Math.max(5, clean * k), cur), seller: rng.pick(SELLERS), sting: rng.chance(pSting), clean });
+  }
+  // now and then: a flagship in great shape for a fraction of its price. Usually bait, sometimes a real jackpot
+  if (rng.chance(0.4)) {
+    const cat = rng.pick(['phones', 'phones', 'electronics', 'watches', 'consoles']);
+    const top = BY_CAT[cat].slice().sort((a, b) => b.price * (b.year >= 2022 ? 1.5 : 1) - a.price * (a.year >= 2022 ? 1.5 : 1)).slice(0, 25);
+    const it = makeItem(rng, { model: rng.pick(top), quality: 'new', fakeMult: 0, lockRate: 0 });
+    it.sealed = false; it.box = true; it.docs = false; it.grey = true; it.fake = 0; it.defects = [];
+    const clean = itemValue(it, city, 'true');
+    const hot = rng.chance(0.5);
+    if (hot) makeHot(it, rng, { known: true });
+    s.dark.feed.splice(rng.int(0, s.dark.feed.length), 0, { id: uid('dk'), item: it, kind: hot ? 'hot' : 'grey', price: nicePrice(Math.max(5, clean * rng.float(0.18, 0.28)), cur), seller: rng.pick(SELLERS), sting: rng.chance(0.75), clean, bait: true });
   }
   s.dark.at = s.t + 240 - (s.t % 240);
   return s.dark.feed;
@@ -130,6 +144,15 @@ export function darkBuy(id) {
   if (!canStore(l.item)) return { ok: false, msg: T('Склад переполнен', 'Склад переповнений', 'Storage is full') };
   if (!spend(l.price, 'buy', T('Теневой рынок', 'Тіньовий ринок', 'Shadow market'))) return { ok: false, msg: T('Не хватает денег', 'Не вистачає грошей', 'Not enough money') };
   s.dark.feed = s.dark.feed.filter((x) => x !== l);
+  // the "seller" was the police: the money is evidence now, a big fine in proportion to the thing, 5 minutes in a cell
+  if (l.sting) {
+    const value = l.clean || itemValue(l.item, s.player.city, 'true', { clean: true });
+    const fine = nicePrice(Math.max(40, value * 0.5), countryOf(s.player.city).cur);
+    arrest('sting', { fine, mins: 300, text: itemTitle(l.item) });
+    stat('stings'); log('dark', `🚔 ${itemTitle(l.item)}`);
+    return { ok: true, sting: true, fine, lost: l.price };
+  }
+  l.item.shade = l.item.hot ? 'hot' : l.kind;
   addItem(l.item, l.price, 'dark');
   // stolen goods get traced sooner or later — unless you wipe the traces (and even then, maybe)
   if (l.item.hot) watchHot(l.item);

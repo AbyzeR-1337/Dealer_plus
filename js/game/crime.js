@@ -16,6 +16,9 @@ export const CRIMES = {
   fraud: { n: ['Мошенничество с покупателями', 'Шахрайство з покупцями', 'Defrauding buyers'], jail: [180, 300], fine: [60, 200], sev: 2 },
   fake: { n: ['Продажа подделок', 'Продаж підробок', 'Selling counterfeits'], jail: [240, 360], fine: [80, 260], sev: 2 },
   stolen: { n: ['Скупка краденого', 'Скупка краденого', 'Receiving stolen goods'], jail: [240, 420], fine: [80, 250], sev: 2 },
+  // a police "test purchase" in the Shade: a deal that was too good
+  sting: { n: ['Контрольная закупка: покупка краденого', 'Контрольна закупівля: купівля краденого', 'Police sting: buying stolen goods'], jail: [300, 300], fine: [0, 0], sev: 2 },
+  grey: { n: ['Сбыт товара без растаможки', 'Збут товару без розмитнення', 'Selling uncleared imports'], jail: [0, 0], fine: [0, 0], sev: 1 },
   smuggling: { n: ['Контрабанда', 'Контрабанда', 'Smuggling'], jail: [360, 600], fine: [150, 500], sev: 3 },
   leak: { n: ['Торговля персональными данными', 'Торгівля персональними даними', 'Trading personal data'], jail: [480, 720], fine: [200, 600], sev: 3 },
 };
@@ -44,7 +47,8 @@ export function arrest(kind, extra = {}) {
   const r = new RNG(`arrest|${s.id}|${kind}|${s.t}`);
   const wage = Math.max(0.5, countryOf(s.player.city).wage);
   const fine = Math.round(r.float(c.fine[0], c.fine[1]) * wage + (extra.fine || 0));
-  const mins = Math.round(r.float(c.jail[0], c.jail[1]) * dv().jail * (1 + marksCount() * 0.3));
+  // extra.mins fixes the time in the cell (a sting is always the same 5 minutes)
+  const mins = extra.mins ?? Math.round(r.float(c.jail[0], c.jail[1]) * dv().jail * (1 + marksCount() * 0.3));
   charge(fine, 'fine', T(`Штраф: ${L(c.n).toLowerCase()}`, `Штраф: ${L(c.n).toLowerCase()}`, `Fine: ${L(c.n).toLowerCase()}`));
   const rec = recordState();
   rec.marks.push({ kind, t: s.t, until: s.t + RECORD_DAYS * 1440, text: extra.text || '' });
@@ -54,6 +58,15 @@ export function arrest(kind, extra = {}) {
   notify('gov', T('Задержание', 'Затримання', 'Arrested'), T(`${L(c.n)}. Штраф ${fmt(fine)}, телефон изъят на ${dur(mins)}. Пометка в личном деле.`, `${L(c.n)}. Штраф ${fmt(fine)}, телефон вилучено на ${dur(mins)}. Позначка в особовій справі.`, `${L(c.n)}. Fine ${fmt(fine)}, phone confiscated for ${dur(mins)}. A mark on your record.`), { noBadge: true });
   emit('jail');
   return s.jail;
+}
+// the police come, fine you and put a mark on your record — but don't lock you up
+export function policeFine(kind, fine, text = '') {
+  const s = G.s, c = CRIMES[kind] || CRIMES.fraud;
+  charge(fine, 'fine', T(`Штраф: ${L(c.n).toLowerCase()}`, `Штраф: ${L(c.n).toLowerCase()}`, `Fine: ${L(c.n).toLowerCase()}`));
+  recordState().marks.push({ kind, t: s.t, until: s.t + RECORD_DAYS * 1440, text });
+  stat('policeFines');
+  log('police', `${L(c.n)}: ${fmt(fine)}`);
+  emit('jail');
 }
 export function payBail() {
   const s = G.s;

@@ -11,6 +11,7 @@ import { npcName } from './npc.js';
 import { canStore, addItem, spend, earn, charge, stat, addXP, upLevel, notify, log, freeSpace, getItem, removeItem, addProfit } from './player.js';
 import { DISTRICTS, maxValForLevel } from './market.js';
 import { useEnergy, hasEnergy } from './needs.js';
+import { noteHotSale } from './hot.js';
 
 // ---------------------------------------------------------------- free stuff
 export function freeFeed() {
@@ -321,6 +322,7 @@ export function ownAuctionTick() {
       delete it.auction;
       if (bid > 0) {
         const fee = bid * 0.08;
+        noteHotSale(it, bid);
         removeItem(it.id);
         earn(bid - fee, 'sale', itemTitle(it));
         addProfit(bid - fee - (it.paid || 0));

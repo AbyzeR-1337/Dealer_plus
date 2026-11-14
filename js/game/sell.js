@@ -370,6 +370,7 @@ export function pawnSell(itemId) {
   if (!it) return 0;
   const v = itemValue(it, G.s.player.city, 'known') * 0.48 * (it.fake && !it.fakeKnown ? 0.15 : 1);
   unlist(itemId);
+  noteHotSale(it, v);
   removeItem(itemId);
   earn(v, 'sale', itemTitle(it));
   addProfit(v - (it.paid || 0));
