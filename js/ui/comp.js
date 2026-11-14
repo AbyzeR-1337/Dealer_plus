@@ -44,11 +44,14 @@ export function tags(it, o = {}) {
   if (o.below) t.push(`<span class="tag g">${T('Ниже рынка', 'Нижче ринку', 'Below market')}</span>`);
   if (it.rar >= 1) t.push(`<span class="tag ${['', 'g', 'b', 'p', 'y', 'r'][it.rar]}">◆ ${esc(rarityName(it.rar))}</span>`);
   if (it.lock) t.push(`<span class="tag r">🔒 ${esc(lockName(it.lock))}</span>`);
+  if (it.hot?.known) t.push(`<span class="tag r">🚨 ${T('Краденое', 'Крадене', 'Stolen')} · ${T('след', 'слід', 'trace')} ${Math.round(it.hot.tr)}%</span>`);
   if (it.jb) t.push(`<span class="tag p">${it.cat === 'phones' && /Pear/.test(it.m) ? 'Jailbreak' : 'Root'} +6%</span>`);
   if (it.fake && it.fakeKnown) t.push(`<span class="tag r">${esc(fakeLabel(it.fake))}</span>`);
   if (it.authOk) t.push(`<span class="tag g">✓ ${T('Оригинал', 'Оригінал', 'Authentic')}</span>`);
   if (it.sealed) t.push(`<span class="tag b">${T('Запечатан', 'Запечатаний', 'Sealed')}</span>`);
   if (it.grade) t.push(`<span class="tag y">${it.cat === 'cards' ? 'PZA' : 'CGS'} ${it.grade}</span>`);
+  if (it.acc?.glass) t.push(`<span class="tag b">🛡 ${it.acc.glass === 'bubble' ? T('Стекло с пузырями', 'Скло з бульбашками', 'Bubbly glass') : it.acc.glass === 'full' ? T('Стекло 9D', 'Скло 9D', '9D glass') : T('Стекло', 'Скло', 'Glass')}</span>`);
+  if (it.acc?.case) t.push(`<span class="tag b">📱 ${it.acc.case === 'orig' ? T('Ориг. чехол', 'Ориг. чохол', 'Orig. case') : T('Чехол', 'Чохол', 'Case')}</span>`);
   if (o.defects !== false) { const k = knownDefects(it).length; if (k) t.push(`<span class="tag o">⚠ ${k}</span>`); }
   return t.length ? `<div class="tags">${t.join('')}</div>` : '';
 }

@@ -39,6 +39,10 @@ export function specLine(it) {
 export function checkBuild(sel) {
   const P = {};
   for (const k of SLOTS) { const it = sel[k] && getItem(sel[k]); if (it) P[k] = { it, s: specOf(it) }; }
+  return checkP(P);
+}
+// compatibility + score for parts given as { slot: { it, s } } (it may be just { m })
+export function checkP(P) {
   const rows = [];
   const row = (ok, t) => rows.push({ ok, t });
   const need = ['cpu', 'mb', 'ram', 'drive', 'psu', 'case', 'cooler'];
@@ -153,7 +157,7 @@ export function myPc() {
   const sc = it.build ? it.build.score : laptopScore(it);
   return { name: it.build ? buildTitle(it) : itemTitle(it), spec: it.build ? `${it.build.ram} ${T('ГБ', 'ГБ', 'GB')} · ${it.build.ssd ? 'SSD' : 'HDD'}` : itemTitle(it), speed: +clamp(1 + sc / 32, 1, 4).toFixed(1), item: it };
 }
-const laptopScore = (it) => clamp(Math.round((MODEL[it.m]?.price || 500) / 40), 8, 70);
+export const laptopScore = (it) => clamp(Math.round((MODEL[it.m]?.price || 500) / 40), 8, 70);
 export const pcSpeed = () => myPc().speed;
 export function setMyPc(itemId) { pcState().mine = itemId; emit('pc'); }
 export const canBeMyPc = (it) => !!it && (it.build || ['laptop', 'box'].includes(MODEL[it.m]?.art?.t) || /iMak/.test(MODEL[it.m]?.name || ''));
@@ -270,4 +274,117 @@ export function assembleDevice(dkind, modelId, res) {
   stat(dkind === 'laptop' ? 'laptopsBuilt' : 'consolesBuilt'); addXP(18);
   emit('inv'); emit('parts');
   return { ok: true, it };
+}
+
+// ---------------------------------------------------------------- servicing a built PC: swap a part, strip it down
+const partsMapOf = (pc) => Object.fromEntries((pc.build?.parts || []).map((x) => [x.k, { it: { m: x.m }, s: specOf({ m: x.m }) }]));
+function rebuildStats(pc) {
+  const P = partsMapOf(pc), chk = checkP(P);
+  const b = pc.build, q = b.q ?? 0.9;
+  const g = (k) => P[k] && itemTitle({ m: P[k].it.m, v: 0 }, false);
+  b.base = b.parts.reduce((a, x) => a + (x.v || 0), 0) * 1.12 * (0.85 + q * 0.15);
+  b.score = chk.score; b.cpu = g('cpu'); b.gpu = g('gpu'); b.ram = P.ram?.s.gb || 0; b.ssd = !!P.drive?.s.ssd;
+  return chk;
+}
+// which parts in storage could go into this slot
+export const swapCandidates = (pc, slot) => partsOf(slot).filter((it) => it.id !== pc.id);
+export function swapPart(pcId, slot, newId) {
+  const s = G.s, pc = getItem(pcId), nw = getItem(newId);
+  if (!pc?.build || !nw || specOf(nw)?.kind !== slot) return { ok: false };
+  const parts = pc.build.parts, i = parts.findIndex((x) => x.k === slot);
+  const P = partsMapOf(pc); P[slot] = { it: nw, s: specOf(nw) };
+  const chk = checkP(P);
+  const bad = chk.rows.filter((r) => !r.ok);
+  if (bad.length) return { ok: false, msg: bad.map((r) => r.t).join('; ') };
+  if (nw.defects.some((d) => ['x_dead', 's_dead', 'e_dead'].includes(d.c))) { for (const d of nw.defects) d.known = true; emit('inv'); return { ok: false, msg: T('Новая деталь мёртвая — ПК не стартует. Вернули старую.', 'Нова деталь мертва — ПК не стартує. Повернули стару.', 'The new part is dead — no POST. The old one went back in.') }; }
+  // the old part comes out as an item
+  if (i >= 0) {
+    const old = parts[i];
+    const it = makeItem(new RNG(uid('pcold')), { model: old.m, quality: 'good', fakeMult: 0, lockRate: 0 });
+    it.sealed = false; it.box = false; it.docs = false; it.defects = []; it.cond = Math.round(clamp(70 + (pc.build.q ?? 0.9) * 25, 60, 96)); it.fake = 0;
+    addItem(it, Math.round(old.v * 0.7), 'build');
+    parts.splice(i, 1);
+  }
+  parts.push({ k: slot, m: nw.m, t: itemTitle(nw, false), v: Math.round(itemValue(nw, s.player.city, 'true', { raw: true })) });
+  pc.paid = (pc.paid || 0) + (nw.paid || 0);
+  removeItem(nw.id);
+  rebuildStats(pc);
+  stat('pcUpgrades'); addXP(6);
+  emit('inv'); emit('pc');
+  return { ok: true, score: pc.build.score };
+}
+export function disassemblePc(pcId) {
+  const s = G.s, pc = getItem(pcId);
+  if (!pc?.build) return { ok: false };
+  const out = [];
+  for (const x of pc.build.parts) {
+    const it = makeItem(new RNG(uid('pcd')), { model: x.m, quality: 'good', fakeMult: 0, lockRate: 0 });
+    it.sealed = false; it.box = false; it.docs = false; it.defects = []; it.cond = Math.round(clamp(72 + (pc.build.q ?? 0.9) * 24, 60, 97)); it.fake = 0;
+    addItem(it, Math.round((pc.paid || 0) / Math.max(1, pc.build.parts.length)), 'build');
+    out.push(it);
+  }
+  if (pcState().mine === pc.id) pcState().mine = null;
+  removeItem(pc.id);
+  stat('pcStripped'); addXP(5);
+  emit('inv'); emit('pc');
+  return { ok: true, parts: out };
+}
+// dust, dried thermal paste: cleaning the cooler fixes a noisy fan and cools things down
+export function cleanCooler(pcId, q = 1) {
+  const pc = getItem(pcId);
+  if (!pc) return { ok: false };
+  const before = pc.defects.length;
+  if (q >= 0.5) pc.defects = pc.defects.filter((d) => !['e_fan', 'x_fan'].includes(d.c));
+  pc.cleaned = true;
+  emit('inv');
+  return { ok: true, fixed: before - pc.defects.length };
+}
+
+// ---------------------------------------------------------------- diagnostics (stress test / SMART / BIOS log)
+const DIAG = {
+  electronics: ['e_fan', 'e_battery', 'e_os', 'e_dead', 'e_keys', 'e_water'],
+  pcparts: ['x_dead', 'x_oc', 'x_fan'],
+  storage: ['s_bad', 's_slow', 's_click', 's_dead'],
+  consoles: ['c_drive', 'c_hdmi', 'c_fan', 'c_dead', 'c_ban'],
+};
+export const diagTargets = () => G.s.inv.filter((it) => !it.listed && (isComputer(it) || ['pcparts', 'storage'].includes(it.cat) || specOf(it)));
+export function runDiag(it) {
+  const pool = DIAG[it.cat] || [];
+  const found = [];
+  for (const d of it.defects || []) if (!d.known && pool.includes(d.c)) { d.known = true; found.push(d.c); }
+  it.diag = true;
+  const dead = (it.defects || []).some((d) => ['e_dead', 'x_dead', 's_dead', 'c_dead'].includes(d.c));
+  const sc = it.build ? it.build.score : specOf(it)?.perf || laptopScore(it);
+  const hot = (it.defects || []).some((d) => ['e_fan', 'x_fan', 'x_oc'].includes(d.c));
+  const r = new RNG(`diag|${it.id}`);
+  stat('diagRuns');
+  emit('inv');
+  return { found, dead, score: dead ? 0 : sc, cpuT: dead ? 0 : r.int(hot ? 88 : 58, hot ? 99 : 79), gpuT: dead ? 0 : r.int(hot ? 84 : 55, hot ? 96 : 76) };
+}
+
+// ---------------------------------------------------------------- crypto mining on your own PC (needs a graphics card)
+export function mineState() { const s = G.s; s.pcmine ||= { on: false, bal: 0, total: 0, hours: 0 }; return s.pcmine; }
+export function mineRate() {
+  const pc = myPc(), b = pc.item?.build;
+  if (!b?.gpu) return null;
+  const gpu = b.parts.find((x) => x.k === 'gpu');
+  const perf = specOf({ m: gpu?.m })?.perf || 40;
+  const income = perf * 0.009, power = 0.04 + perf * 0.0032;
+  return { perf, income, power, net: income - power, hash: Math.round(perf * 1.7) };
+}
+export function mineHourly() {
+  const st = G.s.pcmine;
+  if (!st?.on) return;
+  const r = mineRate();
+  if (!r) { st.on = false; return; }
+  st.bal += r.income; st.hours++;
+  // the electricity bill comes from the account every hour
+  if (r.power > 0) charge(r.power, 'service', T('Электричество (майнинг)', 'Електрика (майнінг)', 'Electricity (mining)'));
+}
+export function mineCashout() {
+  const st = mineState();
+  if (st.bal < 0.5) return 0;
+  const v = st.bal; st.bal = 0; st.total += v;
+  earn(v, 'stock', T('Вывод с майнинг‑пула', 'Виведення з майнінг‑пулу', 'Mining pool payout'));
+  return v;
 }

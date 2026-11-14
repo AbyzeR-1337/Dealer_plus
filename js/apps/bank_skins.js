@@ -73,6 +73,37 @@ const prim = () => { ensureCards(bankSkin().id); return primaryCard(); };
 const card = () => { const p = prim(); return { id: p.def.kind, n: p.def.n, pan: p.pan, look: p.def.look, key: p.key }; };
 const cashback = () => pendingCashback();
 const plastic = (c, cls = '') => `<div class="bk-plast ${cls}" style="background:linear-gradient(135deg,${c.def.look[0]},${c.def.look[1]});color:${c.def.look[2]}"><div class="row between"><b>${esc(L(c.def.n))}</b><span class="bk-chip"></span></div><span class="bk-pan">•••• ${esc(c.pan || '0000')}</span><div class="row between"><small>${esc((G.s.player.name || '').toUpperCase())}</small><b class="bk-viza">VIZA</b></div></div>`;
+// ---------------------------------------------------------------- swipeable card carousel (like the real apps)
+// Swipe left/right between your cards; the dots, the card name above and the "main card" chip follow the card
+// in the middle. The last slide orders a new card. The swiped‑to card is remembered while the game runs.
+const CC = { key: null };
+function cardsCarousel(slide, o = {}) {
+  const list = ownedCards();
+  const prim = card().key;
+  let start = list.findIndex((c) => c.key === CC.key);
+  if (start < 0) start = Math.max(0, list.findIndex((c) => c.key === prim));
+  setTimeout(() => { for (const t of document.querySelectorAll('.bk-cc-track')) if (!t._snap) { t._snap = 1; const el = t.children[start]; if (el) t.scrollLeft = el.offsetLeft - (t.clientWidth - el.offsetWidth) / 2; } }, 0);
+  const sub = (c) => `<div class="bk-cc-sub"><small>${esc(perkText(c.def)[0] || T('Обычная карта', 'Звичайна картка', 'Plain card'))}</small>${c.key === prim ? `<span class="bk-cc-main">★ ${T('Основная', 'Основна', 'Main')}</span>` : `<button class="bk-cc-btn" data-a="cmain" data-v="${c.key}">${T('Сделать основной', 'Зробити основною', 'Make main')}</button>`}</div>`;
+  return `<div class="bk-cc ${o.cls || ''}"><div class="bk-cc-track">${list.map((c, i) => `<div class="bk-cc-slide" data-key="cc_${c.key}" data-name="${esc(L(c.def.n))}">${slide(c, i)}${o.sub === false ? '' : sub(c)}</div>`).join('')}<div class="bk-cc-slide add" data-key="cc_add" data-name="${T('Новая карта', 'Нова картка', 'New card')}" data-a="tab" data-v="cards"><span>＋</span><b>${T('Оформить карту', 'Оформити картку', 'Get a card')}</b></div></div><div class="bk-cc-dots">${list.map((c, i) => `<i class="${i === start ? 'on' : ''}"></i>`).join('')}<i class="plus"></i></div></div>`;
+}
+if (typeof document !== 'undefined' && !window.__bkcc) {
+  window.__bkcc = 1;
+  document.addEventListener('scroll', (e) => {
+    const t = e.target;
+    if (!t.classList || !t.classList.contains('bk-cc-track')) return;
+    const mid = t.scrollLeft + t.clientWidth / 2;
+    let best = 0, bd = Infinity;
+    [...t.children].forEach((el, i) => { const d = Math.abs(el.offsetLeft + el.offsetWidth / 2 - mid); if (d < bd) { bd = d; best = i; } });
+    if (t._i === best) return;
+    t._i = best;
+    const el = t.children[best];
+    if (el && el.dataset.key !== 'cc_add') CC.key = el.dataset.key.slice(3);
+    const box = t.closest('.bk');
+    box?.querySelectorAll('.bk-cc-dots i').forEach((d, k) => d.classList.toggle('on', k === best));
+    const nm = box?.querySelector('.bk-cc-name');
+    if (nm && el) nm.textContent = el.dataset.name;
+  }, { capture: true, passive: true });
+}
 function dayLabel(t) {
   const d = Math.floor(G.s.t / 1440) - Math.floor(t / 1440);
   if (d === 0) return T('Сегодня', 'Сьогодні', 'Today');
@@ -157,10 +188,10 @@ function monoMain(k) {
   const cn = L(card().n);
   return `<div class="mn-head">
       <div class="mn-top"><span class="mn-ava">${esc(initials())}</span><span class="mn-ico">💬</span><i class="grow"></i><span class="mn-cb">🎁 ${fmt(cashback())}</span><span class="mn-ico">🐱</span>${skinBtn()}</div>
-      <div class="mn-pill">🐱 ${esc(cn)}</div>
+      <div class="mn-pill">🐱 <span class="bk-cc-name">${esc(cn)}</span></div>
       <div class="mn-bal" data-live="money">${fmt(s.money)}</div>
-      <div class="mn-cardwrap">${(() => { const others = ownedCards().filter((c) => c.key !== card().key); const side = (c, s2) => (c ? `<i class="mn-side ${s2}" style="background:linear-gradient(160deg,${c.def.look[0]},${c.def.look[1]})"></i>` : ''); return side(others[0], 'l') + `<div class="mn-card" style="background:linear-gradient(160deg,${card().look[0]} 0%,${card().look[1]} 70%);color:${card().look[2]}" data-a="tab" data-v="cards"><span class="mn-word">${esc(k.name.toLowerCase())}</span><span class="mn-pan">${first4()} **** **** ${esc(card().pan)}</span><span class="mn-viza">VIZA</span></div>` + side(others[1], 'r'); })()}</div>
-      <div class="mn-all" data-a="tab" data-v="cards">💳 ${T('Все карты', 'Усі картки', 'All cards')} · ${ownedCards().length}</div>
+      ${cardsCarousel((c) => `<div class="mn-cardwrap"><div class="mn-card" style="background:linear-gradient(160deg,${c.def.look[0]} 0%,${c.def.look[1]} 70%);color:${c.def.look[2]}"><span class="mn-word">${esc(k.name.toLowerCase())}</span><span class="mn-pan">${first4()} **** **** ${esc(c.pan)}</span><span class="mn-viza">VIZA</span></div></div>`, { cls: 'mn-cc' })}
+      <div class="mn-all" data-a="tab" data-v="cards">💳 ${T('Все карты', 'Усі картки', 'All cards')} · ${ownedCards().length} · ${T('листайте ↔', 'гортайте ↔', 'swipe ↔')}</div>
       <div class="mn-act"><button data-a="p2p"><i>${svg('send')}</i><span>${T('Переказ другу', 'Переказ другу', 'To a friend')}</span></button><button data-a="dep"><i>${svg('cards')}</i><span>${T('Перевести в банку', 'Переказати на банку', 'Move to a jar')}</span></button><button data-a="open" data-v="gov"><i>${svg('pay')}</i><span>${T('Платёж по IBAN', 'Платіж за IBAN', 'Pay by IBAN')}</span></button><button data-a="bother"><i>${svg('grid')}</i><span>${T('Другие платежи', 'Інші платежі', 'Other payments')}</span></button></div>
     </div>
     <div class="mn-sheet"><div class="row between"><b class="mn-h">${T('Операции', 'Операції', 'Transactions')}</b><span class="mn-allbtn">${T('Все', 'Усі', 'All')} ›</span></div>${feed(40, { solid: false })}</div>`;
@@ -173,6 +204,7 @@ function tbankMain(k) {
     <div class="tb-search">🔍 ${T('Поиск', 'Пошук', 'Search')}</div>
     <div class="tb-stories">${stories.map(([e, t, g]) => `<div style="background:linear-gradient(160deg,${g})"><span>${e}</span><small>${esc(t)}</small></div>`).join('')}</div>
     <div class="tb-card tb-cb"><div class="row between"><b>${T('Кэшбэк и бонусы', 'Кешбек і бонуси', 'Cashback & bonuses')}</b><b>${fmt(cashback())}</b></div><div class="tb-cats">${(() => { const ef = cardEffects(); const E = { buy: '🛒', food: '🍔', travel: '🚕', service: '🧾', apps: '📱', repair: '🛠', biz: '🏪', rent: '🏠' }; return Object.keys(E).map((kk) => [kk, ef.cb(kk)]).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([kk, v]) => `<span><i>${E[kk]}</i><small>${+(v * 100).toFixed(1)}%</small></span>`).join(''); })()}</div></div>
+    ${cardsCarousel((c) => plastic(c), { cls: 'tb-cc' })}
     <div class="tb-card"><div class="row between"><small>${T('Все счета', 'Усі рахунки', 'All accounts')}</small><small>›</small></div><div class="tb-bal" data-live="money">${fmt(s.money + savings())}</div>
       ${ownedCards().map((c) => `<div class="tb-acc" data-a="tab" data-v="cards"><span class="tb-mini" style="background:linear-gradient(135deg,${c.def.look[0]},${c.def.look[1]});color:${c.def.look[2]}">${esc(c.pan)}</span><div class="grow"><b>${esc(L(c.def.n))}${c.key === card().key ? ' ★' : ''}</b><small>${esc(perkText(c.def)[0] || T('без бонусов', 'без бонусів', 'no perks'))}</small></div></div>`).join('')}
       <div class="tb-acc"><span class="tb-mini yel">%</span><div class="grow"><b>${fmt(avail())}</b><small>${T('Кредитная карта', 'Кредитна картка', 'Credit card')}</small></div></div>
@@ -191,6 +223,7 @@ function superMain(k) {
   return `<div class="sp-head"><div class="row"><b class="sp-logo">${esc(k.name)}${k.alt ? '' : '<small>.kz</small>'}</b><i class="grow"></i>${skinBtn()}<span>🔔</span></div><div class="sp-search">🔍 ${T('Поиск по сервисам', 'Пошук сервісів', 'Search services')}</div>
       ${grid ? `<div class="sp-big">${grid.map(([e, t]) => `<button data-a="${e === '👛' ? 'tab' : 'bqr'}" ${e === '👛' ? 'data-v="save"' : ''}><i>${e}</i><span>${esc(t)}</span></button>`).join('')}</div>` : ''}</div>
     <div class="sp-grid">${svc.map(([e, t, a]) => `<button ${act(a)}><i>${e}</i><span>${esc(t)}</span></button>`).join('')}</div>
+    ${cardsCarousel((c) => plastic(c), { cls: 'sp-cc' })}
     <div class="sp-card" data-a="tab" data-v="cards"><div class="row between"><b>${esc(k.name)} ${esc(L(card().n))}</b><small>•• ${esc(card().pan)} · ${ownedCards().length} 💳</small></div><div class="sp-bal" data-live="money">${fmt(s.money)}</div><div class="row between small"><span>${T('Депозит', 'Депозит', 'Deposit')} ${fmt(savings())}</span><span>${T('Кредит доступен', 'Кредит доступний', 'Credit available')} ${fmt(avail())}</span></div></div>
     <div class="sp-sheet"><b>${T('История', 'Історія', 'History')}</b>${feed(30, { solid: true })}</div>`;
 }
@@ -198,7 +231,7 @@ function neoMain(k) {
   const s = G.s;
   if (k.dark) {
     return `<div class="nz-top"><span class="nz-ava">${esc(initials())}</span><i class="grow"></i>${skinBtn()}<span>🔍</span></div>
-      <div class="nz-card"><span>${esc(k.name.toLowerCase())}</span><b>${last4()}</b></div>
+      ${cardsCarousel((c) => `<div class="nz-card" style="background:linear-gradient(150deg,${c.def.look[0]},${c.def.look[1]});color:${c.def.look[2]}"><span>${esc(k.name.toLowerCase())}</span><b>${esc(c.pan)}</b></div>`, { cls: 'nz-cc' })}
       <div class="nz-bal"><small>${T('Баланс', 'Баланс', 'Balance')}</small><b data-live="money">${fmt(s.money)}</b><small>${T('Потрачено сегодня', 'Витрачено сьогодні', 'Spent today')} ${fmt(G.s.bank.hist.filter((x) => x.amt < 0 && x.t >= G.s.t - (G.s.t % 1440)).reduce((a, x) => a - x.amt, 0))}</small></div>
       <div class="nz-act"><button data-a="p2p">↗ ${T('Другу', 'Другу', 'Pay a friend')}</button><button data-a="dep">＋ ${T('В копилку', 'У скарбничку', 'Add to pot')}</button><button data-a="loan">💷 ${T('Кредит', 'Кредит', 'Loan')}</button></div>
       <div class="nz-pots">${G.s.bank.deposits.map((d) => `<div data-a="wd" data-v="${d.id}"><span>🐷</span><b>${fmt(d.amt + (d.earned || 0))}</b><small>${T('Копилка', 'Скарбничка', 'Pot')}</small></div>`).join('')}<div data-a="dep"><span>＋</span><b>${T('Новая', 'Нова', 'New')}</b><small>${T('копилка', 'скарбничка', 'pot')}</small></div></div>
@@ -206,6 +239,7 @@ function neoMain(k) {
   }
   return `<div class="n2-top"><span class="n2-ava">${esc(initials())}</span><b>${T('Привет', 'Привіт', 'Hi')}, ${esc(s.player.name.split(' ')[0])}</b><i class="grow"></i>${skinBtn()}<span>🔔</span></div>
     <div class="n2-main"><small>${T('Основной счёт', 'Основний рахунок', 'Main account')}</small><b data-live="money">${fmt(s.money)}</b></div>
+    ${cardsCarousel((c) => plastic(c), { cls: 'n2-cc' })}
     <div class="n2-act"><button data-a="dep"><i>↗</i>${T('Отложить', 'Відкласти', 'Move')}</button><button data-a="loan"><i>＋</i>${T('Кредит', 'Кредит', 'Credit')}</button><button data-a="p2p"><i>⇄</i>${T('Другу', 'Другу', 'Friend')}</button></div>
     <div class="n2-spaces"><div class="n2-sp main"><small>${T('Основной', 'Основний', 'Main')}</small><b data-live="money">${fmt(s.money)}</b></div>${G.s.bank.deposits.map((d) => `<div class="n2-sp" data-a="wd" data-v="${d.id}"><small>Space</small><b>${fmt(d.amt + (d.earned || 0))}</b></div>`).join('')}<div class="n2-sp add" data-a="dep"><small>${T('Новый', 'Новий', 'New')}</small><b>＋</b></div></div>
     <div class="n2-feed"><b>${T('Операции', 'Операції', 'Transactions')}</b>${feed(30, { solid: false })}</div>`;
@@ -216,6 +250,7 @@ function retailMain(k) {
   const hi = hour < 12 ? T('Доброе утро', 'Доброго ранку', 'Good morning') : hour < 18 ? T('Добрый день', 'Добрий день', 'Good afternoon') : T('Добрый вечер', 'Добрий вечір', 'Good evening');
   return `<div class="rt-bar"><span class="rt-burger">☰</span><b class="rt-logo">${esc(k.name.toUpperCase())}</b><i class="grow"></i>${skinBtn()}<span>🔔</span><span class="rt-ava">${esc(initials())}</span></div>
     <div class="rt-hero"><small>${hi}, ${esc(s.player.name.split(' ')[0])}</small><b>${T('Ваши счета', 'Ваші рахунки', 'Your accounts')}</b></div>
+    ${cardsCarousel((c) => plastic(c), { cls: 'rt-cc' })}
     <div class="rt-tile"><div class="rt-th"><b>${T('ТЕКУЩИЙ СЧЁТ', 'ПОТОЧНИЙ РАХУНОК', 'TOTAL CHECKING')}</b> <small>(...${last4()})</small></div><div class="rt-big" data-live="money">${fmt(s.money)}</div><small>${T('Доступный остаток', 'Доступний залишок', 'Available balance')}</small></div>
     <div class="rt-tile" data-a="tab" data-v="save"><div class="rt-th"><b>${T('СБЕРЕГАТЕЛЬНЫЙ', 'ОЩАДНИЙ', 'SAVINGS')}</b> <small>(...${String((+last4() * 3) % 10000).padStart(4, '0')})</small></div><div class="rt-big">${fmt(savings())}</div><small>+0.25% ${T('в день', 'на день', 'a day')}</small></div>
     <div class="rt-tile" data-a="tab" data-v="credit"><div class="rt-th"><b>${T('КРЕДИТНАЯ ЛИНИЯ', 'КРЕДИТНА ЛІНІЯ', 'CREDIT LINE')}</b></div><div class="rt-big">${loanTotal() ? '−' + fmt(loanTotal()) : fmt(0)}</div><small>${T('Доступно', 'Доступно', 'Available credit')} ${fmt(avail())}</small></div>
@@ -229,6 +264,7 @@ function kplusMain(k) {
   const act = (a) => { const [x, y] = a.split(':'); return y ? `data-a="${x}" data-v="${y}"` : `data-a="${x}"`; };
   return `<div class="kp-head"><div class="row"><span class="kp-ava">${esc(initials())}</span><b>${esc(k.name)}</b><i class="grow"></i>${skinBtn()}<span>🔔</span></div>
       <div class="kp-card"><small>${T('Сберегательный счёт', 'Ощадний рахунок', 'Savings account')}</small><div class="mono kp-no">${first4()}-${last4().slice(0, 1)}-${last4()}-${last4().slice(2)}</div><div class="row between"><b class="kp-bal" ${hide ? '' : 'data-live="money"'}>${hide ? '••••••' : fmt(s.money)}</b><button class="kp-eye" data-a="bhide">${hide ? '🙈' : '👁'}</button></div><small>${T('Доступно', 'Доступно', 'Available')}</small></div></div>
+    ${cardsCarousel((c) => plastic(c), { cls: 'kp-cc' })}
     <div class="kp-menu">${menu.map(([e, t, a]) => `<button ${act(a)}><i>${e}</i><span>${esc(t)}</span></button>`).join('')}</div>
     <div class="kp-sheet"><b>${T('Последние операции', 'Останні операції', 'Recent transactions')}</b>${feed(30, { solid: true })}</div>`;
 }

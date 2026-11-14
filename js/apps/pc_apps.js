@@ -18,28 +18,65 @@ import {
   DEVICE_RECIPES, DEVICE_MODELS, devReady, buyDevPart, assembleDevice,
 } from '../game/pc.js';
 import { PART_NAMES, partPrice } from '../data/parts.js';
+import { openDesktop } from './pc_desktop.js';
+import { accOffers, buyAcc, accStock, accState, myPhoneModels, phoneBrands, brandModels } from '../game/phoneacc.js';
+import { PHONE_ACC } from '../data/phoneacc.js';
 
 // ---------------------------------------------------------------- hardware store
 const HW_NAMES = { RU: 'ДНК', UA: 'Розетко', BY: '21‑Вэк', KZ: 'Технодомм', PL: 'X‑Kom', DE: 'Mindfaktor', FR: 'LDLK', IT: 'Uniuro', GB: 'Scann', US: 'Newegs', JP: 'Yodobashy', CN: 'JD.kom', AE: 'Sharaf DJJ', TR: 'Vatann', GE: 'Zummer', TH: 'Bananna IT' };
-const HV = { cat: null };
+export const HV = { cat: null };
 const thumbOf = (id) => { const it = makeItem(new RNG(`hwt|${id}`), { model: id, quality: 'new' }); it.sealed = true; it.defects = []; it.cond = 100; return it; };
 const card = (x) => `<div class="hw-card"><div class="hw-img">${img(thumbOf(x.id), { size: 240 })}${x.off ? `<span class="hw-off">−${x.off}%</span>` : ''}</div><div class="hw-price">${fmt(x.price)} ${x.off ? `<s>${fmt(x.old)}</s>` : ''}</div><div class="hw-name">${esc(itemTitle({ m: x.id, v: 0 }))}</div><div class="hw-spec">${esc(specLine({ m: x.id }))}</div><div class="hw-rate">★ ${x.rating} · ${x.reviews} ${T('отзывов', 'відгуків', 'reviews')}</div><button class="hw-buy" data-a="hwbuy" data-v="${x.id}" ${x.stock ? '' : 'disabled'}>${x.stock ? T('Купить', 'Купити', 'Buy') : T('Нет в наличии', 'Немає', 'Sold out')}<small>${x.stock ? T('доставка сегодня', 'доставка сьогодні', 'delivered today') : ''}</small></button></div>`;
 function hwMain() {
   const st = hwStore();
   let h = `<div class="hw-search">🔍 ${T(`Искать в ${esc(hwName())}`, `Шукати в ${esc(hwName())}`, `Search ${esc(hwName())}`)}</div>
     <div class="hw-banner"><b>${T('Неделя железа', 'Тиждень заліза', 'Hardware week')}</b><span>${T('Комплектующие для ПК со скидками до −45%. Соберите компьютер и отдайте заказ в приложении «Сборка».', 'Комплектуючі для ПК зі знижками до −45%. Зберіть компʼютер і віддайте замовлення в застосунку «Збірка».', 'PC parts up to −45%. Build a computer and deliver an order in the “PC Build” app.')}</span><button data-a="open" data-v="build">${T('Открыть «Сборку»', 'Відкрити «Збірку»', 'Open PC Build')} ›</button></div>
-    <div class="hw-cats">${HW_CATS.map(([k, ic]) => `<button class="${HV.cat === k ? 'on' : ''}" data-a="hwcat" data-v="${k}"><i>${ic}</i><span>${esc(L(HW_CAT_NAME[k]))}</span></button>`).join('')}</div>`;
+    <div class="hw-cats"><button class="${HV.cat === 'phacc' ? 'on' : ''}" data-a="hwcat" data-v="phacc"><i>🛡</i><span>${T('Стёкла и чехлы', 'Скло й чохли', 'Glass & cases')}</span></button>${HW_CATS.map(([k, ic]) => `<button class="${HV.cat === k ? 'on' : ''}" data-a="hwcat" data-v="${k}"><i>${ic}</i><span>${esc(L(HW_CAT_NAME[k]))}</span></button>`).join('')}</div>`;
+  if (HV.cat === 'phacc') return h + accView();
   const list = HV.cat ? st.items.filter((x) => x.kind === HV.cat) : st.items.filter((x) => x.off).sort((a, b) => b.off - a.off).slice(0, 12);
   h += `<h3 class="hw-sec">${HV.cat ? esc(L(HW_CAT_NAME[HV.cat])) : '🔥 ' + T('Скидки дня', 'Знижки дня', 'Deals of the day')}</h3><div class="hw-grid">${list.map(card).join('') || `<p class="p">${T('Пусто', 'Порожньо', 'Nothing here')}</p>`}</div>`;
   return h;
 }
-const hwName = () => HW_NAMES[region().id] || 'ДНК';
+export const hwName = () => HW_NAMES[region().id] || 'ДНК';
+// ---------------------------------------------------------------- glass & cases (one exact phone model each)
+export const HVA = { m: null };
+const accArt = (x) => x.kind === 'glass'
+  ? `<svg viewBox="0 0 100 100" class="acc-art"><defs><linearGradient id="ag${x.tier}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e8f4ff" stop-opacity=".9"/><stop offset=".5" stop-color="#b7d6f2" stop-opacity=".35"/><stop offset="1" stop-color="#e8f4ff" stop-opacity=".8"/></linearGradient></defs><rect x="25" y="8" width="50" height="84" rx="9" fill="url(#ag${x.tier})" stroke="#9cc3e6" stroke-width="1.5"/>${x.tier === 'full' ? '<rect x="25" y="8" width="50" height="84" rx="9" fill="none" stroke="#111" stroke-width="3.5"/>' : ''}<path d="M30 30 L52 12 M33 46 L68 16" stroke="#fff" stroke-width="3" opacity=".7"/><circle cx="50" cy="14" r="2" fill="#7aa"/></svg>`
+  : `<svg viewBox="0 0 100 100" class="acc-art"><rect x="25" y="8" width="50" height="84" rx="11" fill="${x.tier === 'orig' ? '#2b3a55' : x.color}"/><rect x="29" y="12" width="17" height="19" rx="5" fill="#000" opacity=".55"/><circle cx="34" cy="17" r="3" fill="#333"/><circle cx="41" cy="25" r="3" fill="#333"/>${x.tier === 'orig' ? '<circle cx="50" cy="56" r="13" fill="none" stroke="#fff" stroke-width="2" opacity=".5"/>' : '<rect x="25" y="8" width="50" height="84" rx="11" fill="#fff" opacity=".12"/>'}</svg>`;
+function accView() {
+  const mine = myPhoneModels(), st = accState(), s = G.s;
+  if (!HVA.m && mine.length) HVA.m = mine[0];
+  let h = `<div class="acc-note">🛡 ${T('Стекло и чехол подбираются под модель: от одного телефона на другой не подойдут. Наклеенное стекло и надетый чехол поднимают цену телефона — на дорогом выгодно, на дешёвом нет.', 'Скло й чохол підбираються під модель: від одного телефону на інший не підійдуть. Наклеєне скло і вдягнений чохол піднімають ціну телефону — на дорогому вигідно, на дешевому ні.', 'Glass and cases fit one exact model only. A fitted glass and case raise the phone’s price — worth it on an expensive phone, not on a cheap one.')}</div>`;
+  h += `<div class="chips wrap mb">${mine.map((m) => `<button class="chip${HVA.m === m ? ' on' : ''}" data-a="accm" data-v="${m}">📱 ${esc(itemTitle({ m, v: 0 }))}</button>`).join('')}<button class="chip" data-a="accother">🔎 ${T('Другая модель…', 'Інша модель…', 'Another model…')}</button></div>`;
+  if (!HVA.m) return h + `<p class="p">${T('Выберите модель телефона.', 'Оберіть модель телефону.', 'Pick a phone model.')}</p>`;
+  const offers = accOffers(HVA.m);
+  const inTransit = (k, t) => st.orders.filter((o) => o.m === HVA.m && o.kind === k && o.tier === t).reduce((a, o) => a + o.qty, 0);
+  h += `<h3 class="hw-sec">${esc(itemTitle({ m: HVA.m, v: 0 }))}</h3><div class="hw-grid">${offers.map((x) => { const have = accStock(x.m, x.kind, x.tier), go = inTransit(x.kind, x.tier); return `<div class="hw-card"><div class="hw-img acc-img">${accArt(x)}</div><div class="hw-price">${fmt(x.price)}</div><div class="hw-name">${esc(L(x.n))} · ${esc(MODEL[x.m].name)}</div><div class="hw-spec g">+${+((x.mult - 1) * 100).toFixed(1)}% ${T('к цене телефона', 'до ціни телефону', 'to the phone’s price')}</div><div class="hw-rate">★ ${x.rating} · ${x.reviews} ${T('отзывов', 'відгуків', 'reviews')}${have ? ` · <b>${T('у вас', 'у вас', 'you have')} ${have}</b>` : ''}${go ? ` · 🛵 ${go}` : ''}</div><button class="hw-buy" data-a="accbuy" data-v="${x.kind}:${x.tier}">${T('Купить', 'Купити', 'Buy')}<small>${T('курьер за час', 'курʼєр за годину', 'courier within an hour')}</small></button></div>`; }).join('')}</div>`;
+  if (st.orders.length) h += `<h3 class="hw-sec">🛵 ${T('Едут к вам', 'Їдуть до вас', 'On the way')}</h3>` + st.orders.map((o) => `<div class="kv"><span>${esc(L(PHONE_ACC[o.kind][o.tier].n))} · ${esc(MODEL[o.m].name)}${o.qty > 1 ? ' ×' + o.qty : ''}</span><b><span data-cd="${o.eta}"></span></b></div>`).join('');
+  return h;
+}
 export const hwApp = {
   id: 'hw', glyph: 'cpu', lvl: 2,
   name: () => hwName(), colors: ['#8b5cf6', '#5b21b6'], glyphColor: '#fff',
   views: { main: hwMain },
   actions: {
     hwcat: (v) => { HV.cat = HV.cat === v ? null : v; rerender(); },
+    accm: (v) => { HVA.m = v; rerender(); },
+    accother: async () => {
+      const b = await choose(T('Бренд', 'Бренд', 'Brand'), phoneBrands().map((x) => ({ v: x, label: x })));
+      if (!b) return;
+      const m = await choose(b, brandModels(b).map((m) => ({ v: m.id, label: itemTitle({ m: m.id, v: 0 }), sub: String(m.year) })));
+      if (m) { HVA.m = m; rerender(); }
+    },
+    accbuy: async (v) => {
+      const [kind, tier] = v.split(':');
+      const x = accOffers(HVA.m).find((o) => o.kind === kind && o.tier === tier); if (!x) return;
+      const q = await choose(`${L(x.n)} · ${MODEL[x.m].name}`, [1, 2, 5].map((n) => ({ v: String(n), label: `${n} ${T('шт.', 'шт.', 'pcs')} · ${fmt(x.price * n)}` })), T('Подходит только к этой модели.', 'Підходить лише до цієї моделі.', 'Fits this model only.'));
+      if (!q) return;
+      const r = buyAcc(x.m, kind, tier, +q);
+      if (r.ok) { sfx('cash'); toast(T('Заказ оформлен — курьер привезёт в течение часа', 'Замовлення оформлено — курʼєр привезе протягом години', 'Ordered — arriving within an hour'), 'g'); } else toast(r.msg || '—', 'r');
+      rerender();
+    },
     hwbuy: async (id) => { const x = hwStore().items.find((y) => y.id === id); if (!x) return; if (!(await confirmBox(itemTitle({ m: id, v: 0 }), `${fmt(x.price)} · ${T('новое, доставка сегодня', 'нове, доставка сьогодні', 'new, delivered today')}`, T('Купить', 'Купити', 'Buy')))) return; const r = buyHw(id); if (r.ok) { sfx('cash'); toast(T('Заказ оформлен — курьер привезёт сегодня', 'Замовлення оформлено — курʼєр привезе сьогодні', 'Ordered — arriving today'), 'g'); } else toast(r.msg, 'r'); rerender(); },
   },
 };
@@ -49,11 +86,13 @@ function myPcView() {
   const pc = myPc();
   const cands = G.s.inv.filter((it) => canBeMyPc(it) && !it.listed && it.id !== pc.item?.id);
   return `<div class="pc-hero"><div class="pc-ico">${pc.item ? '🖥' : '💻'}</div><div class="grow"><b>${esc(pc.name)}</b><small>${esc(pc.item ? pc.spec : 'Celeron N4020 · 4 ГБ · HDD')}</small><div class="pc-speed">${T('Скорость', 'Швидкість', 'Speed')} ×${pc.speed}</div></div></div>
+    <button class="btn block pc-boot" data-a="pcboot">⏻ ${T('Включить компьютер', 'Увімкнути компʼютер', 'Turn on the computer')}<small>${T('рабочий стол, файлы, тесты, апгрейд, майнинг', 'робочий стіл, файли, тести, апгрейд, майнінг', 'desktop, files, tests, upgrades, mining')}</small></button>
     <p class="p">${T('Компьютер, за которым вы работаете. Мощный ПК быстрее ставит системы, восстанавливает данные и даёт больше времени в «Сборке» и Phone Lab. Новые компьютеры собираются в приложении «Сборка».', 'Компʼютер, за яким ви працюєте. Потужний ПК швидше ставить системи, відновлює дані й дає більше часу в «Збірці» та Phone Lab. Нові компʼютери збираються в застосунку «Збірка».', 'The computer you work on. A strong PC installs systems faster, recovers data better and gives more time in PC Build and Phone Lab. New computers are built in the PC Build app.')}</p>
     ${pc.item ? `<button class="btn dark block" data-a="pcunset">${T('Вернуться на старый ноутбук', 'Повернутися на старий ноутбук', 'Back to the old laptop')}</button>` : ''}
     ${cands.length ? `<h3 class="sub">${T('Можно поставить на стол', 'Можна поставити на стіл', 'Could be your workstation')}</h3>` + cands.map((it) => `<div class="list-item"><div class="th">${img(it)}</div><div class="grow"><div class="t">${esc(itemTitle(it))}</div><div class="s">${it.build ? T(`мощность ${it.build.score}`, `потужність ${it.build.score}`, `power ${it.build.score}`) : esc(OS[osOf(it)].n)}</div></div><button class="btn xs" data-a="pcset" data-v="${it.id}">${T('Работать на нём', 'Працювати на ньому', 'Use it')}</button></div>`).join('') : `<button class="btn block" data-a="open" data-v="build">🛠 ${T('Собрать компьютер', 'Зібрати компʼютер', 'Build a computer')}</button>`}`;
 }
 const myPcActions = {
+  pcboot: () => openDesktop(),
   pcset: async (id) => { const it = getItem(id); if (!(await confirmBox(T('Работать на этом компьютере?', 'Працювати на цьому компʼютері?', 'Use this computer?'), T('Пока он ваш рабочий, его лучше не продавать — иначе вернётесь на старый ноутбук.', 'Поки він ваш робочий, його краще не продавати — інакше повернетеся на старий ноутбук.', 'While it’s your workstation, selling it sends you back to the old laptop.'), T('Да', 'Так', 'Yes')))) return; setMyPc(id); sfx('win'); toast(T(`Скорость ×${myPc().speed}`, `Швидкість ×${myPc().speed}`, `Speed ×${myPc().speed}`), 'g'); rerender(); },
   pcunset: () => { setMyPc(null); rerender(); },
 };
@@ -158,7 +197,7 @@ const CV = { tab: 'sys' };
 function sysView() {
   const comps = G.s.inv.filter((it) => isComputer(it) && !it.listed);
   const drive = installerDrive();
-  let h = `<div class="pc-note"><b>${T('Переустановка системы', 'Перевстановлення системи', 'Reinstalling the system')}</b><span>${T('Сначала сброс, потом установка с флешки. Система немного меняет цену: Windows 11 +3%, Windows 10 +2%, Linux и macOS — как есть, Windows 8 −3%, Windows 7 −7%. Не загружающийся компьютер после переустановки дорожает примерно на 45%.', 'Спершу скидання, потім встановлення з флешки. Система трохи змінює ціну: Windows 11 +3%, Windows 10 +2%, Linux і macOS — як є, Windows 8 −3%, Windows 7 −7%. Компʼютер, що не завантажується, після перевстановлення дорожчає приблизно на 45%.', 'Reset first, then install from a flash drive. The OS nudges the price: Windows 11 +3%, Windows 10 +2%, Linux and macOS as is, Windows 8 −3%, Windows 7 −7%. A non‑booting computer is worth ~45% more after a reinstall.')}</span></div>
+  let h = `<button class="btn block pc-boot" data-a="pcboot">⏻ ${T('Включить компьютер', 'Увімкнути компʼютер', 'Turn on the computer')}<small>${T('рабочий стол, файлы, тесты, апгрейд, майнинг', 'робочий стіл, файли, тести, апгрейд, майнінг', 'desktop, files, tests, upgrades, mining')}</small></button><div class="pc-note"><b>${T('Переустановка системы', 'Перевстановлення системи', 'Reinstalling the system')}</b><span>${T('Сначала сброс, потом установка с флешки. Система немного меняет цену: Windows 11 +3%, Windows 10 +2%, Linux и macOS — как есть, Windows 8 −3%, Windows 7 −7%. Не загружающийся компьютер после переустановки дорожает примерно на 45%.', 'Спершу скидання, потім встановлення з флешки. Система трохи змінює ціну: Windows 11 +3%, Windows 10 +2%, Linux і macOS — як є, Windows 8 −3%, Windows 7 −7%. Компʼютер, що не завантажується, після перевстановлення дорожчає приблизно на 45%.', 'Reset first, then install from a flash drive. The OS nudges the price: Windows 11 +3%, Windows 10 +2%, Linux and macOS as is, Windows 8 −3%, Windows 7 −7%. A non‑booting computer is worth ~45% more after a reinstall.')}</span></div>
     <div class="kv"><span>🔌 ${T('Флешка', 'Флешка', 'Flash drive')}</span><b>${drive ? esc(itemTitle(drive, false)) : `<span class="r">${T('нет', 'немає', 'none')}</span> — <a data-a="hwflash">${T('купить в магазине', 'купити в магазині', 'buy one')}</a>`}</b></div>
     <div class="kv"><span>🖥 ${T('Ваш ПК', 'Ваш ПК', 'Your PC')}</span><b>×${myPc().speed} · ≈ ${Math.round(installSeconds())} ${T('с на установку', 'с на встановлення', 's per install')}</b></div>`;
   if (!comps.length) h += `<div class="pc-empty">💻 ${T('Компьютеров на складе нет. Купите на доске объявлений — дешевле всего с пометкой «Не загружается».', 'Компʼютерів на складі немає. Купіть на дошці оголошень — найдешевше з позначкою «Не завантажується».', 'No computers in storage. Buy one on the classifieds — cheapest with “won’t boot”.')}</div><button class="btn block" data-a="open" data-v="market">${T('Открыть объявления', 'Відкрити оголошення', 'Open classifieds')}</button>`;

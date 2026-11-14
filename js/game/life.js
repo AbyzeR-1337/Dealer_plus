@@ -161,6 +161,32 @@ export function register(regime) {
   return true;
 }
 
+// ---------------------------------------------------------------- tax reminders (Госуслуги / Дія pings you)
+// Registered: at 18:00 and 22:00 if today's tax isn't paid (and no auto‑pay), a last call at 23:30.
+// In debt: every 6 hours, with the days left before forced collection. Unregistered with a growing income:
+// a warning at noon that the tax office may come asking. Can be switched off in the tax screen.
+export function taxRemindTick() {
+  const s = G.s, t = s.tax;
+  if (!t || s.settings?.taxRemind === false || G.catchup) return;
+  const m = s.t % 1440;
+  const go = { go: ['gov'] };
+  if (t.debt > 0 && m % 360 === 120) {
+    const left = Math.max(0, 4 - (t.daysLate || 0));
+    notify('gov', T('Налоговый долг', 'Податковий борг', 'Tax debt'), left ? T(`Долг ${fmt(t.debt)}. Через ${left} дн. спишут со счёта принудительно, а кредитный рейтинг уже падает.`, `Борг ${fmt(t.debt)}. Через ${left} дн. спишуть із рахунку примусово, а кредитний рейтинг уже падає.`, `Debt ${fmt(t.debt)}. In ${left} day(s) it’s collected from your account by force, and your credit score is already dropping.`) : T(`Долг ${fmt(t.debt)} — списывают принудительно. Погасите, чтобы не было пени.`, `Борг ${fmt(t.debt)} — стягують примусово. Погасіть, щоб не було пені.`, `Debt ${fmt(t.debt)} is being collected. Pay it to stop the penalties.`), go);
+    return;
+  }
+  if (t.regime !== 'none') {
+    if (s.settings.autoTax) return;
+    const due = taxDue();
+    if (due <= 0) return;
+    if (m === 18 * 60 || m === 22 * 60) notify('gov', T('Напоминание о налоге', 'Нагадування про податок', 'Tax reminder'), T(`Сегодня к оплате ${fmt(due)}. Не заплатите до полуночи — долг +10% и минус к кредитному рейтингу.`, `Сьогодні до сплати ${fmt(due)}. Не сплатите до опівночі — борг +10% і мінус до кредитного рейтингу.`, `${fmt(due)} due today. Unpaid by midnight: +10% debt and a hit to your credit score.`), go);
+    else if (m === 23 * 60 + 30) notify('gov', T('Последний шанс', 'Останній шанс', 'Last call'), T(`Через 30 минут налог ${fmt(due)} станет долгом.`, `За 30 хвилин податок ${fmt(due)} стане боргом.`, `In 30 minutes the ${fmt(due)} tax turns into debt.`), go);
+    return;
+  }
+  const lim = 250 * countryOf(s.player.city).wage;
+  if (m === 12 * 60 && t.income > lim * 0.5) notify('gov', T('Налоговая может заинтересоваться', 'Податкова може зацікавитися', 'The tax office may take an interest'), T(`Вы заработали ${fmt(t.income)} без регистрации. При больших доходах бывают проверки и штраф 20%. Самозанятость оформляется за пару минут.`, `Ви заробили ${fmt(t.income)} без реєстрації. За великих доходів бувають перевірки і штраф 20%. ФОП оформлюється за пару хвилин.`, `You’ve earned ${fmt(t.income)} unregistered. Big earnings bring audits and a 20% fine. Registering takes a couple of minutes.`), go);
+}
+
 // ---------------------------------------------------------------- daily rollover (called by sim at midnight)
 export function dailyLife(prevDay) {
   const s = G.s;

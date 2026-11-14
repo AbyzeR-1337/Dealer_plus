@@ -19,6 +19,7 @@ import { ymOnSale } from './shops2.js';
 import { risk } from './crime.js';
 import { deliveryTime } from './market.js';
 import { collectionBonus } from './quests.js';
+import { noteHotSale } from './hot.js';
 
 export const PLATFORMS = {
   classifieds: { fee: 0, rate: 1, n: (c) => c.apps.classifieds[0], lvl: 1 },
@@ -250,6 +251,7 @@ export function completeSale(c, mode = 'ship', packed = 0.5) {
   const payout = price - fee;
   const disclose = l ? l.disclose : true;
   unlist(it.id);
+  noteHotSale(it, price);
   removeItem(it.id);
   addFlood(s.player.city, it.m);
   if (it.split && G.s.t - (it.at || 0) < 2880) ymOnSale(it);

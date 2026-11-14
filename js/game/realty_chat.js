@@ -27,17 +27,44 @@ export const chatList = () => Object.values(chats()).filter((c) => c.week === we
 export const hiddenListing = (id) => ['reported', 'scammed'].includes(dealOf(id)?.st);
 export const isWatched = (id) => typeof document !== 'undefined' && !!document.querySelector(`[data-rechat="${id}"]`);
 
-// what you can ask right now
+// what you can ask right now. Any question can be asked again after a while (REASK game minutes): the place
+// may free up, a silent owner may finally answer, a firm "no haggling" may soften when nobody calls.
+export const REASK = 90;
+const lastAsk = (c, k) => c.askedAt?.[k] ?? (c.asked.includes(k) ? 0 : null);
+const ready = (c, k) => { const t = lastAsk(c, k); return t == null || G.s.t - t >= REASK; };
 export function questions(l) {
   const c = dealOf(l.id), sale = l.kind === 'sale';
   const asked = c?.asked || [];
-  if (!c || !asked.includes('avail')) return ['avail'];
-  if (!['ok', 'bait'].includes(c.st) || c.wait) return [];
-  const q = sale ? ['haggle', 'docs', 'photo', 'view'] : ['req', 'photo', 'haggle', ...(l.agency ? ['fee'] : []), 'view'];
-  return q.filter((k) => !asked.includes(k));
+  if (!c) return ['avail'];
+  if (c.wait) return [];
+  if (!asked.includes('avail')) return ['avail'];
+  if (['taken', 'dead'].includes(c.st)) return !c.offended && ready(c, 'avail') ? ['avail'] : [];
+  if (!['ok', 'bait'].includes(c.st)) return [];
+  const q = sale ? ['avail', 'haggle', 'docs', 'photo', 'view'] : ['avail', 'req', 'photo', 'haggle', ...(l.agency ? ['fee'] : []), 'view'];
+  return q.filter((k) => ready(c, k));
 }
+// game minutes until the next question opens again (for "you can ask again in …")
+export function nextAskIn(l) {
+  const c = dealOf(l.id);
+  if (!c || c.wait || c.offended || ['reported', 'scammed', 'done'].includes(c.st)) return null;
+  const ks = ['taken', 'dead'].includes(c.st) ? ['avail'] : Object.keys(c.askedAt || {});
+  const left = ks.map((k) => REASK - (G.s.t - (lastAsk(c, k) ?? -1e9))).filter((x) => x > 0);
+  return left.length ? Math.min(...left) : null;
+}
+const AGAIN = () => ({
+  avail: T('Ещё раз здравствуйте! Не освободилась?', 'Ще раз добрий день! Не звільнилася?', 'Hi again! Has it freed up?'),
+  availOk: T('Ещё актуально?', 'Ще актуально?', 'Still available?'),
+  req: T('Напомните, какие требования к жильцам?', 'Нагадайте, які вимоги до мешканців?', 'Remind me, what are the requirements?'),
+  photo: T('Можете прислать свежие фото?', 'Можете надіслати свіжі фото?', 'Could you send fresh photos?'),
+  haggle: T('А если всё‑таки чуть дешевле? Готов(а) заехать хоть завтра.', 'А якщо все‑таки трохи дешевше? Готовий(а) заїхати хоч завтра.', 'What if it were a bit cheaper after all? I can move in tomorrow.'),
+  fee: T('Может, всё же уменьшите комиссию?', 'Може, все ж зменшите комісію?', 'Maybe you could lower the fee after all?'),
+  docs: T('Ещё раз про документы — точно всё чисто?', 'Ще раз про документи — точно все чисто?', 'About the papers again — definitely all clean?'),
+  view: T('Можно приехать посмотреть ещё раз?', 'Можна приїхати подивитися ще раз?', 'Can I come and see it again?'),
+});
 export function qLabel(l, k) {
   const sale = l.kind === 'sale';
+  const c = dealOf(l.id);
+  if (c && c.asked.includes(k)) { const a = AGAIN(); return k === 'avail' && ['ok', 'bait'].includes(c.st) ? a.availOk : a[k]; }
   return {
     avail: sale ? T('Здравствуйте! Ещё продаётся?', 'Добрий день! Ще продається?', 'Hi! Is it still for sale?') : T('Здравствуйте! Ещё сдаётся?', 'Добрий день! Ще здається?', 'Hi! Is it still available?'),
     req: T('Можно мне заселиться одному? Какие требования к жильцам?', 'Можна мені заселитися самому? Які вимоги до мешканців?', 'Can I move in on my own? Any requirements for tenants?'),
@@ -55,14 +82,17 @@ export function ask(id, k) {
   const s = G.s, l = findListing(id);
   if (!l) return { ok: false };
   const c = (chats()[id] ||= { id, kind: l.kind, week: week(), msgs: [], asked: [], st: 'new', wait: null, disc: 0, feeK: 1, held: 0 });
-  if (c.wait || c.asked.includes(k) || !questions(l).includes(k)) return { ok: false };
+  if (c.wait || !questions(l).includes(k)) return { ok: false };
   push(c, 'me', qLabel(l, k));
-  c.asked.push(k);
+  const again = c.asked.includes(k);
+  if (!again) c.asked.push(k);
+  (c.askedAt ||= {})[k] = s.t;
+  (c.cnt ||= {})[k] = (c.cnt[k] || 0) + 1;
   const f = factsOf(l);
   const r = new RNG(`rq|${id}|${k}|${s.t}`);
   // agents answer fast, owners whenever they look at the phone; a "ghost" never answers
-  const delay = f.avail === 'ghost' ? 9 : l.agency ? r.int(1, 3) : r.int(2, 6);
-  c.wait = { at: s.t + delay, q: k };
+  const delay = f.avail === 'ghost' && c.st !== 'ok' ? 9 : l.agency ? r.int(1, 3) : r.int(2, 6);
+  c.wait = { at: s.t + delay, q: k, again };
   if (c.st === 'new') c.st = 'wait';
   emit('house');
   return { ok: true };
@@ -73,8 +103,10 @@ const bestPeriod = (l) => (l.periods?.includes('month') ? 'month' : 'week');
 function answer(c, l) {
   const f = factsOf(l), k = c.wait.q, sale = l.kind === 'sale', v = f.style;
   const scam = f.avail === 'scam';
+  const again = c.wait.again;
   c.wait = null;
   const say = (tx) => push(c, 'them', tx);
+  if (again && reanswer(c, l, k, f, say)) return;
   if (k === 'avail') {
     if (f.avail === 'ghost') { push(c, 'sys', T('Хозяин так и не ответил — похоже, объявление неактуально.', 'Господар так і не відповів — схоже, оголошення неактуальне.', 'No reply at all — the ad looks dead.')); c.st = 'dead'; return; }
     if (f.avail === 'taken') {
@@ -146,6 +178,58 @@ function answer(c, l) {
   }
 }
 
+// asking the same thing again later; returns true when handled (else the usual answer repeats)
+function reanswer(c, l, k, f, say) {
+  const sale = l.kind === 'sale', scam = f.avail === 'scam', n = c.cnt?.[k] || 2;
+  const r = new RNG(`again|${l.id}|${k}|${n}|${G.s.t}|${Math.random()}`);
+  if (k === 'avail') {
+    if (c.st === 'taken') {
+      if (r.chance(0.3)) {
+        say(sale ? T('Вы вовремя! Покупатель не получил ипотеку — снова продаётся.', 'Ви вчасно! Покупцю не дали іпотеку — знову продається.', 'Good timing! The buyer’s mortgage fell through — it’s back on sale.')
+          : r.pick([T('Вы вовремя! Жильцы передумали — квартира снова свободна.', 'Ви вчасно! Мешканці передумали — квартира знову вільна.', 'Good timing! The tenants changed their minds — it’s free again.'), T('Те, кто вносил задаток, пропали. Если ещё нужно — свободно.', 'Ті, хто вносив завдаток, зникли. Якщо ще треба — вільно.', 'The ones who paid the deposit vanished. Still free if you want it.')]));
+        c.st = 'ok'; c.reopened = true; return true;
+      }
+      say(r.pick([T('Нет, всё ещё занято, извините.', 'Ні, все ще зайнято, вибачте.', 'No, still taken, sorry.'), T('Пока нет. Напишите через пару дней — вдруг что‑то изменится.', 'Поки ні. Напишіть за пару днів — раптом щось зміниться.', 'Not yet. Try again in a couple of days, things change.')]));
+      return true;
+    }
+    if (c.st === 'dead') {
+      if (!c.offended && r.chance(0.35)) {
+        say(r.pick([T('Извините, что долго не отвечал(а) — был(а) в отъезде. Да, ещё актуально.', 'Вибачте, що довго не відповідав(ла) — був(ла) у відʼїзді. Так, ще актуально.', 'Sorry for the silence — I was away. Yes, it’s still available.'), T('Ой, только увидел(а) сообщения! Да, свободно.', 'Ой, тільки побачив(ла) повідомлення! Так, вільно.', 'Oh, just saw your messages! Yes, it’s free.')]));
+        c.st = 'ok'; c.reopened = true; return true;
+      }
+      push(c, 'sys', T('Снова тишина — сообщение прочитано, но ответа нет.', 'Знову тиша — повідомлення прочитано, але відповіді немає.', 'Silence again — read, but no reply.'));
+      return true;
+    }
+    if (c.st === 'bait') { say(T('Да‑да, но завтра уже заберут! Переводите предоплату, и я сниму объявление.', 'Так‑так, але завтра вже заберуть! Переказуйте передоплату, і я зніму оголошення.', 'Yes, yes, but it’s gone tomorrow! Send the prepayment and I’ll take the ad down.')); return true; }
+    // it was free — still is? (unless they hold it for you)
+    if (!c.held && r.chance(0.12)) {
+      say(sale ? T('Уже нет — вчера внесли задаток, извините.', 'Вже ні — вчора внесли завдаток, вибачте.', 'Not anymore — someone paid a deposit yesterday, sorry.') : T('Уже нет, извините — пока вы думали, сдали другим.', 'Вже ні, вибачте — поки ви думали, здали іншим.', 'Not anymore, sorry — it went while you were thinking.'));
+      c.st = 'taken'; return true;
+    }
+    say(c.held ? T('Да, держу за вами, как договаривались.', 'Так, тримаю за вами, як домовлялися.', 'Yes, holding it for you as agreed.') : T('Да, пока свободна.', 'Так, поки вільна.', 'Yes, still free for now.'));
+    return true;
+  }
+  if (k === 'haggle' && !scam) {
+    const cap = (f.disc || 0) + 0.06;
+    if (c.disc < cap && r.chance(c.disc ? 0.35 : 0.22)) {
+      const add = r.pick([0.02, 0.03, 0.04]);
+      c.disc = Math.min(cap, (c.disc || 0) + add);
+      say(sale ? T(`Ладно, звонков мало. Отдам за ${fmt(nicePrice(l.price * (1 - c.disc)))}.`, `Гаразд, дзвінків мало. Віддам за ${fmt(nicePrice(l.price * (1 - c.disc)))}.`, `Fine, it’s been quiet. I’ll let it go for ${fmt(nicePrice(l.price * (1 - c.disc)))}.`)
+        : T(`Ну хорошо, уговорили — скидка ${pct(c.disc)}.`, `Ну добре, умовили — знижка ${pct(c.disc)}.`, `Alright, you talked me into it — ${pct(c.disc)} off.`));
+      return true;
+    }
+    say(c.disc ? T('Я же уже скинул(а), больше не могу.', 'Я ж уже скинув(ла), більше не можу.', 'I already gave you a discount, that’s it.') : T('Я же сказал(а) — цена окончательная.', 'Я ж сказав(ла) — ціна остаточна.', 'I told you — the price is final.'));
+    return true;
+  }
+  if (k === 'fee' && c.feeK > 0) {
+    if (r.chance(0.25)) { c.feeK = c.feeK >= 1 ? 0.5 : 0; say(c.feeK ? T('Ладно, комиссия — половина.', 'Гаразд, комісія — половина.', 'Okay, half the fee.') : T('Хорошо, без комиссии — только заезжайте быстрее.', 'Добре, без комісії — тільки заїжджайте швидше.', 'Fine, no fee — just move in soon.')); return true; }
+    say(T('Нет, комиссия как есть.', 'Ні, комісія як є.', 'No, the fee stays.'));
+    return true;
+  }
+  if (k === 'view' && c.viewed) { c.viewed = false; c.viewOk = !scam; say(scam ? T('Я же говорил(а) — показать не могу.', 'Я ж казав(ла) — показати не можу.', 'I told you — I can’t show it.') : T('Конечно, приезжайте ещё раз.', 'Звісно, приїжджайте ще раз.', 'Sure, come again.')); return true; }
+  return false; // the same answer as before
+}
+
 // the trip to see the place: the photos can't lie to your face
 export const viewCost = (l) => nicePrice(Math.max(3, perDayOf(l) * 0.15));
 export function goView(id) {
@@ -188,7 +272,7 @@ export function report(id) {
     emit('house');
     return { ok: true, right: true };
   }
-  c.st = 'dead';
+  c.st = 'dead'; c.offended = true;
   push(c, 'sys', T('Модерация проверила: объявление настоящее. Хозяин обиделся и больше не отвечает.', 'Модерація перевірила: оголошення справжнє. Господар образився й більше не відповідає.', 'Moderators found the ad genuine. The owner is offended and stopped replying.'));
   emit('house');
   return { ok: true, right: false };

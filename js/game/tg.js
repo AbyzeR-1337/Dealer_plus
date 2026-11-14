@@ -10,6 +10,7 @@ import { makeItem, itemValue, itemTitle, knownDefects } from './items.js';
 import { getItem, removeItem, addItem, spend, earn, charge, addXP, notify, stat, canStore, addReview } from './player.js';
 import { deliveryTime } from './market.js';
 import { fmt, nicePrice } from '../core/money.js';
+import { makeHot, watchHot } from './hot.js';
 import { arrest } from './crime.js';
 
 export const CHANNELS = [
@@ -75,7 +76,7 @@ export function buyPost(p, mode) {
     return { ok: true, scam: true, price };
   }
   const it = p.it; it.paid = price; it.src = 'tg';
-  if (p.risky.stolen) { it.stolen = true; st.police.push({ id: it.id, at: s.t + new RNG(p.id).int(240, 1800), title: itemTitle(it), val: itemValue(it, s.player.city, 'true') }); }
+  if (p.risky.stolen) { makeHot(it, new RNG(`tgh|${p.id}`), { known: false, src: 'tg' }); watchHot(it); }
   if (mode === 'meet') { addItem(it, price, 'tg'); addXP(4); }
   else s.deliveries.push({ id: uid('d'), kind: 'in', item: it, from: s.player.city, to: s.player.city, start: s.t, eta: s.t + deliveryTime(s.player.city, s.player.city), price, who: p.handle });
   emit('tg'); emit('inv');

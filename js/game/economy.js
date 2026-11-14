@@ -8,11 +8,14 @@ import { clamp } from '../core/util.js';
 export const day = () => Math.floor((G.s?.t || 0) / 1440);
 
 // Regional multiplier for selling/buying prices of a category in a city
+// Used cars cost very different money around the world: import duties and recycling fees make them dear in
+// Russia, Türkiye, Kazakhstan; Japan and the US are cheap. (Multiplies the usual price level for cars only.)
+export const CAR_K = { RU: 1.38, UA: 1.42, BY: 1.3, KZ: 1.3, PL: 1, DE: 0.95, FR: 0.95, IT: 0.97, GB: 0.92, US: 1, JP: 0.82, CN: 1.1, AE: 0.92, TR: 1.75, GE: 1.05, TH: 1.3 };
 export function regionMult(cityId, cat) {
   const city = CITY[cityId]; if (!city) return 1;
   const c = countryOf(cityId);
   const d = c.demand?.[cat] ?? 1;
-  return city.idx * c.price * d;
+  return city.idx * c.price * d * (cat === 'cars' ? CAR_K[c.id] ?? 1 : 1);
 }
 export function trend(cat) { return G.s?.econ?.trend?.[cat] ?? 1; }
 export function eventMult(cat, cityId) {

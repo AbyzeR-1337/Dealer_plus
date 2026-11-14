@@ -1,6 +1,6 @@
 // Item instances: generation, naming, condition and valuation.
 import { hasPhoto } from '../ui/real_photo.js';
-import { CATS, CAT_LIST, MODELS, MODEL, BY_CAT, DEFECTS, CAT_DEFECTS, LOCKS, RARITY, RARE_TRAITS, COLORS, CAR_COLORS, colorName, colorHex, modelValue, YEAR, LUXURY_CATS, VEHICLE_CATS } from '../data/catalog.js';
+import { CATS, CAT_LIST, MODELS, MODEL, BY_CAT, DEFECTS, CAT_DEFECTS, LOCKS, RARITY, RARE_TRAITS, COLORS, CAR_COLORS, colorName, colorHex, modelValue, carValue, YEAR, LUXURY_CATS, VEHICLE_CATS } from '../data/catalog.js';
 import { RNG } from '../core/rng.js';
 import { L, T } from '../core/i18n.js';
 import { uid, clamp } from '../core/util.js';
@@ -8,6 +8,7 @@ import { countryOf, COUNTRY } from '../data/world.js';
 import { priceFactor } from './economy.js';
 import { G } from '../core/state.js';
 import { viewForDefect } from '../data/views.js';
+import { accMult } from '../data/phoneacc.js';
 
 export const isVehicle = (it) => VEHICLE_CATS.includes(it.cat);
 export const modelOf = (it) => MODEL[it.m];
@@ -100,7 +101,7 @@ export function makeItem(rng, o = {}) {
   else if (q === 'good') cond = rng.int(68, 97);
   else if (q === 'junk') cond = rng.int(4, 55);
   else cond = clamp(Math.round(90 - Math.abs(rng.gauss()) * 28 + rng.float(-6, 8)), 3, 100);
-  if (it.year) { const age = YEAR - it.year; cond = clamp(cond - age * rng.float(0.3, 1.2), 3, 100); }
+  if (it.year) { const age = YEAR - it.year; cond = clamp(cond - age * (cat === 'cars' ? rng.float(0.15, 0.6) : rng.float(0.3, 1.2)), cat === 'cars' ? 12 : 3, 100); }
   it.cond = Math.round(cond);
   // sealed / extras
   const sealable = !['cars', 'bikes', 'art', 'antiques', 'collectibles', 'instruments', 'clothing'].includes(cat);
@@ -112,7 +113,7 @@ export function makeItem(rng, o = {}) {
   if (cat === 'perfume') it.fill = it.sealed ? 100 : rng.int(15, 100);
   if (cat === 'cars') {
     const age = Math.max(0.3, YEAR - it.year);
-    it.km = Math.round(age * rng.float(7000, 26000) / 100) * 100;
+    it.km = Math.round(Math.min(age * rng.float(7000, 22000), 160000 + age * rng.float(3000, 9000)) / 100) * 100; // old cars: the odometer has seen things
     it.eng = rng.pick(m.engine || ['2.0']);
     it.tr = rng.pick(m.trans || ['MT']);
     it.owners = clamp(Math.round(age / rng.float(3, 7)) + 1, 1, 9);
@@ -219,6 +220,7 @@ export const sizeUnits = (it) => (isVehicle(it) ? 0 : CATS[it.cat]?.size || 1);
 export function vehicleBase(m, year) {
   const c = CATS[m.cat];
   if (m.fixed) return m.price * (m.hype || 1);
+  if (m.cat === 'cars') return carValue(m, year);
   const age = Math.max(0, YEAR - (year || m.year));
   const retro = m.retro ?? 25;
   let v = m.price * Math.max(m.floor ?? c.floor, Math.pow(1 - (m.dep ?? c.dep), age));
@@ -244,10 +246,12 @@ export function itemValue(it, cityId, mode = 'true', opts = {}) {
   } else if (it.grade) {
     const g = GRADE_MULT[it.grade] || [1, 1];
     v *= m.year < 2010 ? g[1] : g[0];
+  } else if (it.cat === 'cars') {
+    v *= 0.52 + 0.48 * Math.pow(it.cond / 100, 1.2); // a tired body costs a paint job, not half the car
   } else {
     v *= 0.32 + 0.68 * Math.pow(it.cond / 100, 1.35);
   }
-  if (it.cat === 'cars') v *= clamp(1.18 - it.km / 380000, 0.5, 1.18) * (it.owners > 3 ? 0.93 : 1);
+  if (it.cat === 'cars') v *= clamp(1.1 - it.km / 750000, 0.72, 1.1) * (it.owners > 3 ? 0.95 : 1);
   // defects
   let dm = 1;
   for (const d of it.defects) {
@@ -276,6 +280,9 @@ export function itemValue(it, cityId, mode = 'true', opts = {}) {
   if (it.data?.wiped && ['phones', 'electronics', 'consoles'].includes(it.cat)) v *= 1.03; // factory reset, ready for the next owner
   if (it.os) v *= OS_MULT[it.os] || 1;
   if (it.refurb) v *= 0.94; // rebuilt from parts
+  if (it.acc) v *= accMult(it); // glass / case for this exact model
+  // stolen goods: buyers check — the more traces, the less anyone pays
+  if (it.hot && !opts.clean && (mode === 'true' || it.hot.known)) v *= 1 - 0.45 * (it.hot.tr || 0) / 100;
   if (!opts.raw) v *= priceFactor(it.cat, city, m.id, m.brand);
   return Math.max(0.5, v);
 }

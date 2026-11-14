@@ -15,7 +15,7 @@ import { itemTitle, itemSub, itemValue, makeItem, isVehicle, sizeUnits } from '.
 import { HOUSING, houseDef, capacity, used, xpNeed, repScore, getItem, spend, addItem, canStore, stat, addXP, luggageCap, garage, vehiclesOwned, netWorth } from '../game/player.js';
 import { FOOD, foodPrice, eat, rentFor, housePrice, rentHouse, buyHouse, leaveHouse, afterSleep, awayFromHome, hotelPrice, isSick } from '../game/life.js';
 import { factsOf, dealOf, needsChat, confirmed, reqBlock, salePrice, marketDelta } from '../game/housing.js';
-import { personOf, chatList, hiddenListing, questions, qLabel, Q_ICON, ask, goView, viewCost, payPrepay, report, refusedBy, chatBadge, tierHint } from '../game/realty_chat.js';
+import { personOf, chatList, hiddenListing, questions, qLabel, Q_ICON, ask, goView, viewCost, payPrepay, report, refusedBy, chatBadge, tierHint, nextAskIn } from '../game/realty_chat.js';
 import { listings, findListing, priceFor, perDayOf, moveInCost, rentListing, moveOut, prepay, setPeriod, renting, PERIODS, TIERS, KINDS, tierName, kindName, titleOf, sleepOf, homeName, photoUrl, homes, myHome, homeValue, marketRent, buyListing, liveIn, rentOut, stopRent, renoQuote, renovate, sellHome } from '../game/housing.js';
 import { PROPS, propPrice, propRent, acquireProp, releaseProp } from '../game/business.js';
 import { tripOptions, startTrip, inTransit } from '../game/travel.js';
@@ -188,6 +188,8 @@ function chatView(p) {
     if (c.viewOk && !c.viewed && c.st === 'ok') opts += `<button class="opt" data-a="rview" data-v="${x.id}">🚕 ${T('Съездить на просмотр', 'Зʼїздити на перегляд', 'Go to the viewing')} · ${fmt(viewCost(x))}</button>`;
     if (c.st === 'ok') opts += x.kind === 'rent' ? `<button class="opt solid" data-a="hrent" data-v="${x.id}">🔑 ${T('Снять', 'Зняти', 'Rent it')}</button>` : `<button class="opt solid" data-a="hbuy" data-v="${x.id}">🏠 ${T('Купить', 'Купити', 'Buy')} · ${fmt(salePrice(x))}</button>`;
   }
+  const again = nextAskIn(x);
+  if (again && !c?.wait) opts += `<div class="re-again">⏳ ${T('Спросить снова можно через', 'Запитати знову можна через', 'You can ask again in')} <span data-cd="${G.s.t + again}"></span></div>`;
   const end = !opts && !c?.wait ? `<div class="msg sys" style="margin:10px auto">${c?.st === 'done' ? T('Сделка состоялась', 'Угода відбулася', 'Deal done') : T('Диалог завершён', 'Діалог завершено', 'Conversation closed')}</div>` : '';
   return `<div class="re-chat" data-rechat="${x.id}">${top}${notes(x)}<div class="msgs">${msgs || `<div class="msg sys">${T('Напишите, чтобы узнать, актуально ли объявление', 'Напишіть, щоб дізнатися, чи актуальне оголошення', 'Write to find out if the ad is still live')}</div>`}${typing}</div>${opts ? `<div class="opts">${opts}</div>` : end}</div>`;
 }

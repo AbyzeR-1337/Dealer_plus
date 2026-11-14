@@ -365,9 +365,23 @@ buildPC(addModel);
 buildNew(addModel);
 buildLines(addModel);
 
+// Cars follow real used-car prices: −5…10% when it leaves the showroom, then ~4–8% a year (Toyota and the G‑class
+// hold value, Chinese cars and EVs lose it faster); an old runner never drops below a floor (a 30‑year‑old Lada
+// still sells for ~$1 000); old hyped classics climb back. Regional levels (duties, recycling fees) are in economy.js.
+const CAR_FLOOR = { cheap: 0.28, mid: 0.18, premium: 0.12, lux: 0.3 };
+export function carValue(m, year) {
+  if (m.fixed) return m.price * (m.hype || 1);
+  const age = Math.max(0, YEAR - (year || m.year));
+  const retro = m.retro ?? 25;
+  const dep = Math.min(0.085, Math.max(0.01, (m.dep ?? CATS.cars.dep) * 0.5));
+  let v = m.price * Math.max(m.floor ?? CAR_FLOOR[m.tier] ?? 0.17, age < 1 ? 0.95 : 0.9 * Math.pow(1 - dep, age - 1));
+  if ((m.hype || 1) > 1.05 && age > retro) v = Math.max(v, m.price * (0.14 + 0.04 * (age - retro)) * m.hype);
+  return Math.max(1100, v);
+}
 // Typical market value for an original item in excellent used condition (USD, before regional effects)
 export function modelValue(m) {
   if (m._v) return m._v;
+  if (m.cat === 'cars') return (m._v = carValue(m, m.years ? Math.round((m.years[0] + Math.min(m.years[1], YEAR)) / 2) : m.year));
   const c = CATS[m.cat];
   const age = Math.max(0, YEAR - (m.year || YEAR));
   let v = m.price;

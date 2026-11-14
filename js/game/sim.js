@@ -12,9 +12,11 @@ import { auctionTick, ownAuctionTick } from './sources.js';
 import { workshopTick } from './workshop.js';
 import { jobsTick } from './jobs.js';
 import { travelTick } from './travel.js';
-import { needsTick, dailyLife } from './life.js';
+import { needsTick, dailyLife, taxRemindTick } from './life.js';
 import { bankTick, dailyBank, stocksTick, numbersTick, initStocks } from './finance.js';
-import { pcTick } from './pc.js';
+import { pcTick, mineHourly } from './pc.js';
+import { accTick } from './phoneacc.js';
+import { hotTick } from './hot.js';
 import { jailTick } from './crime.js';
 import { rentTick } from './housing.js';
 import { reChatTick } from './realty_chat.js';
@@ -123,6 +125,9 @@ export function tick(fast = false) {
   sellTick();
   feedbackTick();
   pcTick();
+  accTick();
+  hotTick();
+  taxRemindTick();
   jailTick();
   rentTick();
   reChatTick();
@@ -140,7 +145,7 @@ export function tick(fast = false) {
   bankTick();
   numbersTick();
   if (s.t % 10 === 0 && !catching) needsTick();
-  if (s.t % 60 === 0) { bizHourly(); stocksTick(); }
+  if (s.t % 60 === 0) { bizHourly(); stocksTick(); mineHourly(); }
   if (s.t % 15 === 0) storyTick();
   const d = Math.floor(s.t / 1440);
   if (d !== prevDay) dailyRollover();

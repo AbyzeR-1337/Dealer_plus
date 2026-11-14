@@ -12,6 +12,7 @@ import { makeItem, itemValue, itemTitle } from './items.js';
 import { spend, earn, charge, notify, addItem, getItem, removeItem, canStore, addReview, removeReview, stat, addXP, log } from './player.js';
 import { strike } from './support.js';
 import { arrest } from './crime.js';
+import { makeHot, watchHot } from './hot.js';
 
 // ---------------------------------------------------------------- installed apps
 export function ensurePhone(allApps) {
@@ -86,23 +87,38 @@ export function buyVpn(i) {
 export function toggleVpn() { const s = G.s; if (s.vpn.until <= s.t) return false; s.vpn.on = !s.vpn.on; emit('apps'); return true; }
 
 // ---------------------------------------------------------------- shadow market
-const DARK_CATS = ['phones', 'electronics', 'consoles', 'watches', 'bags', 'sneakers', 'jewelry', 'bikes'];
+// Four kinds of goods: 🔥 stolen (the seller says so — cheapest, carries traces), 📦 grey import (clean, no papers,
+// no warranty), 🎭 1:1 replicas (sold as replicas — passing them off as originals is a crime), and "clean" offers
+// that are secretly hot (no label, the price is just a bit too good). A new batch every 4 hours.
+const DARK_CATS = ['phones', 'phones', 'electronics', 'consoles', 'watches', 'bags', 'sneakers', 'jewelry', 'bikes', 'perfume', 'clothing', 'instruments', 'cars'];
+const SELLERS = ['ghost_77', 'n1ght', 'tovar24', 'shadowbox', 'anon_seller', 'quiet_m', 'dropzone', 'sklad_bez_voprosov', 'tihiy_opt', 'grey_import', 'replica_lux', 'kot_v_meshke'];
+export const DARK_KINDS = {
+  hot: { ic: '🔥', n: ['Краденое', 'Крадене', 'Stolen'] },
+  grey: { ic: '📦', n: ['Серый импорт', 'Сірий імпорт', 'Grey import'] },
+  replica: { ic: '🎭', n: ['Реплика 1:1', 'Репліка 1:1', '1:1 replica'] },
+};
 function darkFeed() {
   const s = G.s;
   s.dark ||= { feed: [], at: 0, watch: [] };
   if (s.dark.at > s.t && s.dark.feed.length) return s.dark.feed;
-  const rng = new RNG(`${s.id}:dark:${Math.floor(s.t / 240)}`);
-  const city = s.player.city;
+  const rng = new RNG(`${s.id}:dark2:${Math.floor(s.t / 240)}`);
+  const city = s.player.city, cur = countryOf(city).cur;
   s.dark.feed = [];
-  for (let i = 0; i < 6; i++) {
-    const cat = rng.pick(DARK_CATS);
-    const it = makeItem(rng, { model: rng.pick(BY_CAT[cat]), quality: rng.chance(0.6) ? 'good' : 'any' });
-    it.box = false; it.docs = false; it.grey = true;
-    it.stolen = rng.chance(0.22);
-    const v = itemValue(it, city, 'true');
-    s.dark.feed.push({ id: uid('dk'), item: it, price: nicePrice(Math.max(5, v * rng.float(0.32, 0.55)), countryOf(city).cur), seller: rng.pick(['ghost_77', 'n1ght', 'tovar24', 'shadowbox', 'anon_seller', 'quiet_m', 'dropzone']) });
+  for (let i = 0; i < 12; i++) {
+    let cat = rng.pick(DARK_CATS);
+    if (cat === 'cars' && !rng.chance(0.35)) cat = 'phones';
+    const kind = rng.weighted(['hot', 'grey', 'replica', 'hidden'], (k) => ({ hot: 4, grey: 4, replica: ['watches', 'bags', 'sneakers', 'jewelry', 'perfume', 'clothing'].includes(cat) ? 3 : 0, hidden: 1.4 }[k]));
+    const it = makeItem(rng, { model: rng.pick(BY_CAT[cat]), quality: rng.chance(0.6) ? 'good' : 'any', fakeMult: 0, lockRate: kind === 'hot' ? 0.25 : 0.04 });
+    it.box = kind === 'grey' && rng.chance(0.5); it.docs = false; it.grey = true; it.fake = 0;
+    const clean = itemValue(it, city, 'true');
+    let k = 0.7;
+    if (kind === 'hot') { makeHot(it, rng, { known: true }); k = rng.float(0.25, 0.42); }
+    else if (kind === 'hidden') { makeHot(it, rng, { known: false }); k = rng.float(0.5, 0.65); }
+    else if (kind === 'replica') { it.fake = 2; it.fakeKnown = true; k = rng.float(0.1, 0.16); }
+    else k = rng.float(0.62, 0.8);
+    s.dark.feed.push({ id: uid('dk'), item: it, kind: kind === 'hidden' ? 'grey' : kind, price: nicePrice(Math.max(5, clean * k), cur), seller: rng.pick(SELLERS) });
   }
-  s.dark.at = s.t + 240;
+  s.dark.at = s.t + 240 - (s.t % 240);
   return s.dark.feed;
 }
 export const darkListings = () => darkFeed();
@@ -115,10 +131,10 @@ export function darkBuy(id) {
   if (!spend(l.price, 'buy', T('Теневой рынок', 'Тіньовий ринок', 'Shadow market'))) return { ok: false, msg: T('Не хватает денег', 'Не вистачає грошей', 'Not enough money') };
   s.dark.feed = s.dark.feed.filter((x) => x !== l);
   addItem(l.item, l.price, 'dark');
-  // stolen goods get traced sooner or later
-  if (l.item.stolen) s.dark.watch.push({ itemId: l.item.id, title: itemTitle(l.item), value: itemValue(l.item, s.player.city, 'true'), at: s.t + 600 + Math.floor(Math.random() * 3 * 1440) });
+  // stolen goods get traced sooner or later — unless you wipe the traces (and even then, maybe)
+  if (l.item.hot) watchHot(l.item);
   stat('darkBuys'); log('dark', itemTitle(l.item));
-  return { ok: true };
+  return { ok: true, hot: !!l.item.hot };
 }
 function darkTick() {
   const s = G.s;

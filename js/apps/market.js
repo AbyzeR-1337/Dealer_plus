@@ -5,7 +5,7 @@ import { esc, clamp } from '../core/util.js';
 import { CATS, CAT_LIST } from '../data/catalog.js';
 import { fmt, nicePrice } from '../core/money.js';
 import { icon } from '../ui/icons.js';
-import { go, rerender, toast, askPrice, choose, confirmBox, openApp, ago, UI, replace } from '../ui/shell.js';
+import { go, rerender, toast, askPrice, choose, confirmBox, openApp, ago, UI, replace, sheet, resolveSheet } from '../ui/shell.js';
 import { img, tile, tags, specs, defectList, empty, avatar, stars, gallery } from '../ui/comp.js';
 import { listingViews } from '../data/views.js';
 import { hashStr } from '../core/rng.js';
@@ -21,6 +21,9 @@ import { playMini } from '../mini/engine.js';
 import { regName, regColors, cityName, buyFlow, inspectFlow, legitFlow, sellFlow, region } from './common.js';
 import { sfx } from '../ui/sfx.js';
 import { useEnergy, hasEnergy } from '../game/needs.js';
+import { bargainQuote, bargainAfterInspect, quickDiscount, showPoints, applyShow } from '../game/viewing.js';
+import { DEFECTS } from '../data/catalog.js';
+import { defectName } from '../game/items.js';
 
 const F = { q: '', cat: 'all', sort: 'new' };
 const SORTS = { new: ['Сначала новые', 'Спочатку нові', 'Newest first'], cheap: ['Дешевле', 'Дешевше', 'Cheapest'], exp: ['Дороже', 'Дорожче', 'Most expensive'], deal: ['Выгодные', 'Вигідні', 'Best deals'] };
@@ -207,7 +210,27 @@ export default {
         if (!spend(pi.fare, 'travel', T('Дорога на осмотр', 'Дорога на огляд', 'Trip to inspect'))) return toast(T('Не хватает на дорогу', 'Не вистачає на дорогу', 'Can’t afford the fare'), 'r');
         useEnergy(pi.energy);
       }
-      await inspectFlow(l.item, itemTitle(l.item));
+      // what the ad already told you doesn't count; what you find now is your argument
+      const before = new Set(l.item.defects.filter((d) => d.known).map((d) => d.c));
+      const r = await inspectFlow(l.item, itemTitle(l.item));
+      if (!r || r.quit || l.sold) return;
+      const fresh = l.item.defects.filter((d) => d.known && !before.has(d.c)).map((d) => d.c);
+      const chatNow = G.s.chats.find((x) => x.kind === 'buy' && x.ref === l.id);
+      if (chatNow?.st === 'deal' && chatNow.deal < l.price && !fresh.length) return;
+      if (fresh.length) {
+        const q = bargainQuote(l, fresh);
+        const v = await sheet(`<h2>🔍 ${T('Найдено на осмотре', 'Знайдено під час огляду', 'Found at the inspection')}</h2><p class="small m">${T('Этого не было в объявлении — можно сбить цену.', 'Цього не було в оголошенні — можна збити ціну.', 'None of this was in the ad — use it to bring the price down.')}</p>${fresh.map((c) => `<div class="kv"><span>⚠ ${esc(defectName(c))}</span><b class="r">−${Math.round((DEFECTS[c]?.sev || 0.05) * 100)}%</b></div>`).join('')}<div class="kv mt"><span>${T('Цена в объявлении', 'Ціна в оголошенні', 'Asking price')}</span><b>${fmt(l.price)}</b></div><div class="kv"><span>${T('Предложить', 'Запропонувати', 'Offer')}</span><b class="g">${fmt(q.price)} (−${Math.round(q.pct * 100)}%)</b></div><div class="fv-btns"><button class="btn block" data-r="haggle">🤝 ${T('Сбить цену', 'Збити ціну', 'Haggle it down')}</button><button class="btn dark block" data-r="no">${T('Не торговаться', 'Не торгуватися', 'Don’t haggle')}</button></div>`, { after(el) { el.querySelectorAll('[data-r]').forEach((b) => { b.onclick = () => resolveSheet(b.dataset.r); }); } });
+        if (v !== 'haggle') return;
+        const res = bargainAfterInspect(l, fresh);
+        sfx('cash'); toast(T(`Договорились: ${fmt(res.deal)} вместо ${fmt(res.from)}`, `Домовилися: ${fmt(res.deal)} замість ${fmt(res.from)}`, `Deal: ${fmt(res.deal)} instead of ${fmt(res.from)}`), 'g');
+        rerender();
+      } else {
+        const v = await choose(T('Всё как в объявлении', 'Усе як в оголошенні', 'Just as described'), [{ v: 'ask', label: T('Попросить скидку за быструю покупку', 'Попросити знижку за швидку покупку', 'Ask a little off for buying now') }, { v: 'ok', label: T('Ок', 'Ок', 'OK'), cls: 'dark' }]);
+        if (v !== 'ask') return;
+        const res = quickDiscount(l);
+        toast(res.ok ? T(`Скинули: ${fmt(res.deal)}`, `Скинули: ${fmt(res.deal)}`, `Down to ${fmt(res.deal)}`) : T('Продавец не уступил', 'Продавець не поступився', 'The seller won’t budge'), res.ok ? 'g' : '');
+        rerender();
+      }
     },
     legit: async (v) => { const l = findListing(v); if (l) await legitFlow(l.item, itemTitle(l.item)); },
     unlist: (v, el, ev) => { ev.stopPropagation(); unlist(v); toast(T('Снято с продажи', 'Знято з продажу', 'Unlisted')); rerender(); },
@@ -242,7 +265,25 @@ export default {
     counter: async (id) => { const c = chat(id); const p = await askPrice({ title: T('Ваша цена', 'Ваша ціна', 'Your price'), value: nicePrice((c.offer + c.ask) / 2), min: 1, max: c.ask * 1.5 }); if (p) { chatCounter(c, p); sfx('tap'); rerender(); } },
     persuade: async (id) => { const c = chat(id); const r = await playMini('timing', { title: T('Торг: убеждение', 'Торг: переконання', 'Haggle: persuade'), rounds: 2, label: T('Попадите в зелёную зону — аргумент сработает', 'Влучте в зелену зону — аргумент спрацює', 'Hit the green zone to land your argument') }); if (!r.quit) chatPersuade(c, r.score); rerender(); },
     ship: async (id) => { const c = chat(id); const r = await playMini('pack', { title: T('Упаковка', 'Пакування', 'Packing'), pass: 0.5 }); completeSale(c, 'ship', r.quit ? 0.3 : r.score); sfx('ok'); toast(T('Отправлено! Деньги придут после доставки', 'Відправлено! Гроші прийдуть після доставки', 'Shipped! Paid on delivery'), 'g'); rerender(); },
-    meet: (id) => { completeSale(chat(id), 'meet'); sfx('cash'); rerender(); },
+    meet: async (id) => {
+      const c = chat(id); const it = getItem(c?.itemId); if (!c || !it) return;
+      // the viewing: show off the item's strong points to push the price up
+      const pts = showPoints(it);
+      const v = await sheet(`<h2>🤝 ${T('Показ покупателю', 'Показ покупцеві', 'Showing it to the buyer')}</h2><p class="small m">${T(`Договорились на ${fmt(c.offer)}. Покажите сильные стороны — цена вырастет. Неправда (🤥) рискованна: покупатель может проверить.`, `Домовилися на ${fmt(c.offer)}. Покажіть сильні сторони — ціна зросте. Неправда (🤥) ризикована: покупець може перевірити.`, `Agreed at ${fmt(c.offer)}. Show its strong points and the price goes up. Untrue claims (🤥) are risky: the buyer may check.`)}</p>
+        <div class="show-list">${pts.map((p) => `<label class="show-pt ${p.can ? '' : 'off'}"><input type="checkbox" value="${p.k}" ${p.can ? '' : 'disabled'} ${p.can && !p.warn && p.k !== 'test' ? 'checked' : ''}><span>${p.ic} ${esc(p.n)}${p.warn ? ' <b class="o">🤥</b>' : ''}</span><b class="${p.can ? 'g' : 'm'}">${p.can ? '+' + +(p.up * 100).toFixed(1) + '%' : T('нечего показать', 'нічого показати', 'nothing to show')}</b></label>`).join('')}
+        <label class="show-pt"><input type="checkbox" value="pitch"><span>🗣 ${T('Расхвалить вещь (мини‑игра)', 'Розхвалити річ (міні‑гра)', 'Talk it up (mini‑game)')}</span><b class="g">+3%</b></label></div>
+        <div class="fv-btns"><button class="btn block" data-r="go">${T('Показать и продать', 'Показати й продати', 'Show and sell')}</button><button class="btn dark block" data-r="plain">${T('Просто продать', 'Просто продати', 'Just sell')} · ${fmt(c.offer)}</button></div>`, { after(el) { el.querySelectorAll('[data-r]').forEach((b) => { b.onclick = () => resolveSheet(b.dataset.r === 'go' ? JSON.stringify([...el.querySelectorAll('input:checked')].map((x) => x.value)) : b.dataset.r); }); } });
+      if (!v) return;
+      if (v !== 'plain') {
+        const chosen = JSON.parse(v);
+        let pitch = null;
+        if (chosen.includes('pitch')) { const r = await playMini('timing', { title: T('Расхваливаем', 'Розхвалюємо', 'Talking it up'), rounds: 2, label: T('Попадите в зелёную зону — аргумент сработает', 'Влучте в зелену зону — аргумент спрацює', 'Hit the green zone to land your argument') }); pitch = r.quit ? null : r.score; }
+        const res = applyShow(c, it, chosen, pitch);
+        if (!res.ok) { sfx('lose'); toast(T('Покупатель ушёл — поймал на неправде', 'Покупець пішов — спіймав на неправді', 'The buyer walked — caught you lying'), 'r'); rerender(); return; }
+        toast(res.caught ? T(`Поймали на приукрашивании: ${fmt(res.after)}`, `Спіймали на прикрашанні: ${fmt(res.after)}`, `Caught overselling: ${fmt(res.after)}`) : res.after > res.before ? T(`Цена выросла: ${fmt(res.before)} → ${fmt(res.after)}`, `Ціна зросла: ${fmt(res.before)} → ${fmt(res.after)}`, `Price up: ${fmt(res.before)} → ${fmt(res.after)}`) : T(`Итог: ${fmt(res.after)}`, `Підсумок: ${fmt(res.after)}`, `Final: ${fmt(res.after)}`), res.after >= res.before ? 'g' : 'r');
+      }
+      completeSale(c, 'meet'); sfx('cash'); rerender();
+    },
     scamclick: (id) => { const loss = scamClick(chat(id)); toast(`−${fmt(loss)}`, 'r'); sfx('lose'); rerender(); },
     scamreport: (id) => { scamReport(chat(id)); sfx('win'); rerender(); },
     refund: (id) => { resolveClaim(chat(id), 'refund'); rerender(); },
