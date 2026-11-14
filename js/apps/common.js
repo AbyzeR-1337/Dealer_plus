@@ -13,6 +13,7 @@ import { itemValue, itemTitle, isVehicle, knownDefects } from '../game/items.js'
 import { getItem, canStore, stat, upLevel } from '../game/player.js';
 import { LUXURY_CATS } from '../data/catalog.js';
 import { sfx } from '../ui/sfx.js';
+import { useEnergy, hasEnergy } from '../game/needs.js';
 
 export const region = () => countryOf(G.s.player.city);
 export const regApp = (k) => region().apps[k];
@@ -29,7 +30,7 @@ export async function buyFlow(l, price = l.price) {
     { v: 'delivery', label: T(`Доставка: ${fmt(price + fee)}`, `Доставка: ${fmt(price + fee)}`, `Delivery: ${fmt(price + fee)}`), sub: `≈ ${dur(eta)}`, cls: 'dark' },
   ], `${esc(itemTitle(l.item))}`);
   if (!v) return false;
-  if (v === 'pickup' && G.s.energy < pi.energy) { toast(T('Нет сил идти — поешьте или поспите', 'Немає сил іти — поїжте або поспіть', 'Too tired — eat or sleep'), 'r'); return false; }
+  if (v === 'pickup' && !hasEnergy(pi.energy)) { toast(T('Нет сил идти — поешьте или поспите', 'Немає сил іти — поїжте або поспіть', 'Too tired — eat or sleep'), 'r'); return false; }
   const r = buyListing(l, v, price);
   if (!r.ok) { toast(r.msg, 'r'); sfx('err'); return false; }
   sfx('cash');

@@ -15,7 +15,7 @@ import { risk, jailed, payBail, crimeName } from './game/crime.js';
 import { ensureHousing } from './game/housing.js';
 import { initHome } from './ui/home.js';
 import { initGalleries } from './ui/comp.js';
-import { initWorld, startSim, isPaused } from './game/sim.js';
+import { initWorld, startSim, isPaused, advance, catchUp, CATCHUP_MAX } from './game/sim.js';
 import { resolveCustoms } from './game/travel.js';
 import { log, earn, charge, addXP, addReview, addItem, canStore, spend, stat } from './game/player.js';
 import { eventsTick } from './game/events.js';
@@ -42,7 +42,7 @@ const WATCH = {
   shop: ['needs', 'inv'], auction: ['market', 'inv'], legit: ['inv'], lab: ['inv'], pawn: ['inv'], map: ['travel'], stats: [], settings: ['online'], upgrades: [], casino: [],
 };
 function safeRerender(ev) {
-  if (!UI.app) return;
+  if (!UI.app || G.catchup) return;
   const w = UI.app.watch || WATCH[UI.app.id];
   if (ev && w && !w.includes(ev)) return;
   if ($('#mini-layer').children.length) return;
@@ -95,12 +95,50 @@ function startGame() {
   wire();
   startOnline();
   on('jail', renderJail);
+  on('timeSpent', spendTime);
+  on('away', (sec) => runCatchUp(sec));
   renderJail();
   renderStatus();
   renderHome();
+  // how long the game was closed: that time is played out now
+  const away = G.s.lastReal ? (Date.now() - G.s.lastReal) / 1000 : 0;
   startSim();
   $('#boot').classList.remove('on');
-  save();
+  if (away > 8) runCatchUp(away); else save();
+}
+
+// ---------------------------------------------------------------- time instead of energy, and time while away
+const gameHM = (m) => { const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60; return [d ? `${d} ${T('д', 'д', 'd')}` : '', h ? `${h} ${T('ч', 'год', 'h')}` : '', !d && mm ? `${mm} ${T('мин', 'хв', 'min')}` : ''].filter(Boolean).join(' ') || `0 ${T('мин', 'хв', 'min')}`; };
+const realHM = (sec) => { const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60); return h ? `${h} ${T('ч', 'год', 'h')}${m ? ` ${m} ${T('мин', 'хв', 'min')}` : ''}` : `${Math.max(1, m)} ${T('мин', 'хв', 'min')}`; };
+// food & energy off: what used energy moves the clock instead
+function spendTime(m) {
+  advance(m);
+  toast(`⏳ ${T('Прошло', 'Минуло', 'Time passed')} ${gameHM(m)}`);
+}
+let catching = false;
+async function runCatchUp(sec) {
+  if (catching || !G.s) return;
+  catching = true;
+  const layer = document.createElement('div');
+  layer.id = 'away-layer';
+  layer.innerHTML = `<div class="aw-card"><div class="aw-ico pulse">⏳</div><h2>${T('Пока вас не было…', 'Поки вас не було…', 'While you were away…')}</h2><p class="small m">${T(`Игра догоняет ${realHM(Math.min(sec, CATCHUP_MAX))} — посылки, аренда, покупатели, таймеры.`, `Гра наздоганяє ${realHM(Math.min(sec, CATCHUP_MAX))} — посилки, оренда, покупці, таймери.`, `Catching up ${realHM(Math.min(sec, CATCHUP_MAX))} — parcels, rent, buyers, timers.`)}</p><div class="bar aw-bar"><i style="width:0%"></i></div></div>`;
+  document.body.appendChild(layer);
+  const bar = layer.querySelector('.aw-bar i');
+  let r = null;
+  try { r = await catchUp(sec, (p) => { bar.style.width = `${Math.round(p * 100)}%`; }); } catch (e) { console.error(e); }
+  catching = false;
+  if (!r) { layer.remove(); return; }
+  // what happened meanwhile
+  const byApp = {};
+  for (const m of r.news) (byApp[m.app] ||= []).push(m);
+  const appLabel = (id) => (UI.apps[id] ? appName(UI.apps[id]) : { bank: T('Банк', 'Банк', 'Bank'), market: T('Объявления', 'Оголошення', 'Listings'), gov: T('Госуслуги', 'Держпослуги', 'Gov'), quests: T('Задания', 'Завдання', 'Quests') }[id] || id);
+  const groups = Object.entries(byApp).sort((a, b) => b[1].length - a[1].length).slice(0, 6).map(([app, list]) => `<div class="aw-row"><b>${esc(appLabel(app))}</b><span>${list.length}</span><small>${esc(list[list.length - 1].title)} — ${esc(list[list.length - 1].text).slice(0, 70)}</small></div>`).join('');
+  layer.innerHTML = `<div class="aw-card"><div class="aw-ico">🌙</div><h2>${T('Пока вас не было', 'Поки вас не було', 'While you were away')} — ${realHM(r.real)}</h2><p class="small m">${T('В игре прошло', 'У грі минуло', 'In game')} ${gameHM(r.mins)}${r.capped ? ` · ${T('догоняем не больше 12 часов', 'наздоганяємо не більше 12 годин', 'catch‑up is capped at 12 hours')}` : ''}</p>
+    <div class="aw-stats"><div><small>${T('Деньги', 'Гроші', 'Money')}</small><b class="${r.money >= 0 ? 'g' : 'r'}">${r.money >= 0 ? '+' : '−'}${fmt(Math.abs(r.money))}</b></div><div><small>${T('Продано', 'Продано', 'Sold')}</small><b>${r.sold}</b></div><div><small>${T('Сообщений', 'Повідомлень', 'Messages')}</small><b>${r.news.length}</b></div></div>
+    ${groups || `<p class="small m">${T('Ничего особенного не случилось.', 'Нічого особливого не сталося.', 'Nothing special happened.')}</p>`}
+    <button class="btn block mt" id="aw-ok">${T('Продолжить', 'Продовжити', 'Continue')}</button></div>`;
+  layer.querySelector('#aw-ok').onclick = () => { layer.classList.add('out'); setTimeout(() => layer.remove(), 250); refreshAll(); };
+  refreshAll();
 }
 
 // ---------------------------------------------------------------- random life events (QTE)

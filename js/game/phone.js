@@ -18,7 +18,7 @@ export function ensurePhone(allApps) {
   const s = G.s;
   if (!s.installed) {
     // older saves: keep every app the player could already open
-    s.installed = s.t > 8 * 60 + 5 && allApps ? allApps.filter((a) => (a.lvl || 1) <= s.level && !APP_META[a.id]?.secret).map((a) => a.id) : [...PREINSTALLED];
+    s.installed = s.t > 8 * 60 + 5 && allApps ? allApps.filter((a) => !APP_META[a.id]?.secret).map((a) => a.id) : [...PREINSTALLED];
   }
   for (const id of PREINSTALLED) if (!s.installed.includes(id)) s.installed.push(id);
   s.dl ||= {};
@@ -36,7 +36,6 @@ export function startDownload(app) {
   const s = G.s;
   const meta = APP_META[app.id] || {};
   if (isInstalled(app.id) || s.dl[app.id]) return { ok: false };
-  if ((app.lvl || 1) > s.level) return { ok: false, msg: T(`Доступно с ${app.lvl} уровня`, `Доступно з ${app.lvl} рівня`, `Available from level ${app.lvl}`) };
   if (meta.secret && !vpnActive()) return { ok: false, msg: T('Скрытые приложения качаются только через VPN', 'Приховані застосунки завантажуються лише через VPN', 'Hidden apps download only over a VPN') };
   if (meta.price && !(s.bought || []).includes(app.id)) {
     if (!spend(meta.price, 'apps', T(`Покупка: ${L(app.name)}`, `Покупка: ${L(app.name)}`, `Purchase: ${L(app.name)}`))) return { ok: false, msg: T('Не хватает денег', 'Не вистачає грошей', 'Not enough money') };

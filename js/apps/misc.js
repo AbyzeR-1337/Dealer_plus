@@ -1,6 +1,8 @@
 // Misc apps: Quests, Upgrades, News, Stats, Rating (leaderboard + friends), Settings.
 import { G, emit, save, wipe, exportSave, importSave } from '../core/state.js';
 import { DIFF, dv } from '../game/difficulty.js';
+import { redeem, usedPromos } from '../game/promo.js';
+import { noNeeds, MIN_PER_ENERGY } from '../game/needs.js';
 import { T, L, LANGS, setLang, lang, dur } from '../core/i18n.js';
 import { esc, clamp } from '../core/util.js';
 import { fmt } from '../core/money.js';
@@ -146,6 +148,8 @@ function setMain() {
   const s = G.s;
   const DF = dv();
   return `<div class="card"><h3>🎚 ${T('Сложность', 'Складність', 'Difficulty')}</h3><div class="seg mt">${Object.values(DIFF).map((d) => `<button class="${DF.id === d.id ? 'on' : ''}" data-a="diff" data-v="${d.id}">${d.icon} ${d.n()}</button>`).join('')}</div><div class="d mt">${DF.d()}</div></div>
+    <div class="card"><h3>🍔⚡ ${T('Еда и энергия', 'Їжа та енергія', 'Food & energy')}</h3><div class="seg mt"><button class="${!noNeeds() ? 'on' : ''}" data-a="needs" data-v="1">${T('Включены', 'Увімкнені', 'On')}</button><button class="${noNeeds() ? 'on' : ''}" data-a="needs" data-v="0">${T('Выключены', 'Вимкнені', 'Off')}</button></div><div class="d mt">${noNeeds() ? T(`Голода и усталости нет. Всё, что тратило энергию, теперь занимает игровое время: 1 энергия = ${MIN_PER_ENERGY} мин (смена ≈ 1,5 ч, встреча с продавцом ≈ 40 мин).`, `Голоду й утоми немає. Усе, що витрачало енергію, тепер займає ігровий час: 1 енергія = ${MIN_PER_ENERGY} хв (зміна ≈ 1,5 год, зустріч із продавцем ≈ 40 хв).`, `No hunger or tiredness. Whatever used energy now takes game time: 1 energy = ${MIN_PER_ENERGY} min (a shift ≈ 1.5 h, a meet‑up ≈ 40 min).`) : T('Нужно есть и спать, действия тратят энергию. Выключите, чтобы вместо энергии действия занимали игровое время.', 'Треба їсти й спати, дії витрачають енергію. Вимкніть, щоб замість енергії дії займали ігровий час.', 'You eat and sleep, actions use energy. Switch off to make actions take game time instead.')}</div></div>
+    <div class="card"><h3>🎁 ${T('Промокод', 'Промокод', 'Promo code')}</h3><div class="row mt" style="gap:8px"><input class="input grow" id="promo-in" placeholder="${T('Введите промокод', 'Введіть промокод', 'Enter a code')}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" data-a="promo">${T('Активировать', 'Активувати', 'Redeem')}</button></div>${usedPromos().length ? `<div class="small m mt">${T('Активировано', 'Активовано', 'Redeemed')}: ${usedPromos().length}</div>` : ''}</div>
     <div class="card"><h3>${T('Язык', 'Мова', 'Language')}</h3><div class="opt-grid mt">${LANGS.map((l) => `<button class="${lang() === l.id ? 'on' : ''}" data-a="lang" data-v="${l.id}">${l.flag} ${l.name}</button>`).join('')}</div></div>
     <div class="card"><h3>${T('Валюта отображения', 'Валюта відображення', 'Display currency')}</h3><div class="d">${T('«Местная» — валюта страны, где вы сейчас.', '«Місцева» — валюта країни, де ви зараз.', '“Local” follows the country you’re in.')}</div><div class="chips wrap mt"><button class="chip${s.settings.cur === 'auto' ? ' on' : ''}" data-a="cur" data-v="auto">${T('Местная', 'Місцева', 'Local')}</button>${Object.keys(CURRENCIES).map((c) => `<button class="chip${s.settings.cur === c ? ' on' : ''}" data-a="cur" data-v="${c}">${c} ${CURRENCIES[c].sym}</button>`).join('')}</div></div>
     <div class="card"><h3>${T('Звук', 'Звук', 'Sound')}</h3><div class="seg mt"><button class="${s.settings.sound !== false ? 'on' : ''}" data-a="snd" data-v="1">${T('Вкл', 'Увімк', 'On')}</button><button class="${s.settings.sound === false ? 'on' : ''}" data-a="snd" data-v="0">${T('Выкл', 'Вимк', 'Off')}</button></div></div>
@@ -163,6 +167,13 @@ export const settingsApp = {
     lang: (v) => { G.s.player.lang = v; setLang(v); save(); refreshAll(); },
     cur: (v) => { G.s.settings.cur = v; save(); refreshAll(); },
     snd: (v) => { G.s.settings.sound = v === '1'; rerender(); },
+    needs: (v) => { G.s.settings.noNeeds = v === '0'; if (G.s.settings.noNeeds) { G.s.food = 100; G.s.energy = 100; } save(); emit('needs'); toast(v === '0' ? T('Еда и энергия выключены — действия занимают время', 'Їжа та енергія вимкнені — дії займають час', 'Food & energy off — actions take time') : T('Еда и энергия включены', 'Їжа та енергія увімкнені', 'Food & energy on'), 'g'); rerender(); },
+    promo: () => {
+      const inp = document.querySelector('#promo-in');
+      const r = redeem(inp?.value);
+      if (r.ok) { sfx('win'); toast(T(`Промокод «${r.name}»: +${fmt(r.usd)}`, `Промокод «${r.name}»: +${fmt(r.usd)}`, `Code “${r.name}”: +${fmt(r.usd)}`), 'g'); if (inp) inp.value = ''; } else { sfx('err'); toast(r.msg, 'r'); }
+      rerender();
+    },
     diff: (v) => { G.s.settings.diff = v; save(); toast(`${DIFF[v].icon} ${DIFF[v].n()}`, 'g'); rerender(); },
     srvset: async () => {
       const v = await sheet(`<h2>${T('Сервер мультиплеера', 'Сервер мультиплеєра', 'Multiplayer server')}</h2><p class="p">${T('Supabase → Project Settings → API: Project URL и anon public key.', 'Supabase → Project Settings → API: Project URL і anon public key.', 'Supabase → Project Settings → API: Project URL and anon public key.')}</p><input class="input" id="su" placeholder="https://xxxx.supabase.co" autocapitalize="off" autocorrect="off"><input class="input mt" id="sk" placeholder="anon key (eyJ...)" autocapitalize="off" autocorrect="off"><button class="btn block mt" id="sok">${T('Подключить', 'Підключити', 'Connect')}</button>`, { after(el) { el.querySelector('#sok').onclick = () => resolveSheet(JSON.stringify([el.querySelector('#su').value, el.querySelector('#sk').value])); } });

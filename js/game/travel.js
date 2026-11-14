@@ -10,6 +10,7 @@ import { spend, charge, stat, addXP, notify, log, getItem, removeItem, luggageCa
 import { itemValue, itemTitle, isVehicle, sizeUnits } from './items.js';
 import { fmt } from '../core/money.js';
 import { regionMult } from './economy.js';
+import { useEnergy, hasEnergy } from './needs.js';
 
 export function tripOptions(to) {
   const s = G.s;
@@ -32,7 +33,7 @@ export function startTrip(to, mode, carryIds = []) {
   if (mode === 'car' && s.car) carry.push(s.car);
   for (const id of carry) { const it = getItem(id); if (it) it.loc = 'transit'; }
   s.travel = { from: s.player.city, to, mode, start: s.t, eta: s.t + opt.time, carry };
-  s.energy = clamp(s.energy - 8, 0, 100);
+  useEnergy(8);
   log('travel', `${L(MODES[mode])} → ${L(CITY[to].name)}`);
   emit('travel');
   return { ok: true };

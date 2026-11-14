@@ -1,4 +1,6 @@
-// Simulation loop: 1 real second = 1 game minute while the app is open.
+// Simulation loop: 1 real second = 1 game minute. When the game was closed, in the background or the phone
+// was locked, the missed time is caught up on return (up to CATCHUP_MAX real seconds), so deliveries arrive,
+// rent is paid, tenants pay, timers run out — as if the game had kept going.
 import { G, emit, save } from '../core/state.js';
 import { T, L } from '../core/i18n.js';
 import { chance } from '../core/util.js';
@@ -29,6 +31,9 @@ import { onlineTick } from './online.js';
 
 let timer = null;
 let paused = false;
+let catching = false, lastBeat = Date.now();
+export const CATCHUP_MAX = 12 * 3600; // real seconds
+export const catchingUp = () => catching;
 
 export function initWorld() {
   initEconomy();
@@ -41,11 +46,45 @@ export function initWorld() {
 export function startSim() {
   if (timer) return;
   let n = 0;
-  timer = setInterval(() => { if (!paused && G.s && !document.hidden) { tick(); if (dv().fast && ++n % 4 === 0) tick(); } }, 1000);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) save(); else G.s && (G.s.lastReal = Date.now()); });
+  timer = setInterval(() => {
+    const now = Date.now(), gap = (now - lastBeat) / 1000; lastBeat = now;
+    if (paused || !G.s || document.hidden || catching) return;
+    // the page was frozen (phone locked, app switched) without a visibility event: catch up the gap
+    if (gap > 8) { emit('away', gap - 1); return; }
+    tick(); if (dv().fast && ++n % 4 === 0) tick();
+  }, 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { save(); return; }
+    lastBeat = Date.now();
+    const gap = G.s?.lastReal ? (Date.now() - G.s.lastReal) / 1000 : 0;
+    if (G.s && !paused && gap > 8) emit('away', gap);
+  });
   window.addEventListener('pagehide', save);
 }
 export const setPaused = (v) => { paused = v; };
+// run the missed game minutes in chunks (the UI shows progress), then report what happened meanwhile
+export async function catchUp(sec, onProgress) {
+  const s = G.s;
+  if (!s || catching || paused) return null;
+  const real = Math.min(sec, CATCHUP_MAX);
+  const mins = Math.floor(real * (dv().fast ? 1.25 : 1));
+  if (mins < 5) return null;
+  catching = true; G.catchup = true;
+  const before = { money: s.money, t: s.t, ids: new Set((s.inbox || []).map((m) => m.id)), sold: s.stats.sold || 0, profit: s.stats.profit || 0, inv: s.inv.length };
+  try {
+    let done = 0;
+    while (done < mins) {
+      const n = Math.min(480, mins - done);
+      for (let i = 0; i < n; i++) tick(true);
+      done += n;
+      onProgress?.(done / mins);
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  } finally { catching = false; G.catchup = false; lastBeat = Date.now(); }
+  for (const ev of ['tick', 'market', 'inv', 'badges', 'deliveries', 'chats', 'house', 'sup', 'needs']) emit(ev);
+  save();
+  return { sec, real, mins, capped: sec > CATCHUP_MAX, money: s.money - before.money, sold: (s.stats.sold || 0) - before.sold, profit: (s.stats.profit || 0) - before.profit, news: (s.inbox || []).filter((m) => !before.ids.has(m.id)) };
+}
 export const isPaused = () => paused;
 
 function deliveriesTick() {
@@ -100,7 +139,7 @@ export function tick(fast = false) {
   travelTick();
   bankTick();
   numbersTick();
-  if (s.t % 10 === 0) needsTick();
+  if (s.t % 10 === 0 && !catching) needsTick();
   if (s.t % 60 === 0) { bizHourly(); stocksTick(); }
   if (s.t % 15 === 0) storyTick();
   const d = Math.floor(s.t / 1440);

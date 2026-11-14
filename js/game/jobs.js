@@ -9,6 +9,7 @@ import { earn, stat, addXP, upLevel, notify, log, getStat, repScore } from './pl
 import { fmt } from '../core/money.js';
 import { npcName } from './npc.js';
 import { RNG } from '../core/rng.js';
+import { useEnergy, hasEnergy } from './needs.js';
 
 // pay: USD per shift at wage index 1 (scaled by country wage index)
 export const JOBS = [
@@ -140,13 +141,13 @@ export function quitJob() {
   s.job.cur = null;
   emit('jobs');
 }
-export const canShift = () => { const s = G.s; return s.job.cur && s.t >= s.job.next && s.energy >= 12 && !(s.sick && s.sick.until > s.t); };
+export const canShift = () => { const s = G.s; return s.job.cur && s.t >= s.job.next && hasEnergy(12) && !(s.sick && s.sick.until > s.t); };
 export function finishShift(score) {
   const s = G.s;
   const job = jobById(s.job.cur);
   const pay = shiftPay(job) * (0.45 + score * 0.75);
   earn(pay, 'job', L(job.n));
-  s.energy = clamp(s.energy - 14, 0, 100);
+  useEnergy(14);
   s.food = clamp(s.food - 8, 0, 100);
   s.job.next = s.t + SHIFT_COOLDOWN;
   s.job.shifts++;
@@ -178,7 +179,7 @@ export function finishGig(gig, score) {
   const s = G.s;
   const pay = gig.pay * wageIdx() * (0.4 + score * 0.8);
   earn(pay, 'job', L(gig.n));
-  s.energy = clamp(s.energy - 10, 0, 100);
+  useEnergy(10);
   s.gigs ||= {}; s.gigs[gig.id] = s.t + gig.cd;
   stat('gigs'); addXP(6 + score * 6);
   return pay;

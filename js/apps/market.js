@@ -20,6 +20,7 @@ import { traitName, TRAITS } from '../game/npc.js';
 import { playMini } from '../mini/engine.js';
 import { regName, regColors, cityName, buyFlow, inspectFlow, legitFlow, sellFlow, region } from './common.js';
 import { sfx } from '../ui/sfx.js';
+import { useEnergy, hasEnergy } from '../game/needs.js';
 
 const F = { q: '', cat: 'all', sort: 'new' };
 const SORTS = { new: ['Сначала новые', 'Спочатку нові', 'Newest first'], cheap: ['Дешевле', 'Дешевше', 'Cheapest'], exp: ['Дороже', 'Дорожче', 'Most expensive'], deal: ['Выгодные', 'Вигідні', 'Best deals'] };
@@ -201,10 +202,10 @@ export default {
       const l = findListing(v); if (!l || l.sold) return;
       const pi = pickupInfo(l);
       if (!l.item.inspected) {
-        if (G.s.energy < pi.energy) return toast(T('Нет сил — отдохните', 'Немає сил — відпочиньте', 'Too tired — rest first'), 'r');
+        if (!hasEnergy(pi.energy)) return toast(T('Нет сил — отдохните', 'Немає сил — відпочиньте', 'Too tired — rest first'), 'r');
         const { spend } = await import('../game/player.js');
         if (!spend(pi.fare, 'travel', T('Дорога на осмотр', 'Дорога на огляд', 'Trip to inspect'))) return toast(T('Не хватает на дорогу', 'Не вистачає на дорогу', 'Can’t afford the fare'), 'r');
-        G.s.energy = clamp(G.s.energy - pi.energy, 0, 100);
+        useEnergy(pi.energy);
       }
       await inspectFlow(l.item, itemTitle(l.item));
     },

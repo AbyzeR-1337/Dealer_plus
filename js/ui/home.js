@@ -184,8 +184,13 @@ function moveKey(key, toPage, before) {
   pg.splice(i, 0, key);
   return true;
 }
+let dragging = false;
 function startDrag(el, e) {
   const key = el.dataset.hk;
+  // the finger that holds the icon; any other finger swiping sideways flips the pages (like on an iPhone)
+  const pid = e.pointerId;
+  const others = new Map();
+  dragging = true; document.body.classList.add('hdrag');
   const r = el.getBoundingClientRect();
   const ghost = el.cloneNode(true);
   ghost.classList.add('hghost');
@@ -196,7 +201,19 @@ function startDrag(el, e) {
   let lastT = 0, lastTarget = '', edgeT = 0;
   const mark = () => document.querySelectorAll(`[data-hk="${CSS.escape(key)}"]`).forEach((x) => x.classList.add('dragging'));
   mark();
+  const flip = (dir) => {
+    const W = home.clientWidth;
+    const np = clamp(HOME.page + dir, 0, G.s.home.lay.pages.length);
+    if (np !== HOME.page && moveKey(key, np, null)) { HOME.page = np; renderHomeScreen(); home.scrollTo({ left: np * W, behavior: 'smooth' }); mark(); navigator.vibrate?.(8); }
+  };
+  const odown = (ev) => { if (ev.pointerId !== pid) others.set(ev.pointerId, { x: ev.clientX, y: ev.clientY, done: false }); };
+  const omove = (ev) => {
+    const o = others.get(ev.pointerId); if (!o || o.done) return;
+    const dx = ev.clientX - o.x;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(ev.clientY - o.y)) { o.done = true; flip(dx < 0 ? 1 : -1); }
+  };
   const move = (ev) => {
+    if (ev.pointerId !== undefined && ev.pointerId !== pid) return omove(ev);
     ghost.style.transform = `translate(${ev.clientX - dx}px, ${ev.clientY - dy}px) scale(1.08)`;
     const now = performance.now();
     const W = home.clientWidth, hr = home.getBoundingClientRect();
@@ -233,14 +250,16 @@ function startDrag(el, e) {
     }
     renderHomeScreen(); mark();
   };
-  const up = () => {
-    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+  const up = (ev) => {
+    if (ev && ev.pointerId !== undefined && ev.pointerId !== pid) { others.delete(ev.pointerId); return; }
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); window.removeEventListener('pointerdown', odown, true);
+    dragging = false; document.body.classList.remove('hdrag');
     ghost.remove();
     document.querySelectorAll('.dragging').forEach((x) => x.classList.remove('dragging'));
     renderHomeScreen();
     emit('home');
   };
-  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up); window.addEventListener('pointerdown', odown, true);
   move(e);
 }
 export function initHome() {
@@ -258,7 +277,7 @@ export function initHome() {
   home.addEventListener('contextmenu', (e) => { e.preventDefault(); HOME.edit = true; renderHomeScreen(); });
   // drag icons and widgets in edit mode — on the pages and in/out of the dock
   const down = (e) => {
-    if (!HOME.edit || e.button > 0) return;
+    if (!HOME.edit || e.button > 0 || dragging) return;
     const el = e.target.closest('[data-hk]');
     if (!el || e.target.closest('.wx')) return;
     const x0 = e.clientX, y0 = e.clientY;

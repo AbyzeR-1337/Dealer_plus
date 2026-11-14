@@ -10,6 +10,7 @@ import { nicePrice, fmt } from '../core/money.js';
 import { npcName } from './npc.js';
 import { canStore, addItem, spend, earn, charge, stat, addXP, upLevel, notify, log, freeSpace, getItem, removeItem, addProfit } from './player.js';
 import { DISTRICTS, maxValForLevel } from './market.js';
+import { useEnergy, hasEnergy } from './needs.js';
 
 // ---------------------------------------------------------------- free stuff
 export function freeFeed() {
@@ -69,7 +70,7 @@ export function claimFree(g, won) {
   if (!won) return { ok: false };
   if (!canStore(g.item)) return { ok: false, msg: T('Нет места на складе', 'Немає місця на складі', 'No storage space') };
   addItem(g.item, 0, 'free');
-  s.energy = clamp(s.energy - 6, 0, 100);
+  useEnergy(6);
   stat('freebies'); addXP(6);
   log('free', itemTitle(g.item));
   emit('inv');

@@ -43,7 +43,7 @@ export function renderStatus() {
 // ---------------------------------------------------------------- home screen
 function appColors(a) { const c = typeof a.colors === 'function' ? a.colors() : a.colors; return c || ['#2a63ff', '#1b3fb0']; }
 export const appName = (a) => (typeof a.name === 'function' ? a.name() : L(a.name));
-export const appLocked = (a) => (a.lvl || 1) > G.s.level;
+export const appLocked = () => false; // every app can be downloaded and opened from the start
 function appBadge(a) { const n = (a.badge ? a.badge() : 0) || G.s.unread[a.id] || 0; return n; }
 export function iconHTML(a, dock = false, removable = false) {
   const [c1, c2] = appColors(a);
@@ -291,6 +291,7 @@ export function toast(text, cls = '') {
   setTimeout(() => { d.style.transition = 'opacity .3s'; d.style.opacity = '0'; setTimeout(() => d.remove(), 300); }, 2300);
 }
 export function banner({ app, title, text, go: target }) {
+  if (G.catchup) return; // catching up missed time: one summary instead of a hundred banners
   const a = UI.apps[app] || UI.apps.news;
   if (UI.app && UI.app.id === app && !target) return; // already looking at it
   const l = $('#banner-layer');
@@ -299,10 +300,27 @@ export function banner({ app, title, text, go: target }) {
   const d = document.createElement('div');
   d.className = 'banner';
   d.innerHTML = `<div class="bi" style="--a:${c1};--b:${c2}">${icon(a?.glyph || 'bell')}</div><div class="grow"><div class="bt">${esc(title)}</div><div class="bs">${esc(text)}</div></div><small>${gameClock()}</small>`;
-  d.onclick = () => { d.remove(); const t = target || [app]; openApp(t[0], t[1] || 'main', t[2] || {}); };
+  let sx = null, sy = 0, moved = false, held = false;
+  d.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; moved = false; held = true; d.style.transition = 'none'; d.setPointerCapture?.(e.pointerId); });
+  d.addEventListener('pointermove', (e) => {
+    if (sx == null) return;
+    const dx = e.clientX - sx, dy = Math.min(0, e.clientY - sy) + Math.max(0, e.clientY - sy) * 0.2;
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
+    d.style.transform = `translate(${dx}px, ${dy}px)`; d.style.opacity = String(1 - Math.min(0.75, (Math.abs(dx) + Math.max(0, -dy) * 2) / 320));
+  });
+  const release = (e) => {
+    if (sx == null) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy; sx = null; held = false;
+    d.style.transition = 'transform .22s ease, opacity .22s ease';
+    if (dy < -24 || Math.abs(dx) > 70) { d.style.transform = dy < -24 && Math.abs(dx) < 70 ? 'translateY(-150%)' : `translateX(${dx > 0 ? 130 : -130}%)`; d.style.opacity = '0'; setTimeout(() => d.remove(), 230); }
+    else { d.style.transform = ''; d.style.opacity = ''; }
+  };
+  d.addEventListener('pointerup', release); d.addEventListener('pointercancel', release);
+  d.onclick = () => { if (moved) return; d.remove(); const t = target || [app]; openApp(t[0], t[1] || 'main', t[2] || {}); };
   l.appendChild(d);
   sfx('note');
-  setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 320); }, 3800);
+  const hide = () => { if (!d.isConnected) return; if (held) return setTimeout(hide, 800); d.classList.add('out'); setTimeout(() => d.remove(), 320); };
+  setTimeout(hide, 3800);
 }
 
 // ---------------------------------------------------------------- global event delegation
@@ -318,10 +336,12 @@ const GLOBAL = {
   apStep: (v, el) => el.closest('.sheet')._step(+v),
   apOk: (v, el) => el.closest('.sheet')._ok(),
 };
+let swipedAt = 0;
 export function initShell() {
   document.addEventListener('click', (ev) => {
     const el = ev.target.closest('[data-a]');
     if (!el || el.dataset.a === '') return;
+    if (el.closest('[data-swipe]') && performance.now() - swipedAt < 350) return; // that was a swipe, not a tap
     if (el.closest('.mini') && !el.closest('.mres') && !el.dataset.global) return; // minigames handle their own clicks
     const name = el.dataset.a, v = el.dataset.v;
     ev.preventDefault();
@@ -336,6 +356,37 @@ export function initShell() {
     const fn = UI.app.inputs[el.dataset.in];
     if (fn) fn(el.value, el, ev);
   });
+  // rows you can swipe away (messages): drag left past a third of the width → the row's swipe action
+  let sw = null;
+  document.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest('[data-swipe]');
+    if (!el || e.button > 0) return;
+    sw = { el, x: e.clientX, y: e.clientY, on: false, id: e.pointerId };
+  }, { passive: true });
+  document.addEventListener('pointermove', (e) => {
+    if (!sw || e.pointerId !== sw.id) return;
+    const dx = e.clientX - sw.x, dy = e.clientY - sw.y;
+    if (!sw.on) { if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { sw = null; return; } if (Math.abs(dx) < 10) return; sw.on = true; sw.el.style.transition = 'none'; sw.el.closest('.sw-wrap')?.classList.add('swiping'); }
+    sw.el.style.transform = `translateX(${Math.min(0, dx)}px)`;
+  }, { passive: true });
+  const swEnd = (e) => {
+    if (!sw || e.pointerId !== sw.id) return;
+    const { el, on } = sw, dx = e.clientX - sw.x; sw = null;
+    if (!on) return;
+    swipedAt = performance.now();
+    el.style.transition = 'transform .2s ease';
+    const wrap = el.closest('.sw-wrap');
+    if (dx < -Math.max(80, el.offsetWidth * 0.33)) {
+      el.style.transform = 'translateX(-110%)';
+      setTimeout(() => {
+        wrap?.classList.add('gone');
+        const fn = UI.app?.actions?.[el.dataset.swipe];
+        setTimeout(() => { try { fn?.(el.dataset.v, el); } catch (err) { console.error(err); } }, 160);
+      }, 180);
+    } else { el.style.transform = ''; setTimeout(() => wrap?.classList.remove('swiping'), 200); }
+  };
+  document.addEventListener('pointerup', swEnd, { passive: true });
+  document.addEventListener('pointercancel', swEnd, { passive: true });
   // finger down / momentum scroll: hold background re-renders until the screen settles
   document.addEventListener('scroll', () => markBusy(450), { capture: true, passive: true });
   document.addEventListener('touchstart', () => markBusy(900), { passive: true });

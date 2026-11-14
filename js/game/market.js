@@ -10,6 +10,7 @@ import { nicePrice, fmt } from '../core/money.js';
 import { makeSeller, SELLER_TRAITS, PH, say, fill } from './npc.js';
 import { canStore, addItem, spend, stat, addXP, upLevel, notify, log, luggageCap } from './player.js';
 import { day } from './economy.js';
+import { useEnergy, hasEnergy } from './needs.js';
 
 export const FEED_REFRESH = 300; // game minutes (= real seconds)
 export const DISTRICTS = [
@@ -153,7 +154,7 @@ export function buyListing(l, mode, price = l.price) {
     notify('delivery', T('Заказ оформлен', 'Замовлення оформлено', 'Order placed'), itemTitle(it), { silent: true });
   } else {
     addItem(it, price + fee, 'market');
-    s.energy = clamp(s.energy - pickupInfo(l).energy, 0, 100);
+    useEnergy(pickupInfo(l).energy);
   }
   stat('bought'); stat('boughtSum', price);
   addXP(4 + Math.min(30, price / 50));

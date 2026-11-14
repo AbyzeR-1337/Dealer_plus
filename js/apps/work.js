@@ -16,6 +16,7 @@ import { DISTRICTS } from '../game/market.js';
 import { playMini } from '../mini/engine.js';
 import { regName, regColors } from './common.js';
 import { sfx } from '../ui/sfx.js';
+import { useEnergy, hasEnergy } from '../game/needs.js';
 
 // ---------------------------------------------------------------- JOBS
 function jobMain() {
@@ -103,7 +104,7 @@ export const jobsApp = {
     },
     gig: async (id) => {
       const g = GIGS.find((x) => x.id === id);
-      if (G.s.energy < 10) return toast(T('Нет сил', 'Немає сил', 'Too tired'), 'r');
+      if (!hasEnergy(10)) return toast(T('Нет сил', 'Немає сил', 'Too tired'), 'r');
       const r = await playMini(g.game, { title: L(g.n) });
       if (r.quit) return;
       const pay = finishGig(g, r.score);
@@ -148,7 +149,7 @@ export const freeApp = {
       const s = G.s;
       const g = s.free.items.find((x) => x.id === id);
       if (!g || g.taken) return;
-      if (s.energy < 6) return toast(T('Нет сил', 'Немає сил', 'Too tired'), 'r');
+      if (!hasEnergy(6)) return toast(T('Нет сил', 'Немає сил', 'Too tired'), 'r');
       if (!canStore(g.item)) return toast(T('Нет места на складе', 'Немає місця на складі', 'No storage space'), 'r');
       // bait: "free, just pay delivery"
       if (g.bait) {
@@ -157,7 +158,7 @@ export const freeApp = {
         else if (v === 'no') { g.taken = true; sfx('ok'); toast(T('Правильно — это была ловушка', 'Правильно — це була пастка', 'Right — it was a trap'), 'g'); }
         rerender(); return;
       }
-      s.energy = clamp(s.energy - 3, 0, 100);
+      useEnergy(3);
       // while you were on the way someone else may already have taken it
       if (freeAlreadyGone(g)) { g.taken = true; sfx('lose'); toast(T('Пока вы ехали — уже забрали', 'Поки ви їхали — вже забрали', 'Gone before you got there'), 'r'); rerender(); return; }
       // the trip itself: message the giver, route, entrance, intercom, the right bag — while another taker races you
@@ -171,8 +172,8 @@ export const freeApp = {
     },
     dig: async () => {
       const s = G.s;
-      if (s.energy < 8) return toast(T('Нет сил', 'Немає сил', 'Too tired'), 'r');
-      s.energy = clamp(s.energy - 8, 0, 100);
+      if (!hasEnergy(8)) return toast(T('Нет сил', 'Немає сил', 'Too tired'), 'r');
+      useEnergy(8);
       s.dumpAt = s.t + 60;
       const r = await playMini('dig', { title: T('Мусорка', 'Смітник', 'Dumpster'), pass: 0.4 });
       if (r.quit) return;

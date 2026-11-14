@@ -9,6 +9,7 @@ import { earn, spend, charge, stat, addXP, notify, log, houseDef, HOUSING, snaps
 import { fmt } from '../core/money.js';
 import { itemTitle, isVehicle } from './items.js';
 import { day } from './economy.js';
+import { noNeeds } from './needs.js';
 
 export const FOOD = [
   { id: 'shawarma', n: ['Шаурма у метро', 'Шаурма біля метро', 'Street shawarma'], price: 3, food: 30, energy: 0, icon: '🌯', junk: 1, risk: 0.04 },
@@ -54,6 +55,7 @@ export const hotelPrice = () => 22 * countryOf(G.s.player.city).rent + 8;
 // passive drain every 10 game minutes
 export function needsTick() {
   const s = G.s;
+  if (noNeeds()) { s.food = 100; s.energy = 100; s.junk = 0; return; } // food & energy switched off in Settings
   const k = dv().needs, sick = isSick();
   s.food = clamp(s.food - 0.55 * k * (sick ? 1.5 : 1), 0, 100);
   s.energy = clamp(s.energy - ((s.food < 12 ? 0.8 : 0.22) + (sick ? 0.45 : 0)) * k, 0, 100);

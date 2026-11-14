@@ -1,6 +1,7 @@
 // Life apps: Profile (needs, sleep, food), Real estate, Travel, City map (flea market) and Pawn shop.
 import { G, emit } from '../core/state.js';
 import { recordCard } from '../ui/record.js';
+import { noNeeds } from '../game/needs.js';
 import { T, L, dur, fmtDate } from '../core/i18n.js';
 import { esc, clamp, uid } from '../core/util.js';
 import { RNG } from '../core/rng.js';
@@ -32,6 +33,7 @@ function profMain() {
   const h = houseDef();
   const car = s.car ? getItem(s.car) : null;
   return `<div class="card"><div class="levelrow"><div class="lv">${s.level}</div><div class="grow"><b style="font-size:19px">${esc(s.player.name)}</b><div class="small m">${countryOf(s.player.city).flag} ${esc(cityName())} · ★ ${repScore() ? repScore().toFixed(2) : '—'} (${s.rep.n})</div>${bar((s.xp / xpNeed(s.level)) * 100, 'var(--acc2)')}<div class="tiny m">XP ${s.xp} / ${xpNeed(s.level)}</div></div></div></div>
+    ${noNeeds() ? `<div class="card small">🍔⚡ ${T('Еда и энергия выключены в настройках: голода и усталости нет, действия занимают игровое время.', 'Їжа та енергія вимкнені в налаштуваннях: голоду й утоми немає, дії займають ігровий час.', 'Food & energy are off in Settings: no hunger or tiredness, actions take game time.')}</div>` : ''}
     <div class="stats"><div class="stat"><small>⚡ ${T('Энергия', 'Енергія', 'Energy')}</small><b data-live="energy">${Math.round(s.energy)}</b>${bar(s.energy, s.energy < 25 ? 'var(--red)' : '')}</div><div class="stat"><small>🍔 ${T('Сытость', 'Ситість', 'Food')}</small><b data-live="food">${Math.round(s.food)}</b>${bar(s.food, 'var(--yel)')}</div></div>
     <div class="btns"><button class="btn" data-a="eatMenu">🍔 ${T('Поесть', 'Поїсти', 'Eat')}</button><button class="btn dark" data-a="sleepMenu">🌙 ${T('Спать', 'Спати', 'Sleep')}</button></div>
     ${s.food < 12 ? `<div class="card warn small">${T('Вы голодны — энергия тает быстрее.', 'Ви голодні — енергія тане швидше.', 'You’re hungry — energy drains faster.')}</div>` : ''}

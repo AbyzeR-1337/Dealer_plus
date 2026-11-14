@@ -19,7 +19,6 @@ function getBtn(a) {
   if (isInstalled(a.id)) return `<button class="getb" data-a="openA" data-v="${a.id}">${T('ОТКРЫТЬ', 'ВІДКРИТИ', 'OPEN')}</button>`;
   const d = downloading(a.id);
   if (d) { const p = Math.round(dlProgress(a.id) * 100); return `<div class="dlring" style="--p:${p}"><span data-cd="${d.end}"></span></div>`; }
-  if ((a.lvl || 1) > G.s.level) return `<span class="getb off">🔒 ${T('ур.', 'рів.', 'lvl')} ${a.lvl}</span>`;
   const owned = (G.s.bought || []).includes(a.id);
   return `<button class="getb" data-a="get" data-v="${a.id}">${meta.price && !owned ? fmt(meta.price) : T('ЗАГРУЗИТЬ', 'ЗАВАНТАЖИТИ', 'GET')}</button>`;
 }
@@ -34,7 +33,7 @@ function storeMain() {
   const pub = apps.filter((a) => !APP_META[a.id].secret);
   const secret = apps.filter((a) => APP_META[a.id].secret);
   const list = F.cat === 'all' ? pub : pub.filter((a) => APP_META[a.id].cat === F.cat);
-  const notInst = pub.filter((a) => !isInstalled(a.id) && (a.lvl || 1) <= G.s.level);
+  const notInst = pub.filter((a) => !isInstalled(a.id));
   const feat = notInst.find((a) => a.id === 'market') || notInst.find((a) => a.id === 'jobs') || notInst[0];
   return `${feat ? `<div class="sfeat" data-a="go" data-v="app" data-id="${feat.id}"><small>${T('СЕГОДНЯ РЕКОМЕНДУЕМ', 'СЬОГОДНІ РАДИМО', 'TODAY’S PICK')}</small><div class="row" style="gap:12px;margin-top:8px">${appIcon(feat, 64)}<div class="grow"><b style="font-size:20px">${esc(appName(feat))}</b><div class="small">${esc(L(APP_META[feat.id].desc))}</div></div></div></div>` : ''}
     <div class="chips">${['all', ...Object.keys(APP_CATS).filter((k) => k !== 'secret')].map((k) => `<button class="chip ${F.cat === k ? 'on' : ''}" data-a="scat" data-v="${k}">${k === 'all' ? T('Все', 'Усі', 'All') : esc(L(APP_CATS[k]))}</button>`).join('')}</div>
@@ -48,7 +47,7 @@ function storeApp(p) {
   if (!a || !meta) return empty('box', T('Нет такого приложения', 'Немає такого застосунку', 'No such app'));
   if (meta.secret && !vpnActive()) return empty('shield', T('Недоступно', 'Недоступно', 'Unavailable'), T('Включите VPN.', 'Увімкніть VPN.', 'Turn on the VPN.'));
   return `<div class="row" style="gap:14px;align-items:flex-start">${appIcon(a, 96)}<div class="grow"><h2 style="margin:0">${esc(appName(a))}</h2><div class="small m">${esc(L(APP_CATS[meta.cat]))}</div><div class="mt">${getBtn(a)}</div></div></div>
-    <div class="sstats"><div><b>${(meta.rating || 4.5).toFixed(1)}</b><small>★★★★★</small></div><div><b>${meta.mb || 40}</b><small>MB</small></div><div><b>${meta.price ? fmt(meta.price) : T('Бесплатно', 'Безкоштовно', 'Free')}</b><small>${T('цена', 'ціна', 'price')}</small></div><div><b>${a.lvl || 1}+</b><small>${T('уровень', 'рівень', 'level')}</small></div></div>
+    <div class="sstats"><div><b>${(meta.rating || 4.5).toFixed(1)}</b><small>★★★★★</small></div><div><b>${meta.mb || 40}</b><small>MB</small></div><div><b>${meta.price ? fmt(meta.price) : T('Бесплатно', 'Безкоштовно', 'Free')}</b><small>${T('цена', 'ціна', 'price')}</small></div><div><b>12+</b><small>${T('возраст', 'вік', 'age')}</small></div></div>
     <div class="card">${esc(L(meta.desc))}</div>
     ${isInstalled(a.id) && !isSystem(a.id) ? `<button class="btn red block mt" data-a="del" data-v="${a.id}">${T('Удалить приложение', 'Видалити застосунок', 'Remove app')}</button>` : ''}`;
 }
