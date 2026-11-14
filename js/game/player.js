@@ -142,6 +142,9 @@ export function garage() {
   const s = G.s;
   let g = houseDef().garage + 1; // +1 street parking
   for (const p of s.props) if (p.kind === 'showroom') g += 8;
+  // rented spaces (yard, underground, co‑op garage, car park, lawn) and a garage built on your own plot (parking.js)
+  const pk = s.park;
+  if (pk) { for (const sp of pk.spots || []) if (sp.st === 'active' && sp.kind !== 'build' && (!sp.city || sp.city === s.player.city)) g += sp.slots; if (s.house?.own && pk.built?.[s.house.homeId]) g += 2; }
   return g;
 }
 export const vehiclesOwned = () => G.s.inv.filter((i) => isVehicle(i) && !i.shop).length;
@@ -174,6 +177,7 @@ export function netWorth() {
   for (const it of s.inv) w += itemValue(it, it.loc || s.player.city, 'known') * 0.85;
   for (const p of s.props) if (p.own) w += p.value || 0;
   for (const h of s.homes || []) w += homeValue(h) * 0.9;
+  for (const sp of s.park?.spots || []) if (sp.own) w += (sp.value || 0) * 0.85;
   for (const d of s.bank.deposits) w += d.amt;
   for (const l of s.bank.loans) w -= l.left;
   for (const [tk, q] of Object.entries(s.stocks.hold)) w += q * (s.stocks.px[tk] || 0);

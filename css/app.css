@@ -1411,3 +1411,34 @@ body.hdrag #home, body.hdrag .hpage, body.hdrag #dockbar { touch-action: none; }
 .rg-strip button { position: absolute; left: 50%; bottom: -18px; width: 56px; height: 40px; margin-left: -28px; border-radius: 10px; background: #ffd166; color: #222; font-weight: 900; touch-action: none; }
 .rg-strip.torn { background: repeating-linear-gradient(135deg, #ff5468 0 6px, #ffd0d6 6px 12px); } .rg-strip.done { background: rgba(46,242,160,.5); }
 .rg-speed { position: absolute; left: 10%; right: 10%; bottom: 8px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; } .rg-speed i { display: block; height: 100%; width: 0; }
+
+/* parking */
+.pk-break { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; } .pk-break span { font-size: 12px; padding: 4px 9px; border-radius: 99px; background: rgba(127,127,127,.12); }
+.pk-off.off { opacity: .55; } .pk-off .row b:last-child { white-space: nowrap; }
+.pk-need { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; } .pk-need span { font-size: 11.5px; padding: 3px 8px; border-radius: 8px; background: rgba(77,163,255,.12); }
+.pk-docs { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.pk-doc { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; } .pk-doc small { display: block; font-size: 11px; opacity: .6; }
+
+/* car park plan */
+.pk-seen { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; font-size: 12.5px; } .pk-seen .y { color: #ffc94d; }
+.pm { border-radius: 18px; padding: 12px 10px 10px; margin-bottom: 12px; background: linear-gradient(180deg, #23262d, #17191e); border: 1px solid rgba(255,255,255,.08); }
+.pm-under { background: repeating-linear-gradient(90deg, rgba(255,255,255,.03) 0 2px, transparent 2px 60px), linear-gradient(180deg, #2a2d33, #15171b); }
+.pm-lot { background: linear-gradient(180deg, #3a3d42, #2a2c30); border: 2px dashed rgba(255,255,255,.18); }
+.pm-yard { background: linear-gradient(180deg, #3f4a3c, #2f3530); }
+.pm-gsk { background: linear-gradient(180deg, #4a3f35, #2c2620); }
+.pm-title { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; margin-bottom: 10px; color: #fff; } .pm-title small { font-weight: 500; opacity: .65; font-size: 12px; }
+.pm-row { display: grid; gap: 4px; }
+.pm-lane { height: 30px; display: grid; place-items: center; color: rgba(255,255,255,.22); letter-spacing: 14px; font-size: 13px; }
+.pm-bay { position: relative; aspect-ratio: 0.62; border-radius: 6px; border: 2px solid rgba(255,255,255,.28); border-bottom-color: transparent; background: rgba(0,0,0,.18); color: #fff; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; overflow: hidden; }
+.pm-bay small { position: absolute; left: 3px; top: 2px; font-size: 9px; opacity: .55; }
+.pm-bay b { font-size: 8.5px; letter-spacing: .02em; padding: 2px 3px; border-radius: 4px; line-height: 1.1; }
+.pm-car { width: 62%; height: 70%; border-radius: 9px 9px 7px 7px; box-shadow: inset 0 9px 0 rgba(255,255,255,.14), inset 0 -7px 0 rgba(0,0,0,.25), 0 2px 5px rgba(0,0,0,.45); }
+.pm-bay.rent { border-color: #2ef2a0; background: rgba(46,242,160,.14); } .pm-bay.rent b { background: #2ef2a0; color: #04121f; }
+.pm-bay.sale { border-color: #ffc94d; background: rgba(255,201,77,.14); } .pm-bay.sale b { background: #ffc94d; color: #2a1c00; }
+.pm-bay.mine { border-color: #4da3ff; background: rgba(77,163,255,.2); } .pm-bay.mine b { background: #4da3ff; color: #04121f; }
+.pm-bay.resv b { font-size: 16px; opacity: .6; } .pm-bay.away { border-style: dashed; opacity: .75; }
+.pm-bay.sel { box-shadow: 0 0 0 3px #fff; }
+.pm-gsk .pm-bay { aspect-ratio: 1; border: 2px solid rgba(0,0,0,.4); border-radius: 4px; background: repeating-linear-gradient(0deg, #8a7a66 0 6px, #7d6e5b 6px 12px); } .pm-gsk .pm-bay.busy .pm-car { display: none; } .pm-gsk .pm-bay.away { opacity: 1; border-style: solid; }
+.pm-gsk .pm-bay.rent { background: repeating-linear-gradient(0deg, #3f8a6a 0 6px, #35785b 6px 12px); } .pm-gsk .pm-bay.sale { background: repeating-linear-gradient(0deg, #b08a35 0 6px, #9c7a2c 6px 12px); } .pm-gsk .pm-bay.mine { background: repeating-linear-gradient(0deg, #3a6ea8 0 6px, #315f93 6px 12px); }
+.pm-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; font-size: 11px; color: rgba(255,255,255,.75); } .pm-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+.l-rent { background: #2ef2a0; } .l-sale { background: #ffc94d; } .l-away { border: 1.5px dashed rgba(255,255,255,.6); } .l-busy { background: #7a7f87; }
